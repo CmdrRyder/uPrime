@@ -12,7 +12,7 @@ Developed at the **Transient Fluid Mechanics Laboratory, Technion — Israel Ins
 
 - **Data loading** — 2D planar and stereo PIV auto-detected, up to 10,000+ snapshots
 - **Mean flow display** — contour maps of U, V, W, speed, vorticity, Std(U), Std(V) with interactive vector overlay
-- **Reynolds stresses** — all Rij components, 2D contour maps and line profiles, optional normalization by Um²
+- **Reynolds stresses** — all $R_{ij}$ components, 2D contour maps and line profiles, optional normalization by Um²
 - **Turbulent kinetic energy (TKE)** — 2D and full 3C formulations, contour maps and line profiles
 - **Temporal spectral analysis** — Welch PSD for u, v, w with Kolmogorov -5/3 reference line, point or rectangle selection
 - **Anisotropy invariant analysis** — Lumley triangle (-I₂ vs I₃) and barycentric RGB maps
