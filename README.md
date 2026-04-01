@@ -2,7 +2,7 @@
 
 ### *Because u' matters*
 
-**uPrime** is an open-source fluid velocity field analysis toolkit. It reads Tecplot `.dat` format files exported from DaVis (LaVision) or CFD solvers and provides a clean GUI for turbulence post-processing — no MATLAB required.
+**uPrime** is an open-source fluid velocity field analysis toolkit. It reads Tecplot `.dat` format files exported from DaVis (LaVision) or CFD solvers and provides a clean GUI for turbulence post-processing. No MATLAB or Python required.
 
 Developed at the **Transient Fluid Mechanics Laboratory, Technion — Israel Institute of Technology**.
 
