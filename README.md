@@ -1,4 +1,5 @@
 # uPrime
+[![DOI](https://zenodo.org/badge/1197739784.svg)](https://doi.org/10.5281/zenodo.19376184)
 
 ### *Because u' matters*
 
