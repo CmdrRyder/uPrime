@@ -93,8 +93,8 @@ python main.py
 
 Free for personal, academic, and research use with attribution. If used in published research, please cite:
 
-> Jibu Tom Jose, *uPrime — Open-source fluid velocity field analysis*, Technion (2026).
-> https://github.com/CmdrRyder/uPrime
+> Jibu Tom Jose, *uPrime — Open-source fluid velocity field analysis toolkit*, Technion (2026).  
+> https://doi.org/10.5281/zenodo.19376184
 
 Commercial use and redistribution are not permitted without explicit written permission.
 Full license: https://creativecommons.org/licenses/by-nc-nd/4.0/
