@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QDoubleSpinBox, QSpinBox, QGroupBox, QPushButton,
     QRadioButton, QButtonGroup, QCheckBox, QSizePolicy,
-    QMessageBox, QSplitter, QDoubleSpinBox
+    QMessageBox, QSplitter, QDoubleSpinBox, QFileDialog
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -28,6 +28,7 @@ from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 
 from core.spectral import psd_at_point, psd_in_region, nearest_grid_point
+from core.export import export_spectra_csv
 
 
 class SpectralWindow(QWidget):
@@ -185,6 +186,11 @@ class SpectralWindow(QWidget):
         self.btn_compute.setEnabled(False)
         self.btn_compute.clicked.connect(self._on_compute)
         ctrl_layout.addWidget(self.btn_compute)
+
+        self.btn_export = QPushButton("Export Spectrum...")
+        self.btn_export.setEnabled(False)
+        self.btn_export.clicked.connect(self._on_export_spectra)
+        ctrl_layout.addWidget(self.btn_export)
 
         self.lbl_status = QLabel("")
         self.lbl_status.setStyleSheet("color: gray; font-size: 11px;")
@@ -368,7 +374,14 @@ class SpectralWindow(QWidget):
                 )
                 title = f"Mean PSD over rectangle ({n_pts} points averaged)"
 
+            self._last_freq  = freq
+            self._last_psd   = psd
+            self._last_title = title
+            self._last_nperseg  = nperseg
+            self._last_noverlap = noverlap
+            self._last_n_pts    = n_pts
             self._plot_psd(freq, psd, title)
+            self.btn_export.setEnabled(True)
             self.lbl_status.setText(
                 f"Done. fs={fs:.0f} Hz, nperseg={nperseg}, "
                 f"noverlap={noverlap}, points={n_pts}"
@@ -430,3 +443,30 @@ class SpectralWindow(QWidget):
             ax.grid(True, which="both", alpha=0.3)
 
         self.psd_canvas.draw()
+
+    def _on_export_spectra(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Spectrum", "spectrum.csv", "CSV Files (*.csv)"
+        )
+        if not path:
+            return
+
+        sel = self._selection
+        settings = {
+            "Analysis"      : "Temporal Spectral Analysis (Welch)",
+            "Snapshots"     : self.dataset["Nt"],
+            "fs [Hz]"       : self.spin_fs.value(),
+            "nperseg"       : self._last_nperseg,
+            "noverlap"      : self._last_noverlap,
+            "Points averaged": self._last_n_pts,
+            "Selection type": sel["type"] if sel else "unknown",
+        }
+        if sel and sel["type"] == "point":
+            settings["Point x [mm]"] = f"{self._x[sel['row'], sel['col']]:.2f}"
+            settings["Point y [mm]"] = f"{self._y[sel['row'], sel['col']]:.2f}"
+        elif sel and sel["type"] == "rect":
+            settings["Rect x"] = f"[{min(sel['x0'],sel['x1']):.1f}, {max(sel['x0'],sel['x1']):.1f}] mm"
+            settings["Rect y"] = f"[{min(sel['y0'],sel['y1']):.1f}, {max(sel['y0'],sel['y1']):.1f}] mm"
+
+        export_spectra_csv(path, self._last_freq, self._last_psd, settings)
+        self.lbl_status.setText(f"Exported to {path}")

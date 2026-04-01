@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QGroupBox, QPushButton, QRadioButton, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QComboBox,
-    QDoubleSpinBox, QButtonGroup
+    QDoubleSpinBox, QButtonGroup, QFileDialog
 )
 from PyQt6.QtCore import Qt
 
@@ -25,12 +25,15 @@ import matplotlib
 matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
+from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
 from matplotlib.figure import Figure
 
-from core.reynolds_stress import compute_reynolds_stresses, extract_line_profile
+from core.reynolds_stress import compute_reynolds_stresses, extract_line_profile, compute_tke_std
+from gui.line_selector import LineSelectorWidget, compute_snapped_line
+from core.export import export_2d_tecplot, export_line_csv
 
 
-class TKEWindow(QWidget):
+class TKEWindow(PickerMixin, QWidget):
 
     def __init__(self, dataset, is_time_resolved=False, Nt_warn=2000,
                  duration_warn=9999, parent=None):
@@ -58,10 +61,14 @@ class TKEWindow(QWidget):
 
         self._k2d = 0.5 * (uu + vv)
         self._k3d = 0.5 * (uu + vv + ww) if ww is not None else None
+        self._k2d_std = compute_tke_std(dataset["U"], dataset["V"], dataset["W"], mode="2d")
+        self._k3d_std = compute_tke_std(dataset["U"], dataset["V"], dataset["W"], mode="3d") if ww is not None else None
 
         self._build_ui()
         self._draw_field()
         self._connect_mouse()
+        self._setup_picker(self.field_canvas, self.field_ax,
+                           status_label=self.lbl_status)
 
     # ----------------------------------------------------------------------- #
 
@@ -102,7 +109,7 @@ class TKEWindow(QWidget):
         self.field_canvas = FigureCanvas(self.field_fig)
         self.field_canvas.setSizePolicy(QSizePolicy.Policy.Expanding,
                                         QSizePolicy.Policy.Expanding)
-        self.field_toolbar = NavToolbar(self.field_canvas, self)
+        self.field_toolbar = DrawAwareToolbar(self.field_canvas, self)
         ll.addWidget(self.field_toolbar)
         ll.addWidget(self.field_canvas)
 
@@ -116,6 +123,11 @@ class TKEWindow(QWidget):
         mode_lay.addWidget(self.rb_contour)
         mode_lay.addWidget(self.rb_line)
         ll.addWidget(mode_grp)
+
+        # Line selection mode + spatial averaging
+        self.line_sel = LineSelectorWidget(show_avg=True)
+        self.line_sel.setVisible(False)
+        ll.addWidget(self.line_sel)
 
         self.lbl_hint = QLabel("Select TKE type and click 'Plot'.")
         self.lbl_hint.setStyleSheet("color: gray; font-size: 11px;")
@@ -165,6 +177,15 @@ class TKEWindow(QWidget):
         self.btn_plot.clicked.connect(self._on_plot)
         ll.addWidget(self.btn_plot)
 
+        self.chk_std_band = QCheckBox("Show ±1σ band on line plot")
+        self.chk_std_band.setChecked(True)
+        ll.addWidget(self.chk_std_band)
+
+        self.btn_export = QPushButton("Export Data...")
+        self.btn_export.clicked.connect(self._on_export)
+        self.btn_export.setEnabled(False)
+        ll.addWidget(self.btn_export)
+
         self.lbl_status = QLabel("")
         self.lbl_status.setStyleSheet("color: gray; font-size: 11px;")
         ll.addWidget(self.lbl_status)
@@ -178,7 +199,7 @@ class TKEWindow(QWidget):
         self.result_canvas = FigureCanvas(self.result_fig)
         self.result_canvas.setSizePolicy(QSizePolicy.Policy.Expanding,
                                          QSizePolicy.Policy.Expanding)
-        self.result_toolbar = NavToolbar(self.result_canvas, self)
+        self.result_toolbar = DrawAwareToolbar(self.result_canvas, self)
         rl.addWidget(self.result_toolbar)
         rl.addWidget(self.result_canvas)
 
@@ -224,10 +245,12 @@ class TKEWindow(QWidget):
             self._mode = "contour"
             self.btn_plot.setText("Plot")
             self.lbl_hint.setText("Select TKE type and click 'Plot'.")
+            self.line_sel.setVisible(False)
         else:
             self._mode = "line"
             self.btn_plot.setText("Plot")
-            self.lbl_hint.setText("Click and drag to draw a line on the field.")
+            self.line_sel.setVisible(True)
+            self.lbl_hint.setText(self.line_sel.hint_text())
         self._clear_graphics()
         self._selection = None
 
@@ -240,10 +263,13 @@ class TKEWindow(QWidget):
         if self._press_xy is None or event.inaxes != self.field_ax:
             return
         x0, y0 = self._press_xy
+        lmode = self.line_sel.get_mode() if self._mode == "line" else "free"
+        lx0, ly0, lx1, ly1 = compute_snapped_line(
+            self._x, self._y, x0, y0, event.xdata, event.ydata, lmode
+        )
         self._clear_graphics()
         self._line_artist, = self.field_ax.plot(
-            [x0, event.xdata], [y0, event.ydata],
-            "r-", linewidth=2, zorder=10
+            [lx0, lx1], [ly0, ly1], "r-", linewidth=2, zorder=10
         )
         self.field_canvas.draw()
 
@@ -256,13 +282,16 @@ class TKEWindow(QWidget):
         x0, y0 = self._press_xy
         x1, y1 = event.xdata, event.ydata
         self._press_xy = None
-        if abs(x1-x0) < 0.1 and abs(y1-y0) < 0.1:
+        lmode = self.line_sel.get_mode() if self._mode == "line" else "free"
+        lx0, ly0, lx1, ly1 = compute_snapped_line(
+            self._x, self._y, x0, y0, x1, y1, lmode
+        )
+        if abs(lx1-lx0) < 0.1 and abs(ly1-ly0) < 0.1:
             self.lbl_hint.setText("Line too short -- try again.")
             return
-        self._selection = {"x0": x0, "y0": y0, "x1": x1, "y1": y1}
+        self._selection = {"x0": lx0, "y0": ly0, "x1": lx1, "y1": ly1}
         self.lbl_hint.setText(
-            f"Line: ({x0:.1f},{y0:.1f}) -> ({x1:.1f},{y1:.1f}) mm  "
-            "-- click 'Plot'"
+            f"Line ({lmode}): ({lx0:.1f},{ly0:.1f}) -> ({lx1:.1f},{ly1:.1f}) mm"
         )
 
     def _clear_graphics(self):
@@ -323,19 +352,35 @@ class TKEWindow(QWidget):
         ax.set_title("Turbulent Kinetic Energy")
         ax.set_aspect("equal")
         ax.set_facecolor("white")
+        self._last_contour_k = k
         self.result_canvas.draw()
+        self.btn_export.setEnabled(True)
         self.lbl_status.setText("TKE contour plotted.")
 
     def _plot_line(self):
         k, label = self._get_tke_field()
-        sel = self._selection
+        tke_type  = self.combo_tke.currentData()
+        std_field = self._k3d_std if tke_type == "3d" and self._k3d_std is not None else self._k2d_std
+        scale     = 1.0 / (self.spin_um.value()**2) if self.chk_norm.isChecked() else 1.0
+        sel       = self._selection
+        show_band = self.chk_std_band.isChecked()
 
-        vals, dist, _, _ = extract_line_profile(
+        lmode    = self.line_sel.get_mode()
+        avg_band = self.line_sel.get_avg_band()
+        vals, dist, xpts, ypts = extract_line_profile(
             k, self._x, self._y,
-            sel["x0"], sel["y0"], sel["x1"], sel["y1"]
+            sel["x0"], sel["y0"], sel["x1"], sel["y1"],
+            mode=lmode, avg_band=avg_band
+        )
+        std_vals, _, _, _ = extract_line_profile(
+            std_field * scale, self._x, self._y,
+            sel["x0"], sel["y0"], sel["x1"], sel["y1"],
+            mode=lmode, avg_band=avg_band
         )
 
         valid = np.isfinite(vals)
+        self._last_line_data = {"dist": dist, "xpts": xpts, "ypts": ypts,
+                                 "vals": vals, "std_vals": std_vals, "label": label}
 
         self.result_fig.clear()
         ax = self.result_fig.add_subplot(111)
@@ -343,15 +388,57 @@ class TKEWindow(QWidget):
         if np.any(valid):
             ax.plot(dist[valid], vals[valid], color="tab:blue",
                     linewidth=1.8, label="TKE")
+            if show_band:
+                ax.fill_between(dist[valid],
+                                vals[valid] - std_vals[valid],
+                                vals[valid] + std_vals[valid],
+                                alpha=0.2, color="tab:blue")
             ax.axhline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
             ax.set_xlabel("Distance along line [mm]")
             ax.set_ylabel(label)
             ax.set_title("TKE Profile Along Line")
             ax.legend(fontsize=9)
             ax.grid(True, alpha=0.3)
+            self.btn_export.setEnabled(True)
         else:
             ax.text(0.5, 0.5, "No valid data along line",
                     transform=ax.transAxes, ha="center", va="center")
 
         self.result_canvas.draw()
         self.lbl_status.setText("TKE line profile plotted.")
+
+    def _on_export(self):
+        k, label = self._get_tke_field()
+        tke_type = self.combo_tke.currentData()
+        scale    = 1.0 / (self.spin_um.value()**2) if self.chk_norm.isChecked() else 1.0
+        is_line  = self._mode == "line"
+
+        settings = {
+            "Analysis"    : f"TKE - {'3C' if tke_type == '3d' else '2D'}",
+            "Snapshots"   : self.dataset["Nt"],
+            "Grid"        : f"{self.dataset['nx']} x {self.dataset['ny']}",
+            "Normalized"  : f"Yes, Um={self.spin_um.value():.3f} m/s" if self.chk_norm.isChecked() else "No",
+        }
+
+        if is_line:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Export TKE Line Profile", "tke_line.csv", "CSV Files (*.csv)"
+            )
+            if not path:
+                return
+            ld = self._last_line_data
+            export_line_csv(path, ld["dist"], ld["xpts"], ld["ypts"],
+                            {"TKE": ld["vals"]}, {"TKE": ld["std_vals"]}, settings)
+        else:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Export TKE 2D Field", "tke_2d.dat",
+                "Tecplot DAT (*.dat);;CSV Files (*.csv)"
+            )
+            if not path:
+                return
+            field = self._last_contour_k.copy()
+            valid_frac = np.mean(self.dataset["valid"], axis=2)
+            field[valid_frac < 0.5] = np.nan
+            export_2d_tecplot(path, self._x, self._y, [field], [label], settings)
+
+        self.lbl_status.setText(f"Exported to {path}")

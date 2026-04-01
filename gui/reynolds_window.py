@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QGroupBox, QPushButton, QRadioButton, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QComboBox,
-    QDoubleSpinBox, QButtonGroup
+    QDoubleSpinBox, QButtonGroup, QFileDialog
 )
 from PyQt6.QtCore import Qt
 
@@ -25,10 +25,14 @@ import matplotlib
 matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
+from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 
-from core.reynolds_stress import compute_reynolds_stresses, extract_line_profile
+from core.reynolds_stress import (compute_reynolds_stresses, extract_line_profile,
+                                   compute_reynolds_stress_std)
+from core.export import export_2d_tecplot, export_line_csv
+from gui.line_selector import LineSelectorWidget, compute_snapped_line
 
 
 # Component display names and labels
@@ -46,14 +50,14 @@ COMP_COLORS = {
 }
 
 
-class ReynoldsWindow(QWidget):
+class ReynoldsWindow(PickerMixin, QWidget):
 
     def __init__(self, dataset, is_time_resolved=False, Nt_warn=2000,
                  duration_warn=2.0, parent=None):
         super().__init__(parent)
         self.dataset   = dataset
         self.setWindowTitle("Reynolds Stress Analysis")
-        self.resize(1400, 780)
+        self.resize(1700, 900)
 
         self._mode       = "contour"
         self._press_xy   = None
@@ -67,11 +71,18 @@ class ReynoldsWindow(QWidget):
         self._stresses, self._k = compute_reynolds_stresses(
             dataset["U"], dataset["V"], dataset["W"]
         )
+        self._std = compute_reynolds_stress_std(
+            dataset["U"], dataset["V"], dataset["W"]
+        )
         self._available = [k for k, v in self._stresses.items() if v is not None]
 
         self._build_ui()
         self._draw_field()
         self._connect_mouse()
+        self._setup_picker(self.field_canvas, self.field_ax,
+                           result_canvas=self.result_canvas,
+                           result_ax=None,
+                           status_label=self.lbl_status)
 
     # ----------------------------------------------------------------------- #
 
@@ -108,15 +119,15 @@ class ReynoldsWindow(QWidget):
         ll.setContentsMargins(4, 4, 4, 4)
         ll.setSpacing(6)
 
-        self.field_fig    = Figure(figsize=(6, 4), tight_layout=True)
+        self.field_fig    = Figure()
         self.field_canvas = FigureCanvas(self.field_fig)
         self.field_canvas.setSizePolicy(QSizePolicy.Policy.Expanding,
                                         QSizePolicy.Policy.Expanding)
-        self.field_toolbar = NavToolbar(self.field_canvas, self)
+        self.field_toolbar = DrawAwareToolbar(self.field_canvas, self)
         ll.addWidget(self.field_toolbar)
         ll.addWidget(self.field_canvas)
 
-        # Mode selector
+        # Plot mode (contour vs line)
         mode_grp = QGroupBox("Plot Mode")
         mode_lay = QHBoxLayout(mode_grp)
         self.rb_contour = QRadioButton("2D Contour Map")
@@ -126,6 +137,11 @@ class ReynoldsWindow(QWidget):
         mode_lay.addWidget(self.rb_contour)
         mode_lay.addWidget(self.rb_line)
         ll.addWidget(mode_grp)
+
+        # Line selection mode + spatial averaging
+        self.line_sel = LineSelectorWidget(show_avg=True)
+        self.line_sel.setVisible(False)
+        ll.addWidget(self.line_sel)
 
         self.lbl_hint = QLabel("Select component and click 'Plot Contour'.")
         self.lbl_hint.setStyleSheet("color: gray; font-size: 11px;")
@@ -186,6 +202,17 @@ class ReynoldsWindow(QWidget):
         self.btn_plot.clicked.connect(self._on_plot)
         ll.addWidget(self.btn_plot)
 
+        # Std dev band option (line mode only)
+        self.chk_std_band = QCheckBox("Show ±1σ band on line plot")
+        self.chk_std_band.setChecked(True)
+        ll.addWidget(self.chk_std_band)
+
+        # Export button
+        self.btn_export = QPushButton("Export Data...")
+        self.btn_export.clicked.connect(self._on_export)
+        self.btn_export.setEnabled(False)
+        ll.addWidget(self.btn_export)
+
         self.lbl_status = QLabel("")
         self.lbl_status.setStyleSheet("color: gray; font-size: 11px;")
         ll.addWidget(self.lbl_status)
@@ -199,14 +226,13 @@ class ReynoldsWindow(QWidget):
         self.result_canvas = FigureCanvas(self.result_fig)
         self.result_canvas.setSizePolicy(QSizePolicy.Policy.Expanding,
                                          QSizePolicy.Policy.Expanding)
-        self.result_toolbar = NavToolbar(self.result_canvas, self)
+        self.result_toolbar = DrawAwareToolbar(self.result_canvas, self)
         rl.addWidget(self.result_toolbar)
         rl.addWidget(self.result_canvas)
 
         splitter.addWidget(left)
         splitter.addWidget(right)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([920, 780])
 
     # ----------------------------------------------------------------------- #
 
@@ -223,8 +249,7 @@ class ReynoldsWindow(QWidget):
 
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
-        cf = self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
-        self.field_fig.colorbar(cf, ax=self.field_ax, label="Mean |V| [m/s]", shrink=0.8)
+        self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
         self.field_ax.set_xlabel("x [mm]")
         self.field_ax.set_ylabel("y [mm]")
         self.field_ax.set_title("Draw a line for profile mode")
@@ -250,12 +275,14 @@ class ReynoldsWindow(QWidget):
             self.lbl_hint.setText("Select component and click 'Plot Contour'.")
             self.line_comp_grp.setVisible(False)
             self.combo_comp.setVisible(True)
+            self.line_sel.setVisible(False)
         else:
             self._mode = "line"
             self.btn_plot.setText("Plot Line Profile")
-            self.lbl_hint.setText("Click and drag to draw a line on the field.")
+            self.lbl_hint.setText(self.line_sel.hint_text())
             self.line_comp_grp.setVisible(True)
             self.combo_comp.setVisible(False)
+            self.line_sel.setVisible(True)
         self._clear_graphics()
         self._selection = None
 
@@ -268,10 +295,13 @@ class ReynoldsWindow(QWidget):
         if self._press_xy is None or event.inaxes != self.field_ax:
             return
         x0, y0 = self._press_xy
+        lmode = self.line_sel.get_mode() if self._mode == "line" else "free"
+        lx0, ly0, lx1, ly1 = compute_snapped_line(
+            self._x, self._y, x0, y0, event.xdata, event.ydata, lmode
+        )
         self._clear_graphics()
         self._line_artist, = self.field_ax.plot(
-            [x0, event.xdata], [y0, event.ydata],
-            "r-", linewidth=2, zorder=10
+            [lx0, lx1], [ly0, ly1], "r-", linewidth=2, zorder=10
         )
         self.field_canvas.draw()
 
@@ -284,13 +314,16 @@ class ReynoldsWindow(QWidget):
         x0, y0 = self._press_xy
         x1, y1 = event.xdata, event.ydata
         self._press_xy = None
-        if abs(x1-x0) < 0.1 and abs(y1-y0) < 0.1:
+        lmode = self.line_sel.get_mode() if self._mode == "line" else "free"
+        lx0, ly0, lx1, ly1 = compute_snapped_line(
+            self._x, self._y, x0, y0, x1, y1, lmode
+        )
+        if abs(lx1-lx0) < 0.1 and abs(ly1-ly0) < 0.1:
             self.lbl_hint.setText("Line too short -- try again.")
             return
-        self._selection = {"x0": x0, "y0": y0, "x1": x1, "y1": y1}
+        self._selection = {"x0": lx0, "y0": ly0, "x1": lx1, "y1": ly1}
         self.lbl_hint.setText(
-            f"Line: ({x0:.1f},{y0:.1f}) -> ({x1:.1f},{y1:.1f}) mm  "
-            "-- click 'Plot Line Profile'"
+            f"Line ({lmode}): ({lx0:.1f},{ly0:.1f}) -> ({lx1:.1f},{ly1:.1f}) mm"
         )
 
     def _clear_graphics(self):
@@ -349,16 +382,23 @@ class ReynoldsWindow(QWidget):
         ax.set_aspect("equal")
         ax.set_facecolor("white")
         self.result_canvas.draw()
+        self._last_contour_comp = comp
+        self.btn_export.setEnabled(True)
         self.lbl_status.setText(f"Plotted contour: {comp}")
 
     def _plot_line(self):
         sel   = self._selection
         scale, unit_str = self._scale_factor()
+        show_band = self.chk_std_band.isChecked()
 
         self.result_fig.clear()
         ax = self.result_fig.add_subplot(111)
 
         plotted = False
+        # Store for export
+        self._last_line_data = {"dist": None, "xpts": None, "ypts": None,
+                                 "means": {}, "stds": {}}
+
         for comp, chk in self.comp_chks.items():
             if not chk.isChecked():
                 continue
@@ -366,20 +406,42 @@ class ReynoldsWindow(QWidget):
             if field is None:
                 continue
 
-            vals, dist, _, _ = extract_line_profile(
-                field * scale,
-                self._x, self._y,
-                sel["x0"], sel["y0"], sel["x1"], sel["y1"]
+            lmode    = self.line_sel.get_mode()
+            avg_band = self.line_sel.get_avg_band()
+            vals, dist, xpts, ypts = extract_line_profile(
+                field * scale, self._x, self._y,
+                sel["x0"], sel["y0"], sel["x1"], sel["y1"],
+                mode=lmode, avg_band=avg_band
             )
+
+            std_field = self._std.get(comp)
+            std_vals = None
+            if std_field is not None:
+                std_vals, _, _, _ = extract_line_profile(
+                    std_field * scale, self._x, self._y,
+                    sel["x0"], sel["y0"], sel["x1"], sel["y1"],
+                    mode=lmode, avg_band=avg_band
+                )
 
             valid = np.isfinite(vals)
             if not np.any(valid):
                 continue
 
-            ax.plot(dist[valid], vals[valid],
-                    color=COMP_COLORS[comp],
-                    label=COMP_LABELS.get(comp, comp),
-                    linewidth=1.5)
+            color = COMP_COLORS[comp]
+            ax.plot(dist[valid], vals[valid], color=color,
+                    label=COMP_LABELS.get(comp, comp), linewidth=1.5)
+
+            if show_band and std_vals is not None:
+                ax.fill_between(dist[valid],
+                                vals[valid] - std_vals[valid],
+                                vals[valid] + std_vals[valid],
+                                alpha=0.2, color=color)
+
+            self._last_line_data["dist"]  = dist
+            self._last_line_data["xpts"]  = xpts
+            self._last_line_data["ypts"]  = ypts
+            self._last_line_data["means"][comp] = vals
+            self._last_line_data["stds"][comp]  = std_vals
             plotted = True
 
         if not plotted:
@@ -392,6 +454,54 @@ class ReynoldsWindow(QWidget):
             ax.set_title("Reynolds Stress Profile Along Line")
             ax.legend(fontsize=9)
             ax.grid(True, alpha=0.3)
+            self.btn_export.setEnabled(True)
 
         self.result_canvas.draw()
         self.lbl_status.setText("Plotted line profile.")
+
+    def _on_export(self):
+        scale, unit_str = self._scale_factor()
+        is_line = self._mode == "line"
+
+        if is_line:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Export Line Profile", "reynolds_line.csv",
+                "CSV Files (*.csv)"
+            )
+            if not path:
+                return
+
+            ld = self._last_line_data
+            settings = {
+                "Analysis"    : "Reynolds Stress - Line Profile",
+                "Snapshots"   : self.dataset["Nt"],
+                "Grid"        : f"{self.dataset['nx']} x {self.dataset['ny']}",
+                "Scaled by Um": f"Yes, Um={self.spin_um.value():.3f} m/s" if self.chk_scale.isChecked() else "No",
+                "Std dev band": "1-sigma shown" if self.chk_std_band.isChecked() else "Not shown",
+            }
+            export_line_csv(path, ld["dist"], ld["xpts"], ld["ypts"],
+                            ld["means"], ld["stds"], settings)
+            self.lbl_status.setText(f"Exported to {path}")
+
+        else:
+            path, ftype = QFileDialog.getSaveFileName(
+                self, "Export 2D Field", "reynolds_2d.dat",
+                "Tecplot DAT (*.dat);;CSV Files (*.csv)"
+            )
+            if not path:
+                return
+
+            comp  = self._last_contour_comp
+            field = self._stresses[comp].copy() * scale
+            valid_frac = np.mean(self.dataset["valid"], axis=2)
+            field[valid_frac < 0.5] = np.nan
+
+            settings = {
+                "Analysis"    : f"Reynolds Stress 2D - {comp}",
+                "Snapshots"   : self.dataset["Nt"],
+                "Grid"        : f"{self.dataset['nx']} x {self.dataset['ny']}",
+                "Scaled by Um": f"Yes, Um={self.spin_um.value():.3f} m/s" if self.chk_scale.isChecked() else "No",
+            }
+            export_2d_tecplot(path, self._x, self._y,
+                              [field], [f"{comp} {unit_str}"], settings)
+            self.lbl_status.setText(f"Exported to {path}")

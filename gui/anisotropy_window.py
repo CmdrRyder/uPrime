@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QGroupBox, QPushButton, QRadioButton,
     QSizePolicy, QMessageBox, QSplitter, QTabWidget,
-    QSpinBox, QCheckBox
+    QSpinBox, QCheckBox, QFileDialog
 )
 from PyQt6.QtCore import Qt
 
@@ -22,10 +22,12 @@ import matplotlib
 matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
+from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 from matplotlib.lines import Line2D
 
+from core.export import export_2d_tecplot, export_line_csv
 from core.anisotropy import (
     compute_reynolds_tensor,
     compute_anisotropy_tensor,
@@ -35,7 +37,7 @@ from core.anisotropy import (
 )
 
 
-class AnisotropyWindow(QWidget):
+class AnisotropyWindow(PickerMixin, QWidget):
 
     def __init__(self, dataset, parent=None):
         super().__init__(parent)
@@ -98,7 +100,7 @@ class AnisotropyWindow(QWidget):
         self.field_canvas = FigureCanvas(self.field_fig)
         self.field_canvas.setSizePolicy(QSizePolicy.Policy.Expanding,
                                         QSizePolicy.Policy.Expanding)
-        self.field_toolbar = NavToolbar(self.field_canvas, self)
+        self.field_toolbar = DrawAwareToolbar(self.field_canvas, self)
         ll.addWidget(self.field_toolbar)
         ll.addWidget(self.field_canvas)
 
@@ -121,6 +123,11 @@ class AnisotropyWindow(QWidget):
         self.btn_compute.setEnabled(False)
         self.btn_compute.clicked.connect(self._on_compute)
         ll.addWidget(self.btn_compute)
+
+        self.btn_export = QPushButton("Export Data...")
+        self.btn_export.setEnabled(False)
+        self.btn_export.clicked.connect(self._on_export)
+        ll.addWidget(self.btn_export)
 
         # Median filter smoothing
         smooth_grp = QGroupBox("Smoothing")
@@ -230,6 +237,8 @@ class AnisotropyWindow(QWidget):
 
     def _on_press(self, event):
         if event.inaxes != self.field_ax:
+            return
+        if hasattr(self, 'field_toolbar') and str(self.field_toolbar.mode) != '':
             return
         self._press_xy = (event.xdata, event.ydata)
 
@@ -387,6 +396,9 @@ class AnisotropyWindow(QWidget):
         ax.set_title(f"Lumley Triangle  ({len(neg_II)} points along line)")
         ax.grid(True, alpha=0.3)
 
+        self._last_result = {"type": "line", "rows": rows, "cols": cols,
+                              "dist": dist, "neg_II": neg_II, "III": III}
+        self.btn_export.setEnabled(True)
         self.lumley_canvas.draw()
 
     def _draw_lumley_boundary(self, ax):
@@ -545,3 +557,65 @@ class AnisotropyWindow(QWidget):
         self.lbl_status.setText(
             f"Done. {mask.sum()} points in rectangle."
         )
+
+    def _on_export(self):
+        if not hasattr(self, "_last_result"):
+            return
+        res = self._last_result
+
+        if res["type"] == "line":
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Export Lumley Data", "lumley_line.csv", "CSV Files (*.csv)"
+            )
+            if not path:
+                return
+            settings = {
+                "Analysis"  : "Anisotropy Invariants - Line",
+                "Snapshots" : self.dataset["Nt"],
+                "Grid"      : f"{self.dataset['nx']} x {self.dataset['ny']}",
+            }
+            import numpy as np
+            dist  = res["dist"]
+            xpts  = self._x[res["rows"], res["cols"]]
+            ypts  = self._y[res["rows"], res["cols"]]
+            neg_II = res["neg_II"]
+            I3     = res["III"]
+            export_line_csv(path, dist, xpts, ypts,
+                            {"-I2": neg_II, "I3": I3}, {}, settings)
+            self.lbl_status.setText(f"Exported to {path}")
+
+        else:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Export Barycentric Map", "barycentric.dat",
+                "Tecplot DAT (*.dat)"
+            )
+            if not path:
+                return
+            settings = {
+                "Analysis"  : "Anisotropy Invariants - Barycentric",
+                "Snapshots" : self.dataset["Nt"],
+                "Grid"      : f"{self.dataset['nx']} x {self.dataset['ny']}",
+            }
+            import numpy as np
+            mask = res["mask"]
+            r0, r1, c0, c1 = res["r0"], res["r1"], res["c0"], res["c1"]
+            x_sub = self._x[r0:r1, c0:c1]
+            y_sub = self._y[r0:r1, c0:c1]
+
+            neg_I2_f, I3_f = self._get_smooth_fields()
+            C1c, C2c, C3c, _ = compute_barycentric(self._b[r0:r1, c0:c1])
+
+            neg_I2_sub = neg_I2_f[r0:r1, c0:c1].copy()
+            I3_sub     = I3_f[r0:r1, c0:c1].copy()
+
+            mask_sub = mask[r0:r1, c0:c1]
+            for arr in [neg_I2_sub, I3_sub, C1c, C2c, C3c]:
+                arr[~mask_sub] = np.nan
+
+            export_2d_tecplot(
+                path, x_sub, y_sub,
+                [neg_I2_sub, I3_sub, C1c, C2c, C3c],
+                ["-I2", "I3", "C1c_1comp", "C2c_2comp", "C3c_isotropic"],
+                settings
+            )
+            self.lbl_status.setText(f"Exported to {path}")
