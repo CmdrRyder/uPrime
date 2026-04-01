@@ -8,27 +8,27 @@ Developed at the **Transient Fluid Mechanics Laboratory, Technion — Israel Ins
 
 ---
 
-## Current Features (v0.1 Alpha)
+## Current Features (uPrime v0.2 Alpha)
 
 - **Data loading** — 2D planar and stereo PIV auto-detected, up to 10,000+ snapshots
 - **Mean flow display** — contour maps of U, V, W, speed, vorticity, Std(U), Std(V) with interactive vector overlay
-- **Reynolds stresses** — all $R_{ij}$ components, 2D contour maps and line profiles, optional normalization by Um²
+- **Reynolds stresses** — all $R_{ij}$ components, 2D contour maps and line profiles, optional normalization by $U_m²$
 - **Turbulent kinetic energy (TKE)** — 2D and full 3C formulations, contour maps and line profiles
-- **Temporal spectral analysis** — Welch PSD for u, v, w with Kolmogorov -5/3 reference line, point or rectangle selection
+- **TKE budget** — production, transport, and related terms with configurable parameters and smoothing options
+- **Spectral analysis (temporal & spatial)** — Welch PSD and spatial spectra for u, v, w with Kolmogorov -5/3 reference line
+- **Correlation analysis** — two-point spatial and temporal correlation (point / ROI based), contour maps and 1D slices
 - **Anisotropy invariant analysis** — Lumley triangle (-I₂ vs I₃) and barycentric RGB maps
-- **Convergence warnings** — automatic alerts for under-sampled datasets
+- **Flexible evaluation modes** — results can be obtained at a point, along lines, over user-defined ROIs, or across the full field
+- **Data export** — plots saved as CSV, 2D contour fields exported as Tecplot-compatible ASCII `.dat` files
+- **Configurable analysis settings** — module-specific parameter panels for spectral, budget, and correlation calculations
 
 ---
 
 ## Coming Soon
 
-- Spatial spectra
 - POD (Proper Orthogonal Decomposition)
 - FTLE (Finite-Time Lyapunov Exponents)
-- TKE budget (production, dissipation, diffusion, convection)
 - DMD (Dynamic Mode Decomposition)
-- Export results to CSV / HDF5
-- Cross-correlation and two-point statistics
 - Phase averaging for cyclic data
 - Linux and macOS support
 
@@ -37,6 +37,7 @@ Developed at the **Transient Fluid Mechanics Laboratory, Technion — Israel Ins
 ## Input Format
 
 uPrime reads **Tecplot ASCII `.dat` files** with the following structure:
+
 
 ```
 TITLE = "filename"
@@ -53,11 +54,12 @@ Compatible with **LaVision DaVis** exports and any CFD post-processor that write
 
 ---
 
+
 ## Installation
 
 ### Option 1 — Windows standalone `.exe` (recommended)
 
-Download `uPrime_v0.1.exe` from the [Releases](https://github.com/CmdrRyder/uPrime/releases) page. No Python installation needed. Just download and run.
+Download `uPrime_v0.2.exe` from the [Releases](https://github.com/CmdrRyder/uPrime/releases) page. No Python installation needed. Just download and run.
 
 > **Note:** Windows Defender may flag the `.exe` on first run. Click "More info" → "Run anyway". This is normal for PyInstaller executables.
 
