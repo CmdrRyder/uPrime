@@ -1,0 +1,48 @@
+name: Build test binaries
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onedir --windowed \
+            --name uPrime_v0.2_${{ matrix.os }} \
+            --add-data "gui:gui" \
+            --add-data "core:core" \
+            --hidden-import "matplotlib.backends.backend_qtagg" \
+            --hidden-import "PyQt6.QtCore" \
+            --hidden-import "PyQt6.QtWidgets" \
+            --hidden-import "PyQt6.QtGui" \
+            --hidden-import "scipy.signal" \
+            --hidden-import "scipy.ndimage" \
+            --hidden-import "scipy.linalg" \
+            main.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uPrime-${{ matrix.os }}
+          path: dist/
