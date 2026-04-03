@@ -34,11 +34,12 @@ No installation required.
 
 ### Run from source
 
+```bash
 git clone https://github.com/CmdrRyder/uPrime.git
 cd uPrime
 pip install -r requirements.txt
 python main.py
-
+```
 ---
 
 ## ⚡ Quick Start
