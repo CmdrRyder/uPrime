@@ -137,7 +137,7 @@ uPrime/
 
 If uPrime contributes to published research, please cite:
 
-> Jibu Tom Jose. *uPrime: Open-source PIV post-processing toolkit*. Transient Fluid Mechanics Laboratory, Technion, 2026. https://doi.org/10.5281/zenodo.19376184
+> Jibu Tom Jose. *uPrime: Open-source PIV/CFD post-processing toolkit*. Transient Fluid Mechanics Laboratory, Technion, 2026. https://doi.org/10.5281/zenodo.19376184
 
 ---
 
