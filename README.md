@@ -16,8 +16,7 @@ Developed at the **Transient Fluid Mechanics Laboratory, Technion — Israel Ins
 ## Interface
 
 <!-- Add screenshot here -->
-![uPrime GUI](docs/screenshot_main.png)
-
+![GUI](docs/images/gui.png)
 > The interface is organized around a central visualization panel with modular analysis windows that can be opened and compared simultaneously.
 
 ---
@@ -38,6 +37,16 @@ Developed at the **Transient Fluid Mechanics Laboratory, Technion — Israel Ins
 All analyses open in separate windows so you can compare results side by side. Every result can be exported to Tecplot `.dat` or `.csv`.
 
 ---
+
+## Example Results
+
+### Reynolds Stress Analysis
+![Reynolds](docs/images/reynolds.png)
+
+### Space–Time Spectral Analysis
+![Spectra](docs/images/spectra.png)
+
+--
 
 ## Installation
 
