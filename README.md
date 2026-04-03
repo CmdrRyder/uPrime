@@ -188,10 +188,21 @@ For major changes, please open an issue first to discuss the proposed addition.
 
 ---
 
+## Development Philosophy
+
+uPrime is developed and maintained by the Transient Fluid Mechanics Laboratory (TFML), Technion.
+
+To ensure consistency and reliability, we encourage new features and extensions to be integrated within the main repository rather than maintained as separate forks.
+
+---
+
 ## License
 
-**CC BY-NC-ND 4.0** — Free for personal, academic, and research use with attribution. Commercial use and redistribution require explicit written permission.  
-Full license: https://creativecommons.org/licenses/by-nc-nd/4.0/
+This project is licensed under the GNU General Public License v3.0 (GPLv3).
+
+This ensures that any modifications or derivative works remain open-source and properly attribute the original work.
+
+Full license text: https://www.gnu.org/licenses/gpl-3.0.en.html
 
 ---
 
