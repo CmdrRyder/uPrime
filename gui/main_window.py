@@ -735,7 +735,7 @@ class MainWindow(PickerMixin, QMainWindow):
         gh = QLabel(
             "GitHub: <i>github.com/CmdrRyder/uPrime</i><br>"
             "DOI: <i>https://doi.org/10.5281/zenodo.19376184</i><br>"
-            "Licensed under CC BY-NC-ND 4.0<br>"
+            "Licensed under GNU GPL v3<br>"
             "Cite: Jibu Tom Jose, uPrime, Technion (2026)"
         )
         gh.setWordWrap(True)
