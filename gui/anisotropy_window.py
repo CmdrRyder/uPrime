@@ -68,6 +68,8 @@ class AnisotropyWindow(PickerMixin, QWidget):
             )
         self._draw_field()
         self._connect_mouse()
+        self._setup_picker(self.field_canvas, self.field_ax,
+                           status_label=self.lbl_status)
 
     # ----------------------------------------------------------------------- #
     # Pre-computation
@@ -214,10 +216,15 @@ class AnisotropyWindow(PickerMixin, QWidget):
 
         self._x = x
         self._y = y
+        self._last_field_values = speed
 
     # ----------------------------------------------------------------------- #
     # Mouse
     # ----------------------------------------------------------------------- #
+
+    def _drawing_active(self):
+        """Suppress PickerMixin red-cross; anisotropy window manages all clicks."""
+        return True
 
     def _connect_mouse(self):
         self.field_canvas.mpl_connect("button_press_event",   self._on_press)
@@ -227,10 +234,12 @@ class AnisotropyWindow(PickerMixin, QWidget):
     def _on_mode_changed(self):
         if self.rb_line.isChecked():
             self._mode = "line"
-            self.lbl_hint.setText("Click and drag to draw a line.")
+            self.lbl_hint.setText(
+                "Left-click+drag to draw a line (Lumley triangle).")
         else:
             self._mode = "rect"
-            self.lbl_hint.setText("Click and drag to draw a rectangle.")
+            self.lbl_hint.setText(
+                "Left-click+drag to draw a rectangle (Barycentric map).")
         self._clear_graphics()
         self._selection = None
         self.btn_compute.setEnabled(False)
@@ -238,7 +247,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
     def _on_press(self, event):
         if event.inaxes != self.field_ax:
             return
-        if hasattr(self, 'field_toolbar') and str(self.field_toolbar.mode) != '':
+        if self._toolbar_active(self.field_toolbar):
             return
         self._press_xy = (event.xdata, event.ydata)
 
@@ -257,8 +266,9 @@ class AnisotropyWindow(PickerMixin, QWidget):
             self._rect_patch = Rectangle(
                 (min(x0, x1), min(y0, y1)),
                 abs(x1 - x0), abs(y1 - y0),
-                linewidth=1.5, edgecolor="red",
-                facecolor="red", alpha=0.15, zorder=10
+                linewidth=1.5, edgecolor="#e8a000",
+                facecolor="#ffe066", alpha=0.25,
+                linestyle="--", zorder=10
             )
             self.field_ax.add_patch(self._rect_patch)
 

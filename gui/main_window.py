@@ -23,13 +23,15 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
 
 from core.loader import load_dataset
-from gui.spectral_window import SpectralWindow
+from core.transform import transform_status_string
 from gui.anisotropy_window import AnisotropyWindow
 from gui.reynolds_window import ReynoldsWindow
 from gui.tke_window import TKEWindow
 from gui.tke_budget_window import TKEBudgetWindow
-from gui.spatial_spectra_window import SpatialSpectraWindow
+from gui.spectra_window import SpectraWindow
 from gui.correlation_window import CorrelationWindow
+from gui.pod_window import PODWindow
+from gui.transform_window import TransformWindow
 from gui.arrow_toolbar import PickerMixin, DrawAwareToolbar
 
 
@@ -86,7 +88,7 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("uPrime")
+        self.setWindowTitle("uPrime v0.3")
         self.setMinimumSize(1100, 650)
         self.resize(1400, 820)
         self.dataset       = None
@@ -198,10 +200,10 @@ class MainWindow(PickerMixin, QMainWindow):
         analyses = [
             ("📊  Reynolds Stresses",      self._run_reynolds),
             ("⚡  TKE Budget",             self._run_tke_budget),
-            ("〜  Spectral (Temporal)",    self._run_spectral_temporal),
-            ("∿  Spectral (Spatial)",     self._run_spectral_spatial),
+            ("〜  Space-Time Spectra",     self._run_spectra),
             ("△  Anisotropy Invariants",  self._run_anisotropy),
             ("⟺  Correlation Analysis",   self._run_correlation),
+            ("◈  POD Analysis",            self._run_pod),
         ]
         self._analysis_btns = []
         for label, slot in analyses:
@@ -212,6 +214,18 @@ class MainWindow(PickerMixin, QMainWindow):
             self._analysis_btns.append(btn)
 
         sl.addWidget(self.analysis_group)
+
+        sl.addWidget(self._separator())
+
+        # -- 5. Data Transform --
+        self.transform_group = QGroupBox("5. Align / Transform")
+        self.transform_group.setVisible(False)
+        tr_lay = QVBoxLayout(self.transform_group)
+        self.btn_transform = QPushButton("\u21ba  Transform / Align...")
+        self.btn_transform.clicked.connect(self._run_transform)
+        self.btn_transform.setStyleSheet("text-align: left; padding: 4px 8px;")
+        tr_lay.addWidget(self.btn_transform)
+        sl.addWidget(self.transform_group)
 
         sl.addStretch()
 
@@ -282,6 +296,25 @@ class MainWindow(PickerMixin, QMainWindow):
         opts.addStretch()
 
         right_lay.addWidget(self.options_strip)
+
+        # -- Transform status strip (hidden until a transform is applied) --
+        self.transform_strip = QWidget()
+        self.transform_strip.setVisible(False)
+        self.transform_strip.setStyleSheet(
+            "background:#0e0e1a; border-left:3px solid #e06c75;"
+            "border-radius:2px; padding:2px;")
+        ts_lay = QHBoxLayout(self.transform_strip)
+        ts_lay.setContentsMargins(8, 3, 8, 3)
+        ts_icon = QLabel("\u25cf")   # filled circle -- subtle alert dot
+        ts_icon.setStyleSheet("color:#e06c75; font-size:10px;")
+        ts_lay.addWidget(ts_icon)
+        self.lbl_transform_status = QLabel("Data transformed:")
+        self.lbl_transform_status.setStyleSheet(
+            "color:#e06c75; font-size:10px; font-weight:bold;"
+            "letter-spacing:0.3px;")
+        ts_lay.addWidget(self.lbl_transform_status)
+        ts_lay.addStretch()
+        right_lay.addWidget(self.transform_strip)
 
         # -- Plot canvas --
         self.plot_canvas = PlotCanvas()
@@ -393,6 +426,7 @@ class MainWindow(PickerMixin, QMainWindow):
         self.info_group.setVisible(True)
         self.acq_group.setVisible(True)
         self.analysis_group.setVisible(True)
+        self.transform_group.setVisible(True)
         self.options_strip.setVisible(True)
 
         # Populate field selector
@@ -594,15 +628,12 @@ class MainWindow(PickerMixin, QMainWindow):
             self.dataset, is_time_resolved=self.is_time_resolved(),
             Nt_warn=Nt, duration_warn=dur))
 
-    def _run_spectral_temporal(self):
+    def _run_spectra(self):
         if not self._check_data(): return
-        if not self._check_tr("Spectral (Temporal)"): return
-        self._open_window(SpectralWindow(
-            self.dataset, default_fs=self.get_fs()))
-
-    def _run_spectral_spatial(self):
-        if not self._check_data(): return
-        self._open_window(SpatialSpectraWindow(self.dataset))
+        self._open_window(SpectraWindow(
+            self.dataset,
+            is_time_resolved=self.is_time_resolved(),
+            fs=self.get_fs()))
 
     def _run_anisotropy(self):
         if not self._check_data(): return
@@ -626,6 +657,33 @@ class MainWindow(PickerMixin, QMainWindow):
             duration_warn=dur,
         ))
 
+    def _run_pod(self):
+        if not self._check_data(): return
+        self._open_window(PODWindow(
+            self.dataset,
+            is_time_resolved=self.is_time_resolved(),
+            fs=self.get_fs(),
+        ))
+
+    def _run_transform(self):
+        if not self._check_data(): return
+        # Ensure transform_log exists
+        self.dataset.setdefault("transform_log", [])
+        win = TransformWindow(
+            self.dataset,
+            on_transform_done=self._on_transform_done)
+        self._open_window(win)
+
+    def _on_transform_done(self):
+        """Called by TransformWindow after each successful transform."""
+        status = transform_status_string(self.dataset)
+        if status:
+            self.lbl_transform_status.setText(
+                f"Data transformed:  {status}")
+            self.transform_strip.setVisible(True)
+        # Refresh main plot with transformed data
+        self._plot_field()
+
     # ----------------------------------------------------------------------- #
     # About dialog
     # ----------------------------------------------------------------------- #
@@ -641,7 +699,7 @@ class MainWindow(PickerMixin, QMainWindow):
         for text, size, bold, italic, color in [
             ("uPrime",                          22, True,  False, None),
             ("Because u\u2019 matters",         10, False, True,  "gray"),
-            ("v0.2  \u00b7  Alpha Release",     9,  False, False, "gray"),
+            ("v0.3  \u00b7  Alpha Release",      9,  False, False, "gray"),
         ]:
             lbl = QLabel(text)
             f   = QFont("Arial", size, QFont.Weight.Bold if bold else QFont.Weight.Normal)
@@ -676,7 +734,7 @@ class MainWindow(PickerMixin, QMainWindow):
 
         gh = QLabel(
             "GitHub: <i>github.com/CmdrRyder/uPrime</i><br>"
-            "Lab: <i>[lab website placeholder]</i><br>"
+            "DOI: <i>https://doi.org/10.5281/zenodo.19376184</i><br>"
             "Licensed under CC BY-NC-ND 4.0<br>"
             "Cite: Jibu Tom Jose, uPrime, Technion (2026)"
         )

@@ -90,13 +90,143 @@ def _roi_bounds_from_coords(x, y, x0, x1, y0, y1):
 # Integral scale helper
 # ---------------------------------------------------------------------------
 
-def _integral_to_zero(R_1d, spacing):
-    """Integrate R from 0 to first zero crossing. Returns scalar."""
-    zc = np.where(R_1d <= 0)[0]
-    cutoff = int(zc[0]) if len(zc) > 0 else len(R_1d)
-    if cutoff < 2:
-        return np.nan
-    return float(_trapz(R_1d[:cutoff], dx=spacing))
+# ---------------------------------------------------------------------------
+# Integral scale computation -- four methods
+# ---------------------------------------------------------------------------
+
+_SUSTAINED_N   = 3      # consecutive negative points to confirm zero crossing
+_FIT_THRESHOLD = 0.05   # minimum R value used in exponential fit
+
+def _first_sustained_zero(R_1d):
+    """
+    Return index of first sustained zero crossing.
+    "Sustained" = R stays <= 0 for at least _SUSTAINED_N consecutive points.
+    Returns None if no such crossing found.
+    """
+    n = len(R_1d)
+    count = 0
+    for i in range(n):
+        if R_1d[i] <= 0:
+            count += 1
+            if count >= _SUSTAINED_N:
+                return i - _SUSTAINED_N + 1   # start of the negative run
+        else:
+            count = 0
+    return None
+
+
+def compute_length_scale(R_1d, spacing, method="zero_crossing"):
+    """
+    Compute integral length/time scale from a 1D correlation curve.
+
+    Parameters
+    ----------
+    R_1d    : 1D array, normalized correlation (R[0] should be ~1)
+    spacing : grid spacing in mm (spatial) or dt in s (temporal)
+    method  : one of:
+        "zero_crossing"  -- integrate to first sustained zero crossing
+        "exp_fit"        -- fit R = exp(-r/L), integrate analytically -> L
+        "one_over_e"     -- find r where R first drops to 1/e
+        "domain"         -- integrate over full domain (lower bound)
+
+    Returns
+    -------
+    L       : float, scale in same units as spacing (mm or s)
+              NaN if method cannot be applied
+    extras  : dict with diagnostic info:
+        "cutoff_idx"    : index used as integration limit (zero_crossing/domain)
+        "fit_L"         : fitted L from exp (exp_fit only)
+        "fit_r"         : r array used in fit (exp_fit only)
+        "fit_R"         : fitted R array (exp_fit only)
+        "cumulative"    : cumulative integral array (all methods)
+        "r_axis"        : r values for cumulative plot
+        "no_crossing"   : bool, True if no zero crossing found
+    """
+    import numpy as np
+
+    n   = len(R_1d)
+    r   = np.arange(n) * spacing
+    L   = np.nan
+    extras = {
+        "cutoff_idx" : None,
+        "fit_L"      : None,
+        "fit_r"      : None,
+        "fit_R"      : None,
+        "cumulative" : None,
+        "r_axis"     : r,
+        "no_crossing": False,
+        "method_used": method,
+    }
+
+    if method == "zero_crossing":
+        idx = _first_sustained_zero(R_1d)
+        if idx is None:
+            extras["no_crossing"] = True
+            L = np.nan
+        elif idx < 2:
+            L = np.nan
+        else:
+            L = float(_trapz(R_1d[:idx], dx=spacing))
+            extras["cutoff_idx"] = idx
+
+    elif method == "exp_fit":
+        # Fit only up to the first 1/e crossing; fall back to R > threshold
+        target = 1.0 / np.e
+        one_e_idx = next((i for i in range(1, n) if R_1d[i] <= target), None)
+        if one_e_idx is not None:
+            mask = np.zeros(n, dtype=bool)
+            mask[:one_e_idx + 1] = True
+            mask &= np.isfinite(R_1d)
+        else:
+            mask = (R_1d > _FIT_THRESHOLD) & np.isfinite(R_1d)
+        if np.sum(mask) < 4:
+            L = np.nan
+        else:
+            r_fit  = r[mask]
+            lnR    = np.log(np.clip(R_1d[mask], 1e-10, None))
+            # Linear fit: ln(R) = -r/L  =>  slope = -1/L
+            coeffs = np.polyfit(r_fit, lnR, 1)
+            slope  = coeffs[0]
+            if slope >= 0:
+                L = np.nan
+            else:
+                L = float(-1.0 / slope)
+                # Build fitted curve over full r range for plotting
+                r_plot = np.linspace(0, r[-1], 200)
+                R_plot = np.exp(-r_plot / L)
+                extras["fit_L"] = L
+                extras["fit_r"] = r_plot
+                extras["fit_R"] = R_plot
+
+    elif method == "one_over_e":
+        target = 1.0 / np.e   # ~0.368
+        # Find first crossing below 1/e
+        for i in range(1, n):
+            if R_1d[i] <= target:
+                extras["cutoff_idx"] = i
+                # Integrate R from 0 to crossing point using trapezoid rule
+                L = float(_trapz(R_1d[:i+1], r[:i+1]))
+                break
+
+    elif method == "domain":
+        # Integrate to first zero crossing if available, else full domain
+        idx = _first_sustained_zero(R_1d)
+        cutoff = idx if idx is not None else n
+        if cutoff < 2:
+            L = np.nan
+        else:
+            L = float(_trapz(R_1d[:cutoff], dx=spacing))
+            extras["cutoff_idx"] = cutoff
+            if idx is None:
+                extras["no_crossing"] = True
+
+    # Always compute cumulative integral for diagnostic plot
+    cumul = np.zeros(n)
+    for i in range(1, n):
+        cumul[i] = float(_trapz(R_1d[:i+1], dx=spacing))
+    extras["cumulative"] = cumul
+
+    return L, extras
 
 
 # ---------------------------------------------------------------------------
@@ -141,27 +271,24 @@ def compute_spatial_correlation_point(U, V, W, row, col,
     return R_norm, R_x, R_y
 
 
-def compute_spatial_scales_point(R_norm, row, col, x, y):
+def compute_spatial_scales_point(R_norm, row, col, x, y, method="zero_crossing"):
     """
     Compute integral length scales from 1D slices of R_norm.
 
-    Parameters
-    ----------
-    x, y : [ny, nx] in mm
-
     Returns
     -------
-    Lx, Ly : floats in mm
+    Lx, Ly  : floats in mm
+    ex, ey  : extras dicts for diagnostic plotting
     """
-    R_x = R_norm[row, col:]   # from ref rightward
-    R_y = R_norm[row:, col]   # from ref downward
+    R_x = R_norm[row, col:]
+    R_y = R_norm[row:, col]
 
     dx = float(np.abs(x[0, 1] - x[0, 0])) if x.shape[1] > 1 else 1.0
     dy = float(np.abs(y[1, 0] - y[0, 0])) if y.shape[0] > 1 else 1.0
 
-    Lx = _integral_to_zero(R_x, dx)
-    Ly = _integral_to_zero(R_y, dy)
-    return Lx, Ly
+    Lx, ex = compute_length_scale(R_x, dx, method)
+    Ly, ey = compute_length_scale(R_y, dy, method)
+    return Lx, Ly, ex, ey
 
 
 # ---------------------------------------------------------------------------
@@ -221,8 +348,8 @@ def compute_spatial_correlation_roi(U, V, W, x, y,
     R_y = np.nanmean(np.array(Ry_cols), axis=0)
     delta_y = np.arange(len(R_y)) * dy
 
-    Lx = _integral_to_zero(R_x, dx)
-    Ly = _integral_to_zero(R_y, dy)
+    Lx, _ = compute_length_scale(R_x, dx, "zero_crossing")
+    Ly, _ = compute_length_scale(R_y, dy, "zero_crossing")
 
     return delta_x, R_x, delta_y, R_y, Lx, Ly
 
@@ -304,13 +431,17 @@ def compute_temporal_correlation(U, V, W, row, col,
 # Scales
 # ---------------------------------------------------------------------------
 
-def compute_time_scales(R_tau, lags, dt):
+def compute_time_scales(R_tau, lags, dt, method="zero_crossing"):
     """
     Integral time scale T and Taylor microscale lambda_t.
 
-    Returns T (s), lambda_t (s)
+    Returns
+    -------
+    T        : float, integral time scale [s]
+    lambda_t : float, Taylor microscale [s]
+    extras   : dict with diagnostic info for plotting
     """
-    T = _integral_to_zero(R_tau, dt)
+    T, extras = compute_length_scale(R_tau, dt, method)
 
     lambda_t = np.nan
     if len(R_tau) >= 5:
@@ -323,4 +454,4 @@ def compute_time_scales(R_tau, lags, dt):
         except Exception:
             pass
 
-    return T, lambda_t
+    return T, lambda_t, extras

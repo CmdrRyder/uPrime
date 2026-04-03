@@ -230,6 +230,7 @@ class TKEWindow(PickerMixin, QWidget):
         self.field_canvas.draw()
         self._x = x
         self._y = y
+        self._last_field_values = speed
 
     # ----------------------------------------------------------------------- #
     # Mouse
@@ -256,6 +257,8 @@ class TKEWindow(PickerMixin, QWidget):
 
     def _on_press(self, event):
         if event.inaxes != self.field_ax or self._mode != "line":
+            return
+        if self._toolbar_active(self.field_toolbar):
             return
         self._press_xy = (event.xdata, event.ydata)
 

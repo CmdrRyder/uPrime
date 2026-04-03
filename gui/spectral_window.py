@@ -23,6 +23,7 @@ import matplotlib
 matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
+from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
@@ -31,7 +32,7 @@ from core.spectral import psd_at_point, psd_in_region, nearest_grid_point
 from core.export import export_spectra_csv
 
 
-class SpectralWindow(QWidget):
+class SpectralWindow(PickerMixin, QWidget):
     """
     Standalone window for temporal spectral analysis.
     Receives the loaded dataset dict from the main window.
@@ -56,6 +57,8 @@ class SpectralWindow(QWidget):
         self._build_ui()
         self._draw_field()
         self._connect_mouse()
+        self._setup_picker(self.field_canvas, self.field_ax,
+                           status_label=self.lbl_status)
 
         # Warn if snapshot count is low
         Nt = dataset["Nt"]
@@ -91,7 +94,7 @@ class SpectralWindow(QWidget):
         self.field_fig    = Figure(figsize=(6, 4), tight_layout=True)
         self.field_canvas = FigureCanvas(self.field_fig)
         self.field_canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.field_toolbar = NavToolbar(self.field_canvas, self)
+        self.field_toolbar = DrawAwareToolbar(self.field_canvas, self)
         ll.addWidget(self.field_toolbar)
         ll.addWidget(self.field_canvas)
 
@@ -241,6 +244,7 @@ class SpectralWindow(QWidget):
         # Store for hit testing
         self._x = x
         self._y = y
+        self._last_field_values = speed
 
     # ----------------------------------------------------------------------- #
     # Mouse interaction
@@ -264,6 +268,8 @@ class SpectralWindow(QWidget):
 
     def _on_press(self, event):
         if event.inaxes != self.field_ax:
+            return
+        if self._toolbar_active(self.field_toolbar):
             return
         self._press_xy = (event.xdata, event.ydata)
 

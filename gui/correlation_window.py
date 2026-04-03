@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QComboBox, QSpinBox, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QTabWidget,
     QGridLayout, QApplication, QRadioButton, QButtonGroup,
-    QFileDialog, QFrame
+    QFileDialog, QFrame, QDialog
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
@@ -48,7 +48,7 @@ from core.two_point_corr import (
     compute_spatial_correlation_roi,
     compute_temporal_correlation,
     compute_time_scales,
-    _integral_to_zero,
+    compute_length_scale,
 )
 
 _CMAP_DIV  = "RdBu_r"
@@ -297,6 +297,10 @@ class CorrelationWindow(PickerMixin, QWidget):
         self.btn_spatial.setEnabled(False)
         self.btn_spatial.clicked.connect(self._run_spatial)
         btn_row.addWidget(self.btn_spatial)
+        self.btn_show_diagnostic = QPushButton("Show Diagnostic Plot")
+        self.btn_show_diagnostic.setEnabled(False)
+        self.btn_show_diagnostic.clicked.connect(self._show_diagnostic)
+        btn_row.addWidget(self.btn_show_diagnostic)
         btn_row.addStretch()
         self.btn_export_s2d = QPushButton("Export 2D Map...")
         self.btn_export_s2d.setEnabled(False)
@@ -308,11 +312,22 @@ class CorrelationWindow(PickerMixin, QWidget):
         btn_row.addWidget(self.btn_export_s1d)
         vl.addLayout(btn_row)
 
-        # Plot area: 2D map | 1D x-slice | 1D y-slice
-        # In ROI mode the 2D map widget is hidden
-        self.spatial_plot_split = QSplitter(Qt.Orientation.Horizontal)
+        scale_row = QHBoxLayout()
+        scale_row.addWidget(QLabel("Scale method:"))
+        self.combo_scale_method = QComboBox()
+        self.combo_scale_method.addItem("Zero crossing",  "zero_crossing")
+        self.combo_scale_method.addItem("Exponential fit", "exp_fit")
+        self.combo_scale_method.addItem("1/e point",       "one_over_e")
+        self.combo_scale_method.addItem("Domain integral", "domain")
+        scale_row.addWidget(self.combo_scale_method)
+        scale_row.addStretch()
+        vl.addLayout(scale_row)
 
-        # 2D map
+        # Plot area: 2D map on top, single 1D panel below (x and y overlaid)
+        # In ROI mode the 2D map widget is hidden
+        self.spatial_plot_split = QSplitter(Qt.Orientation.Vertical)
+
+        # 2D map (top)
         self.sp2d_wrap  = QWidget()
         sp2d_l = QVBoxLayout(self.sp2d_wrap)
         sp2d_l.setContentsMargins(0, 0, 0, 0)
@@ -325,7 +340,9 @@ class CorrelationWindow(PickerMixin, QWidget):
         sp2d_l.addWidget(self.spatial_2d_canvas)
         self.spatial_plot_split.addWidget(self.sp2d_wrap)
 
-        # 1D x-slice
+        # 1D panels (bottom) — x-direction and y-direction side by side
+        sp1d_split = QSplitter(Qt.Orientation.Horizontal)
+
         self.sp1dx_wrap = QWidget()
         sp1dx_l = QVBoxLayout(self.sp1dx_wrap)
         sp1dx_l.setContentsMargins(0, 0, 0, 0)
@@ -336,9 +353,8 @@ class CorrelationWindow(PickerMixin, QWidget):
         self.spatial_1dx_toolbar = DrawAwareToolbar(self.spatial_1dx_canvas, w)
         sp1dx_l.addWidget(self.spatial_1dx_toolbar)
         sp1dx_l.addWidget(self.spatial_1dx_canvas)
-        self.spatial_plot_split.addWidget(self.sp1dx_wrap)
+        sp1d_split.addWidget(self.sp1dx_wrap)
 
-        # 1D y-slice
         self.sp1dy_wrap = QWidget()
         sp1dy_l = QVBoxLayout(self.sp1dy_wrap)
         sp1dy_l.setContentsMargins(0, 0, 0, 0)
@@ -349,14 +365,15 @@ class CorrelationWindow(PickerMixin, QWidget):
         self.spatial_1dy_toolbar = DrawAwareToolbar(self.spatial_1dy_canvas, w)
         sp1dy_l.addWidget(self.spatial_1dy_toolbar)
         sp1dy_l.addWidget(self.spatial_1dy_canvas)
-        self.spatial_plot_split.addWidget(self.sp1dy_wrap)
+        sp1d_split.addWidget(self.sp1dy_wrap)
+
+        self.spatial_plot_split.addWidget(sp1d_split)
 
         vl.addWidget(self.spatial_plot_split, stretch=1)
 
         # Scale readout below plots
         vl.addWidget(_hline())
-        self.spatial_scales = ScaleReadout(
-            ["Lx (mm)", "Ly (mm)"])
+        self.spatial_scales = ScaleReadout(["Lx (mm)", "Ly (mm)"])
         vl.addWidget(self.spatial_scales)
 
         return w
@@ -379,6 +396,18 @@ class CorrelationWindow(PickerMixin, QWidget):
         self.btn_export_tau.clicked.connect(self._export_temporal)
         btn_row.addWidget(self.btn_export_tau)
         vl.addLayout(btn_row)
+
+        # Length scale method for temporal
+        tm_row = QHBoxLayout()
+        tm_row.addWidget(QLabel("Scale method:"))
+        self.combo_temp_scale_method = QComboBox()
+        self.combo_temp_scale_method.addItem("Zero crossing",   "zero_crossing")
+        self.combo_temp_scale_method.addItem("Exponential fit",  "exp_fit")
+        self.combo_temp_scale_method.addItem("1/e point",        "one_over_e")
+        self.combo_temp_scale_method.addItem("Domain integral",  "domain")
+        tm_row.addWidget(self.combo_temp_scale_method)
+        tm_row.addStretch()
+        vl.addLayout(tm_row)
 
         self.temporal_fig    = Figure()
         self.temporal_canvas = FigureCanvas(self.temporal_fig)
@@ -426,11 +455,9 @@ class CorrelationWindow(PickerMixin, QWidget):
         valid_frac = np.mean(self.dataset["valid"], axis=2)
         U_mean[valid_frac < 0.5] = np.nan
 
-        cf = self.field_ax.contourf(
+        self.field_ax.contourf(
             self._x, self._y, U_mean, levels=50,
             cmap=_CMAP_DIV, extend="neither")
-        self.field_fig.colorbar(cf, ax=self.field_ax,
-                                label="Mean U [m/s]", shrink=0.8)
         self.field_ax.set_xlabel("x [mm]", fontsize=_FONT_AX)
         self.field_ax.set_ylabel("y [mm]", fontsize=_FONT_AX)
         self.field_ax.set_title("Mean U  —  click to select reference",
@@ -586,9 +613,12 @@ class CorrelationWindow(PickerMixin, QWidget):
                     component=comp,
                     use_kernel=self._use_kernel)
 
-                Lx, Ly = compute_spatial_scales_point(
+                method = self.combo_scale_method.currentData()
+                Lx, Ly, ex, ey = compute_spatial_scales_point(
                     R_norm, self._ref_row, self._ref_col,
-                    self._x, self._y)
+                    self._x, self._y, method=method)
+                self._last_extras_x = ex
+                self._last_extras_y = ey
 
                 self._last_R_norm = R_norm
                 dx_vals = self._x[self._ref_row, self._ref_col:]
@@ -600,12 +630,14 @@ class CorrelationWindow(PickerMixin, QWidget):
                 self._last_dy   = self._y[:, self._ref_col]
 
                 self._plot_spatial_2d(R_norm)
-                self._plot_spatial_1dx(
+                self._plot_spatial_1d(
                     self._x[self._ref_row, :], R_x,
-                    xlabel="x [mm]", ref_val=self._x[self._ref_row, self._ref_col])
-                self._plot_spatial_1dy(
+                    xlabel="x [mm]", ref_val=self._x[self._ref_row, self._ref_col],
+                    extras=ex, L=Lx, direction='x', color="tab:blue")
+                self._plot_spatial_1d(
                     self._y[:, self._ref_col], R_y,
-                    ylabel="y [mm]", ref_val=self._y[self._ref_row, self._ref_col])
+                    xlabel="y [mm]", ref_val=self._y[self._ref_row, self._ref_col],
+                    extras=ey, L=Ly, direction='y', color="tab:red")
 
                 self.sp2d_wrap.setVisible(True)
                 self.btn_export_s2d.setEnabled(True)
@@ -616,12 +648,19 @@ class CorrelationWindow(PickerMixin, QWidget):
                         "Please draw an ROI first (right-click drag).")
                     return
                 x0, x1, y0, y1 = self._roi_coords
-                dx_arr, R_x, dy_arr, R_y, Lx, Ly = \
+                dx_arr, R_x, dy_arr, R_y, Lx_roi, Ly_roi = \
                     compute_spatial_correlation_roi(
                         self.U, self.V, self.W,
                         self._x, self._y,
                         x0, x1, y0, y1,
                         component=comp)
+                method = self.combo_scale_method.currentData()
+                dx_sp = dx_arr[1] - dx_arr[0] if len(dx_arr) > 1 else 1.0
+                dy_sp = dy_arr[1] - dy_arr[0] if len(dy_arr) > 1 else 1.0
+                Lx, ex = compute_length_scale(R_x, dx_sp, method)
+                Ly, ey = compute_length_scale(R_y, dy_sp, method)
+                self._last_extras_x = ex
+                self._last_extras_y = ey
 
                 self._last_R_norm = None
                 self._last_R_x    = R_x
@@ -630,13 +669,16 @@ class CorrelationWindow(PickerMixin, QWidget):
                 self._last_dy     = dy_arr
 
                 self.sp2d_wrap.setVisible(False)
-                self._plot_spatial_1dx(
-                    dx_arr, R_x, xlabel="\u0394x [mm]", ref_val=0)
-                self._plot_spatial_1dy(
-                    dy_arr, R_y, ylabel="\u0394y [mm]", ref_val=0)
+                self._plot_spatial_1d(
+                    dx_arr, R_x, xlabel="\u0394x [mm]", ref_val=0,
+                    extras=ex, L=Lx, direction='x', color="tab:blue")
+                self._plot_spatial_1d(
+                    dy_arr, R_y, xlabel="\u0394y [mm]", ref_val=0,
+                    extras=ey, L=Ly, direction='y', color="tab:red")
                 self.btn_export_s2d.setEnabled(False)
 
             self.btn_export_s1d.setEnabled(True)
+            self.btn_show_diagnostic.setEnabled(True)
 
             # Update scale readout
             lx_str = f"{Lx:.2f}" if not np.isnan(Lx) else "--"
@@ -676,52 +718,134 @@ class CorrelationWindow(PickerMixin, QWidget):
         self.spatial_2d_fig.tight_layout(pad=0.5)
         self.spatial_2d_canvas.draw()
 
-    def _plot_spatial_1dx(self, x_vals, R_x, xlabel="x [mm]", ref_val=0):
-        self.spatial_1dx_fig.clear()
-        ax = self.spatial_1dx_fig.add_subplot(111)
-        ax.plot(x_vals, R_x, "b-", linewidth=1.5,
-                label=self.combo_comp.currentText())
-        ax.axhline(0, color="k", linewidth=0.8, linestyle=":")
-        ax.axvline(ref_val, color="gray", linewidth=0.8,
-                   linestyle="--", label="ref")
-        # Mark first zero crossing
-        zc = np.where(R_x <= 0)[0]
-        if len(zc) > 0:
-            ax.axvline(x_vals[zc[0]], color="r", linewidth=0.8,
-                       linestyle=":", alpha=0.7, label="zero")
-        ax.set_ylim(-1.1, 1.1)
+    def _plot_spatial_1d(self, r_vals, R, xlabel, ref_val, extras, L,
+                         direction='x', color="tab:blue"):
+        """Plot a correlation slice into its own dedicated canvas.
+
+        direction='x' plots into the left panel (spatial_1dx_fig/canvas).
+        direction='y' plots into the right panel (spatial_1dy_fig/canvas).
+        """
+        if direction == 'x':
+            fig    = self.spatial_1dx_fig
+            canvas = self.spatial_1dx_canvas
+        else:
+            fig    = self.spatial_1dy_fig
+            canvas = self.spatial_1dy_canvas
+
+        fig.clear()
+        ax = fig.add_subplot(111)
+        ax.set_ylim(-0.3, 1.1)
         ax.set_xlabel(xlabel, fontsize=_FONT_AX)
         ax.set_ylabel("R [ ]", fontsize=_FONT_AX)
-        ax.set_title(f"{self.combo_comp.currentText()}  —  x direction",
-                     fontsize=_FONT_AX)
-        ax.legend(fontsize=_FONT_LEG)
+        comp = self.combo_comp.currentText()
+        ax.set_title(f"{comp} ({direction}-direction)", fontsize=_FONT_AX)
         ax.grid(True, alpha=0.3)
         ax.tick_params(labelsize=_FONT_TICK)
-        self.spatial_1dx_fig.tight_layout(pad=0.5)
-        self.spatial_1dx_canvas.draw()
 
-    def _plot_spatial_1dy(self, y_vals, R_y, ylabel="y [mm]", ref_val=0):
-        self.spatial_1dy_fig.clear()
-        ax = self.spatial_1dy_fig.add_subplot(111)
-        ax.plot(y_vals, R_y, "r-", linewidth=1.5,
-                label=self.combo_comp.currentText())
-        ax.axhline(0, color="k", linewidth=0.8, linestyle=":")
-        ax.axvline(ref_val, color="gray", linewidth=0.8,
-                   linestyle="--", label="ref")
-        zc = np.where(R_y <= 0)[0]
-        if len(zc) > 0:
-            ax.axvline(y_vals[zc[0]], color="r", linewidth=0.8,
-                       linestyle=":", alpha=0.7, label="zero")
-        ax.set_ylim(-1.1, 1.1)
-        ax.set_xlabel(ylabel, fontsize=_FONT_AX)
-        ax.set_ylabel("R [ ]", fontsize=_FONT_AX)
-        ax.set_title(f"{self.combo_comp.currentText()}  —  y direction",
-                     fontsize=_FONT_AX)
-        ax.legend(fontsize=_FONT_LEG)
-        ax.grid(True, alpha=0.3)
-        ax.tick_params(labelsize=_FONT_TICK)
-        self.spatial_1dy_fig.tight_layout(pad=0.5)
-        self.spatial_1dy_canvas.draw()
+        # Convert to separation distance starting at 0
+        if ref_val != 0:
+            ref_idx = np.argmin(np.abs(r_vals - ref_val))
+            r_plot      = np.abs(r_vals[ref_idx:] - ref_val)
+            R_plot_data = R[ref_idx:]
+        else:
+            r_plot      = r_vals
+            R_plot_data = R
+
+        method = self.combo_scale_method.currentData()
+        L_str  = f"{L:.2f}" if not np.isnan(L) else "--"
+
+        # R curve — label carries L only for methods where no separate vline
+        # explains L; for all other methods the vline label is sufficient.
+        ax.plot(r_plot, R_plot_data, color=color, linewidth=1.5,
+                label=f"{comp} ({direction})")
+
+        # Method-specific reference lines
+        if method == "zero_crossing":
+            ax.axhline(0, color="k", linewidth=0.8, linestyle=":",
+                       label="R = 0")
+            zc = extras.get("zero_crossing")
+            if zc is not None:
+                ax.axvline(zc, color="k", linewidth=0.8, linestyle=":",
+                           label=f"zero crossing = {zc:.2f} mm")
+
+        elif method == "one_over_e":
+            ax.axhline(1.0 / np.e, color="gray", linewidth=0.8,
+                       linestyle="--", alpha=0.7, label="1/e")
+
+        elif method == "exp_fit":
+            if extras.get("fit_r") is not None:
+                ax.plot(extras["fit_r"], extras["fit_R"],
+                        "--", color="k", linewidth=1.0, alpha=0.7,
+                        label="exp fit")
+
+        elif method == "domain":
+            ax.axhline(0, color="k", linewidth=0.8, linestyle=":",
+                       label="R = 0")
+
+        # Integral scale vline — always red dashed when L is valid
+        if not np.isnan(L):
+            lbl = f"L{direction} = {L_str} mm"
+            if method == "domain":
+                lbl += " (domain)"
+            ax.axvline(L, color="red", linewidth=1.2,
+                       linestyle="--", alpha=0.9, label=lbl)
+
+        ax.legend(fontsize=_FONT_LEG, loc="upper right")
+        fig.tight_layout(pad=0.5)
+        canvas.draw()
+
+    def _show_diagnostic(self):
+        """Open a small dialog showing the cumulative integral for x and y."""
+        ex = getattr(self, "_last_extras_x", None)
+        ey = getattr(self, "_last_extras_y", None)
+        Lx_str = self.spatial_scales._vals.get("Lx (mm)")
+        Ly_str = self.spatial_scales._vals.get("Ly (mm)")
+        Lx = float(Lx_str.text()) if Lx_str and Lx_str.text() != "--" else np.nan
+        Ly = float(Ly_str.text()) if Ly_str and Ly_str.text() != "--" else np.nan
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Cumulative Integral Diagnostic")
+        dlg.resize(800, 400)
+        lay = QVBoxLayout(dlg)
+
+        fig = Figure(tight_layout=True)
+        canvas = FigureCanvas(fig)
+        lay.addWidget(canvas)
+
+        ax1 = fig.add_subplot(1, 2, 1)
+        ax2 = fig.add_subplot(1, 2, 2)
+
+        for ax, extras, L, label, color in [
+            (ax1, ex, Lx, "x", "tab:blue"),
+            (ax2, ey, Ly, "y", "tab:red"),
+        ]:
+            cumul = extras.get("cumulative") if extras else None
+            r_ax  = extras.get("r_axis")    if extras else None
+            if cumul is None or r_ax is None:
+                ax.text(0.5, 0.5, "No data", transform=ax.transAxes,
+                        ha="center", va="center", color="gray")
+            else:
+                ax.plot(r_ax, cumul, color=color, linewidth=1.5,
+                        label="Cumulative integral")
+                if not np.isnan(L):
+                    ax.axhline(L, color=color, linewidth=1.2,
+                               linestyle="--", alpha=0.8,
+                               label=f"L{label} = {L:.2f} mm")
+                ax.set_xlabel("r [mm]", fontsize=_FONT_AX)
+                ax.set_ylabel("∫₀ʳ R dr  [mm]", fontsize=_FONT_AX)
+                ax.set_title(f"Cumulative integral ({label}-dir)", fontsize=_FONT_AX)
+                ax.legend(fontsize=_FONT_LEG)
+                ax.grid(True, alpha=0.3)
+                ax.set_box_aspect(1)
+                ax.tick_params(labelsize=_FONT_TICK)
+
+        canvas.draw()
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dlg.accept)
+        lay.addWidget(close_btn)
+        dlg.exec()
+
+
 
     # -----------------------------------------------------------------------
     # Temporal
@@ -759,7 +883,7 @@ class CorrelationWindow(PickerMixin, QWidget):
                 **roi_kw)
 
             tau_sec = lags * self.dt
-            T, lambda_t = compute_time_scales(R_tau, lags, self.dt)
+            T, lambda_t, t_extras = compute_time_scales(R_tau, lags, self.dt)
 
             self._last_R_tau   = R_tau
             self._last_tau_sec = tau_sec
@@ -769,7 +893,7 @@ class CorrelationWindow(PickerMixin, QWidget):
             self.temporal_scales.set("T (ms)",     T_str)
             self.temporal_scales.set("\u03bb_t (ms)", lt_str)
 
-            self._plot_temporal(R_tau, tau_sec, T, lambda_t)
+            self._plot_temporal(R_tau, tau_sec, T, lambda_t, t_extras)
             self.btn_export_tau.setEnabled(True)
             self.lbl_status.setText(
                 f"Done. Temporal ({self.combo_comp.currentText()})  "
@@ -781,33 +905,68 @@ class CorrelationWindow(PickerMixin, QWidget):
         finally:
             self.btn_temporal.setEnabled(True)
 
-    def _plot_temporal(self, R_tau, tau_sec, T, lambda_t):
+    def _plot_temporal(self, R_tau, tau_sec, T, lambda_t, extras):
+        """Plot temporal autocorrelation with fit and cumulative inset."""
         self.temporal_fig.clear()
-        ax = self.temporal_fig.add_subplot(111)
+
+        # Two subplots side by side: R(tau) left, cumulative right
+        ax1 = self.temporal_fig.add_subplot(1, 2, 1)
+        ax2 = self.temporal_fig.add_subplot(1, 2, 2)
+
         comp_label = self.combo_comp.currentText()
-        ax.plot(tau_sec * 1e3, R_tau, "b-", linewidth=1.5, label=comp_label)
-        ax.axhline(0, color="k", linewidth=0.8, linestyle=":")
+        tau_ms = tau_sec * 1e3
 
-        if not np.isnan(T):
-            ax.axvline(T*1e3, color="r", linewidth=1.2, linestyle="--",
-                       label=f"T = {T*1e3:.2f} ms")
+        # --- Left: R(tau) ---
+        ax1.plot(tau_ms, R_tau, color="tab:blue", linewidth=1.5, label=comp_label)
+        ax1.axhline(1.0/np.e, color="gray", linewidth=0.8, linestyle="--", label="1/e")
+        ax1.axhline(0, color="k", linewidth=0.5, linestyle=":")
+
+        # Exponential fit overlay
+        method = self.combo_temp_scale_method.currentData()
+        if method == "exp_fit" and extras.get("fit_r") is not None:
+            fit_tau_ms = extras["fit_r"] * 1e3
+            ax1.plot(fit_tau_ms, extras["fit_R"], "k--",
+                     linewidth=1.2, alpha=0.7, label="exp fit")
+
+        # Mark T
+        T_ms = T * 1e3 if not np.isnan(T) else np.nan
+        if not np.isnan(T_ms):
+            ax1.axvline(T_ms, color="tab:orange", linewidth=1.2,
+                        linestyle="-", label=f"T = {T_ms:.2f} ms")
+
+        # Mark lambda_t
         if not np.isnan(lambda_t):
-            ax.axvline(lambda_t*1e3, color="g", linewidth=1.2, linestyle="-.",
-                       label=f"\u03bb_t = {lambda_t*1e3:.2f} ms")
+            lt_ms = lambda_t * 1e3
+            ax1.axvline(lt_ms, color="tab:green", linewidth=1.0,
+                        linestyle="--", alpha=0.7, label=f"λ_t = {lt_ms:.2f} ms")
 
-        zc = np.where(R_tau <= 0)[0]
-        if len(zc) > 0:
-            ax.axvline(tau_sec[zc[0]]*1e3, color="gray",
-                       linewidth=0.8, linestyle=":", label="zero crossing")
+        ax1.set_ylim(-0.3, 1.1)
+        ax1.set_xlabel("τ [ms]", fontsize=_FONT_AX)
+        ax1.set_ylabel("R(τ) [ ]", fontsize=_FONT_AX)
+        no_cross = extras.get("no_crossing", False)
+        T_str = f"{T_ms:.2f} ms" if not np.isnan(T_ms) else "--"
+        flag = " (>)" if no_cross else ""
+        ax1.set_title(f"Autocorrelation    T = {T_str}{flag}", fontsize=_FONT_AX)
+        ax1.legend(fontsize=_FONT_LEG, loc="upper right")
+        ax1.grid(True, alpha=0.3)
+        ax1.set_box_aspect(1)
 
-        ax.set_xlabel("\u03c4 [ms]", fontsize=_FONT_AX)
-        ax.set_ylabel("R(\u03c4) [ ]", fontsize=_FONT_AX)
-        ax.set_title(f"Temporal autocorrelation  {comp_label}", fontsize=_FONT_AX)
-        ax.set_ylim(-1.1, 1.1)
-        ax.legend(fontsize=_FONT_LEG)
-        ax.grid(True, alpha=0.3)
-        ax.set_facecolor("white")
-        ax.tick_params(labelsize=_FONT_TICK)
+        # --- Right: cumulative integral ---
+        cumul = extras.get("cumulative")
+        r_ax  = extras.get("r_axis")
+        if cumul is not None and r_ax is not None:
+            ax2.plot(r_ax * 1e3, cumul * 1e3, color="tab:purple",
+                     linewidth=1.5, label="Cumulative")
+            if not np.isnan(T_ms):
+                ax2.axhline(T_ms, color="tab:orange", linewidth=1.2,
+                            linestyle="--", label=f"T = {T_str}")
+            ax2.set_xlabel("τ [ms]", fontsize=_FONT_AX)
+            ax2.set_ylabel("∫₀^τ R dτ  [ms]", fontsize=_FONT_AX)
+            ax2.set_title("Cumulative integral", fontsize=_FONT_AX)
+            ax2.legend(fontsize=_FONT_LEG)
+            ax2.grid(True, alpha=0.3)
+            ax2.set_box_aspect(1)
+
         self.temporal_fig.tight_layout(pad=0.5)
         self.temporal_canvas.draw()
 
