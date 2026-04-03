@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [v0.3] — 2026-04-03 — Alpha Release
+## [v0.3] — Alpha Release
 
 ### Added
 
@@ -46,7 +46,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [v0.2] — 2025 — Alpha Release
+## [v0.2] — Alpha Release
 
 ### Added
 
@@ -68,7 +68,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [v0.1] — 2025 — Initial Alpha Release
+## [v0.1] —  Initial Alpha Release
 
 ### Added
 
