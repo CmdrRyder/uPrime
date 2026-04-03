@@ -7,7 +7,7 @@
 
 ### *Because u′ matters*
 
-**uPrime** is an open-source desktop application for post-processing planar and stereo PIV data. It reads Tecplot `.dat` files exported from LaVision DaVis and provides a clean GUI for turbulence analysis — no MATLAB or Python scripting required.
+**uPrime** is an open-source desktop application for post-processing planar and stereo PIV data. It reads Tecplot `.dat` files exported from LaVision DaVis and provides a clean GUI for turbulence analysis. No MATLAB or Python scripting required.
 
 Developed at the **Transient Fluid Mechanics Laboratory, Technion — Israel Institute of Technology**.
 
