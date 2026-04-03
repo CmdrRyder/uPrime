@@ -1,72 +1,46 @@
 # uPrime
+
 [![DOI](https://zenodo.org/badge/1197739784.svg)](https://doi.org/10.5281/zenodo.19376184)
+[![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-nd/4.0/)
+![Version](https://img.shields.io/badge/version-0.3%20alpha-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
-### *Because u' matters*
+### *Because u′ matters*
 
-**uPrime** is an open-source fluid velocity field analysis toolkit. It reads Tecplot `.dat` format files exported from DaVis (LaVision) or CFD solvers and provides a clean GUI for turbulence post-processing. No MATLAB or Python required.
+**uPrime** is an open-source desktop application for post-processing planar and stereo PIV data. It reads Tecplot `.dat` files exported from LaVision DaVis and provides a clean GUI for turbulence analysis — no MATLAB or scripting required.
 
 Developed at the **Transient Fluid Mechanics Laboratory, Technion — Israel Institute of Technology**.
 
 ---
 
-## Current Features (uPrime v0.2 Alpha)
+## Features
 
-- **Data loading** — 2D planar and stereo PIV auto-detected, up to 10,000+ snapshots
-- **Mean flow display** — contour maps of U, V, W, speed, vorticity, Std(U), Std(V) with interactive vector overlay
-- **Reynolds stresses** — all $R_{ij}$ components, 2D contour maps and line profiles, optional normalization by $U_m²$
-- **Turbulent kinetic energy (TKE)** — 2D and full 3C formulations, contour maps and line profiles
-- **TKE budget** — production, transport, and related terms with configurable parameters and smoothing options
-- **Spectral analysis (temporal & spatial)** — Welch PSD and spatial spectra for u, v, w with Kolmogorov -5/3 reference line
-- **Correlation analysis** — two-point spatial and temporal correlation (point / ROI based), contour maps and 1D slices
-- **Anisotropy invariant analysis** — Lumley triangle (-I₂ vs I₃) and barycentric RGB maps
-- **Flexible evaluation modes** — results can be obtained at a point, along lines, over user-defined ROIs, or across the full field
-- **Data export** — plots saved as CSV, 2D contour fields exported as Tecplot-compatible ASCII `.dat` files
-- **Configurable analysis settings** — module-specific parameter panels for spectral, budget, and correlation calculations
+| Module | Description | TR required |
+|---|---|---|
+| **Mean field viewer** | Contour maps of U, V, W, speed, vorticity, Std(U/V) with vector overlay | — |
+| **Reynolds stresses** | All $R_{ij}$ components, 2D maps and line profiles | — |
+| **TKE budget** | Production, convection, turbulent diffusion, residual, ∂k/∂t | ∂k/∂t only |
+| **Spectral analysis** | Spatial E(k), temporal E(f) via Welch, space–time E(k,f) | E(f), E(k,f) |
+| **Correlation analysis** | Two-point spatial/temporal correlations, integral length and time scales, four scale methods | Temporal tab |
+| **Anisotropy invariants** | Lumley triangle and barycentric RGB maps | — (stereo only) |
+| **POD** | Energy spectrum, spatial modes, temporal coefficients, flow reconstruction | Coefficients tab |
+| **Coordinate transform** | Rotation (±10°) and origin shift, linear or cubic interpolation | — |
 
----
-
-## Coming Soon
-
-- POD (Proper Orthogonal Decomposition)
-- FTLE (Finite-Time Lyapunov Exponents)
-- DMD (Dynamic Mode Decomposition)
-- Phase averaging for cyclic data
-- Linux and macOS support
+All analyses open in separate windows so you can compare results side by side. Every result can be exported to Tecplot `.dat` or `.csv`.
 
 ---
-
-## Input Format
-
-uPrime reads **Tecplot ASCII `.dat` files** with the following structure:
-
-
-```
-TITLE = "filename"
-VARIABLES = "x [mm]", "y [mm]", "Velocity u [m/s]", "Velocity v [m/s]", ...
-ZONE T="Frame 0", I=NX, J=NY, F=POINT
-...data...
-```
-
-- One snapshot per file
-- Columns are auto-detected by name — extra columns (acceleration, pressure, vorticity, etc.) are handled gracefully
-- Both 2D (u, v) and stereo (u, v, w) exports are supported
-
-Compatible with **LaVision DaVis** exports and any CFD post-processor that writes Tecplot ASCII format.
-
----
-
 
 ## Installation
 
-### Option 1 — Windows standalone `.exe` (recommended)
+### Option 1 — Windows standalone `.exe`
 
-Download `uPrime_v0.2.exe` from the [Releases](https://github.com/CmdrRyder/uPrime/releases) page. No Python installation needed. Just download and run.
+Download the latest `uPrime_v0.3.exe` from the [Releases](https://github.com/CmdrRyder/uPrime/releases) page. No Python installation needed.
 
-> **Note:** Windows Defender may flag the `.exe` on first run. Click "More info" → "Run anyway". This is normal for PyInstaller executables.
+> **Note:** Windows Defender may flag the `.exe` on first run. Click **More info → Run anyway**. This is normal for unsigned PyInstaller executables.
 
 ### Option 2 — Run from source
 
-**Requires Python 3.11**
+Requires **Python 3.10 or later**.
 
 ```bash
 git clone https://github.com/CmdrRyder/uPrime.git
@@ -77,35 +51,68 @@ python main.py
 
 ---
 
-## Quick Start
+## Input format
 
-1. Launch uPrime
-2. Click **Select .dat Files** and choose your snapshots
-3. Set acquisition type (Time-Resolved or Non-Time-Resolved) and sampling frequency
-4. Use the **Display** panel to explore mean fields
-5. Select an analysis from the **Analysis** panel and click **Run Analysis**
+uPrime reads **Tecplot ASCII `.dat` files** in the standard DaVis export format:
+
+```
+TITLE = "filename"
+VARIABLES = "x [mm]", "y [mm]", "Velocity u [m/s]", "Velocity v [m/s]", ...
+ZONE T="Frame 0", I=NX, J=NY, F=POINT
+...data...
+```
+
+- One snapshot per file; select multiple files at once to load a time series.
+- Column names are detected automatically — extra columns (vorticity, acceleration, etc.) are handled gracefully.
+- Both 2D (u, v) and stereo (u, v, w) exports are supported.
+
+Compatible with **LaVision DaVis** and any CFD post-processor that writes Tecplot ASCII format.
+
+---
+
+## Quick start
+
+1. Launch uPrime.
+2. Click **Select .dat Files** and choose your snapshot files.
+3. Set **Acquisition Type** — Time-Resolved (TR) or Non-TR — and enter $f_s$ if TR.
+4. Use the field viewer to inspect mean fields and verify the coordinate system.
+5. Apply **Transform / Align** if needed (rotation, origin shift).
+6. Open any analysis module from the **Analysis** panel.
+
+A full user manual (PDF) is available in the repository under `docs/`.
+
+---
+
+## Roadmap
+
+- [ ] FTLE (Finite-Time Lyapunov Exponents)
+- [ ] DMD (Dynamic Mode Decomposition)
+- [ ] Spectral POD (SPOD)
+- [ ] Phase averaging for cyclic/oscillatory data
+- [ ] macOS and Linux packaged releases
+
+---
+
+## Citation
+
+If uPrime contributes to published research, please cite:
+
+> Jibu Tom Jose. *uPrime: Open-source PIV post-processing toolkit*. Transient Fluid Mechanics Laboratory, Technion, 2026. https://doi.org/10.5281/zenodo.19376184
 
 ---
 
 ## License
 
-**CC BY-NC-ND 4.0** — Creative Commons Attribution-NonCommercial-NoDerivatives 4.0
-
-Free for personal, academic, and research use with attribution. If used in published research, please cite:
-
-> Jibu Tom Jose, *uPrime — Open-source fluid velocity field analysis toolkit*, Technion (2026).  
-> https://doi.org/10.5281/zenodo.19376184
-
-Commercial use and redistribution are not permitted without explicit written permission.
+**CC BY-NC-ND 4.0** — Free for personal, academic, and research use with attribution. Commercial use and redistribution require explicit written permission.  
 Full license: https://creativecommons.org/licenses/by-nc-nd/4.0/
 
 ---
 
 ## Author
 
-**Jibu Tom Jose**
-Postdoctoral Research Fellow
-Department of Mechanical Engineering
+**Jibu Tom Jose**  
+Postdoctoral Research Fellow  
+Department of Mechanical Engineering  
 Technion — Israel Institute of Technology, Haifa, Israel
 
 Built with assistance from [Claude](https://www.anthropic.com) (Anthropic).
