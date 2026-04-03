@@ -13,6 +13,15 @@ Developed at the **Transient Fluid Mechanics Laboratory, Technion — Israel Ins
 
 ---
 
+## Interface
+
+<!-- Add screenshot here -->
+![uPrime GUI](docs/screenshot_main.png)
+
+> The interface is organized around a central visualization panel with modular analysis windows that can be opened and compared simultaneously.
+
+---
+
 ## Features
 
 | Module | Description | TR required |
@@ -51,6 +60,27 @@ python main.py
 
 ---
 
+## Quick start
+
+1. Launch uPrime.  
+2. Click **Select .dat Files** and choose your snapshot files.  
+3. Set **Acquisition Type** — Time-Resolved (TR) or Non-TR — and enter $f_s$ if TR.  
+4. Use the field viewer to inspect mean fields and verify the coordinate system.  
+5. Apply **Transform / Align** if needed (rotation, origin shift).  
+6. Open any analysis module from the **Analysis** panel.  
+
+---
+
+## Documentation
+
+A full user manual is available:
+
+📄 [uPrime User Manual](docs/manual.pdf)
+
+> The manual provides detailed explanations of all modules, workflows, and implementation notes. It is updated alongside the software.
+
+---
+
 ## Input format
 
 uPrime reads **Tecplot ASCII `.dat` files** in the standard DaVis export format:
@@ -62,34 +92,35 @@ ZONE T="Frame 0", I=NX, J=NY, F=POINT
 ...data...
 ```
 
-- One snapshot per file; select multiple files at once to load a time series.
-- Column names are detected automatically — extra columns (vorticity, acceleration, etc.) are handled gracefully.
-- Both 2D (u, v) and stereo (u, v, w) exports are supported.
+- One snapshot per file; select multiple files at once to load a time series.  
+- Column names are detected automatically — extra columns (vorticity, acceleration, etc.) are handled gracefully.  
+- Both 2D (u, v) and stereo (u, v, w) exports are supported.  
 
 Compatible with **LaVision DaVis** and any CFD post-processor that writes Tecplot ASCII format.
 
 ---
 
-## Quick start
+## Code Structure
 
-1. Launch uPrime.
-2. Click **Select .dat Files** and choose your snapshot files.
-3. Set **Acquisition Type** — Time-Resolved (TR) or Non-TR — and enter $f_s$ if TR.
-4. Use the field viewer to inspect mean fields and verify the coordinate system.
-5. Apply **Transform / Align** if needed (rotation, origin shift).
-6. Open any analysis module from the **Analysis** panel.
-
-A full user manual (PDF) is available in the repository under `docs/`.
+```
+uPrime/
+│── main.py              # application entry point
+│── requirements.txt
+│
+├── gui/                 # user interface (PyQt)
+├── core/                # numerical routines and analysis modules
+├── docs/                # manual, screenshots, documentation assets
+```
 
 ---
 
 ## Roadmap
 
-- [ ] FTLE (Finite-Time Lyapunov Exponents)
-- [ ] DMD (Dynamic Mode Decomposition)
-- [ ] Spectral POD (SPOD)
-- [ ] Phase averaging for cyclic/oscillatory data
-- [ ] macOS and Linux packaged releases
+- [ ] FTLE (Finite-Time Lyapunov Exponents)  
+- [ ] DMD (Dynamic Mode Decomposition)  
+- [ ] Spectral POD (SPOD)  
+- [ ] Phase averaging for cyclic/oscillatory data  
+- [ ] macOS and Linux packaged releases  
 
 ---
 
@@ -98,6 +129,18 @@ A full user manual (PDF) is available in the repository under `docs/`.
 If uPrime contributes to published research, please cite:
 
 > Jibu Tom Jose. *uPrime: Open-source PIV post-processing toolkit*. Transient Fluid Mechanics Laboratory, Technion, 2026. https://doi.org/10.5281/zenodo.19376184
+
+---
+
+## Contributing
+
+Contributions are welcome. If you plan to add new analysis modules or extend existing functionality:
+
+- Follow the existing structure (`core/` for computations, `gui/` for interface)  
+- Keep modules self-contained  
+- Update documentation where relevant  
+
+For major changes, please open an issue first to discuss the proposed addition.
 
 ---
 
@@ -113,6 +156,6 @@ Full license: https://creativecommons.org/licenses/by-nc-nd/4.0/
 **Jibu Tom Jose**  
 Postdoctoral Research Fellow  
 Department of Mechanical Engineering  
-Technion — Israel Institute of Technology, Haifa, Israel
+Technion — Israel Institute of Technology, Haifa, Israel  
 
 Built with assistance from [Claude](https://www.anthropic.com) (Anthropic).
