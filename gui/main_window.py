@@ -180,15 +180,15 @@ class MainWindow(PickerMixin, QMainWindow):
 
         sl.addWidget(self._separator())
 
-        # -- 3. Dataset Info --
-        self.info_group = QGroupBox("3. Dataset Info")
-        self.info_group.setVisible(False)
-        info_lay = QVBoxLayout(self.info_group)
-        self.lbl_info = QLabel("")
-        self.lbl_info.setWordWrap(True)
-        self.lbl_info.setStyleSheet("font-size:10px;")
-        info_lay.addWidget(self.lbl_info)
-        sl.addWidget(self.info_group)
+        # -- 3. Align / Transform --
+        self.transform_group = QGroupBox("3. Align / Transform")
+        self.transform_group.setVisible(False)
+        tr_lay = QVBoxLayout(self.transform_group)
+        self.btn_transform = QPushButton("\u21ba  Transform / Align...")
+        self.btn_transform.clicked.connect(self._run_transform)
+        self.btn_transform.setStyleSheet("text-align: left; padding: 4px 8px;")
+        tr_lay.addWidget(self.btn_transform)
+        sl.addWidget(self.transform_group)
 
         sl.addWidget(self._separator())
 
@@ -214,18 +214,6 @@ class MainWindow(PickerMixin, QMainWindow):
             self._analysis_btns.append(btn)
 
         sl.addWidget(self.analysis_group)
-
-        sl.addWidget(self._separator())
-
-        # -- 5. Data Transform --
-        self.transform_group = QGroupBox("5. Align / Transform")
-        self.transform_group.setVisible(False)
-        tr_lay = QVBoxLayout(self.transform_group)
-        self.btn_transform = QPushButton("\u21ba  Transform / Align...")
-        self.btn_transform.clicked.connect(self._run_transform)
-        self.btn_transform.setStyleSheet("text-align: left; padding: 4px 8px;")
-        tr_lay.addWidget(self.btn_transform)
-        sl.addWidget(self.transform_group)
 
         sl.addStretch()
 
@@ -296,6 +284,17 @@ class MainWindow(PickerMixin, QMainWindow):
         opts.addStretch()
 
         right_lay.addWidget(self.options_strip)
+
+        # -- Info ribbon (compact dataset summary, shown after load) --
+        self.info_ribbon = QWidget()
+        self.info_ribbon.setVisible(False)
+        ribbon_lay = QHBoxLayout(self.info_ribbon)
+        ribbon_lay.setContentsMargins(4, 2, 4, 2)
+        self.lbl_info_ribbon = QLabel("")
+        self.lbl_info_ribbon.setStyleSheet("font-size:10px; color:#888;")
+        ribbon_lay.addWidget(self.lbl_info_ribbon)
+        ribbon_lay.addStretch()
+        right_lay.addWidget(self.info_ribbon)
 
         # -- Transform status strip (hidden until a transform is applied) --
         self.transform_strip = QWidget()
@@ -416,14 +415,15 @@ class MainWindow(PickerMixin, QMainWindow):
         dy = abs(y[1, 0] - y[0, 0])
         mem_mb = (3 if stereo else 2) * ny * nx * Nt * 4 / 1e6
 
-        self.lbl_info.setText(
-            f"Grid : {nx} \u00d7 {ny}\n"
-            f"dx/dy : {dx:.3f} / {dy:.3f} mm\n"
-            f"Snapshots : {Nt}\n"
-            f"Type : {'Stereo' if stereo else '2D'}\n"
-            f"Memory : ~{mem_mb:.0f} MB"
+        ribbon_text = (
+            f"Grid: {nx} \u00d7 {ny}"
+            f" \u00b7 dx/dy: {dx:.3f} mm"
+            f" \u00b7 Snapshots: {Nt}"
+            f" \u00b7 Type: {'Stereo' if stereo else '2D'}"
+            f" \u00b7 Memory: ~{mem_mb:.0f} MB"
         )
-        self.info_group.setVisible(True)
+        self.lbl_info_ribbon.setText(ribbon_text)
+        self.info_ribbon.setVisible(True)
         self.acq_group.setVisible(True)
         self.analysis_group.setVisible(True)
         self.transform_group.setVisible(True)
@@ -559,8 +559,12 @@ class MainWindow(PickerMixin, QMainWindow):
             inv = invalid_mask[::skip_y, ::skip_x]
             us[inv] = np.nan; vs[inv] = np.nan
             mag = np.sqrt(us**2 + vs**2)
-            mag[mag == 0] = np.nan
-            un  = us / mag; vn = vs / mag
+            mag[inv] = np.nan
+            max_mag = np.nanmax(mag)
+            if not max_mag or not np.isfinite(max_mag):
+                return
+            u_scaled = us / max_mag
+            v_scaled = vs / max_mag
 
             # Auto-normalize: scale quiver so length=1 gives ~1/20 of domain
             # User scale is a multiplier (1.0 = default, <1 shorter, >1 longer)
@@ -571,7 +575,7 @@ class MainWindow(PickerMixin, QMainWindow):
             # base_scale: makes arrows fit neatly between grid points
             base_scale = n_arrows / (domain * vec_scale + 1e-9)
 
-            ax.quiver(xs, ys, un, vn, color="k",
+            ax.quiver(xs, ys, u_scaled, v_scaled, color="k",
                       scale=base_scale,
                       scale_units="xy",
                       angles="xy",

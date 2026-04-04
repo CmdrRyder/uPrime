@@ -35,12 +35,12 @@ from gui.line_selector import LineSelectorWidget, compute_snapped_line
 
 
 COMP_LABELS = {
-    "uu": r"$\langle u'u' \rangle$",
-    "vv": r"$\langle v'v' \rangle$",
-    "ww": r"$\langle w'w' \rangle$",
-    "uv": r"$\langle u'v' \rangle$",
-    "uw": r"$\langle u'w' \rangle$",
-    "vw": r"$\langle v'w' \rangle$",
+    "uu": "<u'u'>",
+    "vv": "<v'v'>",
+    "ww": "<w'w'>",
+    "uv": "<u'v'>",
+    "uw": "<u'w'>",
+    "vw": "<v'w'>",
 }
 COMP_COLORS = {
     "uu": "tab:blue", "vv": "tab:orange", "ww": "tab:green",
@@ -124,13 +124,13 @@ class ReynoldsWindow(PickerMixin, QWidget):
         ll.setContentsMargins(4, 4, 4, 4)
         ll.setSpacing(6)
 
-        self.field_fig    = Figure()
+        self.field_fig    = Figure(constrained_layout=True)
         self.field_canvas = FigureCanvas(self.field_fig)
         self.field_canvas.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                        QSizePolicy.Policy.Expanding)
+                                        QSizePolicy.Policy.Fixed)
         self.field_toolbar = DrawAwareToolbar(self.field_canvas, self)
         ll.addWidget(self.field_toolbar)
-        ll.addWidget(self.field_canvas, stretch=5)
+        ll.addWidget(self.field_canvas)
 
         mode_grp = QGroupBox("Plot Mode")
         mode_lay = QHBoxLayout(mode_grp)
@@ -243,6 +243,15 @@ class ReynoldsWindow(PickerMixin, QWidget):
         vf = np.mean(ds["valid"], axis=2)
         speed[vf < 0.5] = np.nan
 
+        # Fix canvas height to match data aspect ratio so set_aspect("equal")
+        # fills the widget without white margins (same pattern as tke_budget_window).
+        x_ext = float(np.nanmax(x) - np.nanmin(x))
+        y_ext = float(np.nanmax(y) - np.nanmin(y))
+        ratio = (y_ext / x_ext) if x_ext > 0 else 0.5
+        target_w = 480   # left panel ~540px minus margins/toolbar
+        target_h = max(150, min(420, int(target_w * ratio) + 10))
+        self.field_canvas.setFixedHeight(target_h)
+
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
         self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
@@ -250,12 +259,9 @@ class ReynoldsWindow(PickerMixin, QWidget):
         self.field_ax.set_ylabel("y [mm]", fontsize=_FONT_AX)
         self.field_ax.set_title("Left-click+drag: line    Right-click+drag: ROI",
                                 fontsize=_FONT_AX - 1)
-        # No set_aspect("equal") -- elongated domains create tiny axes in a
-        # tall canvas; clicks in the white margin return inaxes=None and
-        # break line drawing.
+        self.field_ax.set_aspect("equal")
         self.field_ax.set_facecolor("white")
         self.field_ax.tick_params(labelsize=_FONT_TICK)
-        self.field_fig.tight_layout(pad=0.3)
         self.field_canvas.draw()
         self._x = x
         self._y = y

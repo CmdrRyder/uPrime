@@ -35,6 +35,8 @@ from core.anisotropy import (
     compute_barycentric,
     points_near_line,
 )
+from core.reynolds_stress import extract_line_profile
+from gui.line_selector import LineSelectorWidget, compute_snapped_line
 
 
 class AnisotropyWindow(PickerMixin, QWidget):
@@ -116,6 +118,9 @@ class AnisotropyWindow(PickerMixin, QWidget):
         mode_lay.addWidget(self.rb_line)
         mode_lay.addWidget(self.rb_rect)
         ll.addWidget(mode_grp)
+
+        self.line_sel = LineSelectorWidget(show_avg=False)
+        ll.addWidget(self.line_sel)
 
         self.lbl_hint = QLabel("Click and drag to draw a line.")
         self.lbl_hint.setStyleSheet("color: gray; font-size: 11px;")
@@ -234,10 +239,12 @@ class AnisotropyWindow(PickerMixin, QWidget):
     def _on_mode_changed(self):
         if self.rb_line.isChecked():
             self._mode = "line"
+            self.line_sel.setVisible(True)
             self.lbl_hint.setText(
                 "Left-click+drag to draw a line (Lumley triangle).")
         else:
             self._mode = "rect"
+            self.line_sel.setVisible(False)
             self.lbl_hint.setText(
                 "Left-click+drag to draw a rectangle (Barycentric map).")
         self._clear_graphics()
@@ -259,8 +266,11 @@ class AnisotropyWindow(PickerMixin, QWidget):
         self._clear_graphics()
 
         if self._mode == "line":
+            lmode = self.line_sel.get_mode()
+            lx0, ly0, lx1, ly1 = compute_snapped_line(
+                self._x, self._y, x0, y0, x1, y1, lmode)
             self._line_artist, = self.field_ax.plot(
-                [x0, x1], [y0, y1], "r-", linewidth=2, zorder=10
+                [lx0, lx1], [ly0, ly1], "r-", linewidth=2, zorder=10
             )
         else:
             self._rect_patch = Rectangle(
@@ -286,13 +296,20 @@ class AnisotropyWindow(PickerMixin, QWidget):
         self._press_xy = None
 
         if self._mode == "line":
-            if abs(x1-x0) < 0.1 and abs(y1-y0) < 0.1:
+            lmode = self.line_sel.get_mode()
+            lx0, ly0, lx1, ly1 = compute_snapped_line(
+                self._x, self._y, x0, y0, x1, y1, lmode)
+            if abs(lx1-lx0) < 0.1 and abs(ly1-ly0) < 0.1:
                 self.lbl_hint.setText("Line too short -- try again.")
                 return
+            self._clear_graphics()
+            self._line_artist, = self.field_ax.plot(
+                [lx0, lx1], [ly0, ly1], "r-", linewidth=2, zorder=10)
+            self.field_canvas.draw()
             self._selection = {"type": "line",
-                               "x0": x0, "y0": y0, "x1": x1, "y1": y1}
+                               "x0": lx0, "y0": ly0, "x1": lx1, "y1": ly1}
             self.lbl_hint.setText(
-                f"Line: ({x0:.1f},{y0:.1f}) -> ({x1:.1f},{y1:.1f}) mm"
+                f"Line ({lmode}): ({lx0:.1f},{ly0:.1f}) \u2192 ({lx1:.1f},{ly1:.1f}) mm"
             )
         else:
             if abs(x1-x0) < 0.1 or abs(y1-y0) < 0.1:
@@ -371,20 +388,35 @@ class AnisotropyWindow(PickerMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _compute_lumley_line(self, sel):
-        rows, cols, dist = points_near_line(
-            self._x, self._y,
-            sel["x0"], sel["y0"], sel["x1"], sel["y1"]
-        )
-
         neg_I2_field, I3_field = self._get_smooth_fields()
-        neg_II = neg_I2_field[rows, cols]
-        III    = I3_field[rows, cols]
+        lmode = self.line_sel.get_mode()
+
+        if lmode == "free":
+            rows, cols, dist = points_near_line(
+                self._x, self._y,
+                sel["x0"], sel["y0"], sel["x1"], sel["y1"]
+            )
+            neg_II = neg_I2_field[rows, cols]
+            III    = I3_field[rows, cols]
+            xpts   = self._x[rows, cols]
+            ypts   = self._y[rows, cols]
+        else:
+            neg_II, dist, xpts, ypts = extract_line_profile(
+                neg_I2_field, self._x, self._y,
+                sel["x0"], sel["y0"], sel["x1"], sel["y1"],
+                mode=lmode, avg_band=0)
+            III, _, _, _ = extract_line_profile(
+                I3_field, self._x, self._y,
+                sel["x0"], sel["y0"], sel["x1"], sel["y1"],
+                mode=lmode, avg_band=0)
 
         # Remove NaN points
         valid  = np.isfinite(neg_II) & np.isfinite(III)
         neg_II = neg_II[valid]
         III    = III[valid]
         dist   = dist[valid]
+        xpts   = xpts[valid]
+        ypts   = ypts[valid]
 
         if len(neg_II) == 0:
             raise ValueError("No valid anisotropy data found along the selected line. "
@@ -406,8 +438,9 @@ class AnisotropyWindow(PickerMixin, QWidget):
         ax.set_title(f"Lumley Triangle  ({len(neg_II)} points along line)")
         ax.grid(True, alpha=0.3)
 
-        self._last_result = {"type": "line", "rows": rows, "cols": cols,
-                              "dist": dist, "neg_II": neg_II, "III": III}
+        self._last_result = {"type": "line", "dist": dist,
+                              "xpts": xpts, "ypts": ypts,
+                              "neg_II": neg_II, "III": III}
         self.btn_export.setEnabled(True)
         self.lumley_canvas.draw()
 
@@ -585,9 +618,9 @@ class AnisotropyWindow(PickerMixin, QWidget):
                 "Grid"      : f"{self.dataset['nx']} x {self.dataset['ny']}",
             }
             import numpy as np
-            dist  = res["dist"]
-            xpts  = self._x[res["rows"], res["cols"]]
-            ypts  = self._y[res["rows"], res["cols"]]
+            dist   = res["dist"]
+            xpts   = res["xpts"]
+            ypts   = res["ypts"]
             neg_II = res["neg_II"]
             I3     = res["III"]
             export_line_csv(path, dist, xpts, ypts,
