@@ -12,6 +12,7 @@ Right-click + drag : draw yellow ROI rectangle (in any mode -- reserved for
 Zoom / pan toolbar : suppresses all draw events
 """
 
+import os
 import numpy as np
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
@@ -225,6 +226,15 @@ class ReynoldsWindow(PickerMixin, QWidget):
                                          QSizePolicy.Policy.Expanding)
         self.result_toolbar = DrawAwareToolbar(self.result_canvas, self)
         rl.addWidget(self.result_toolbar)
+        chk_row = QHBoxLayout()
+        chk_row.addStretch()
+        self.chk_hide_axes = QCheckBox("Hide axes")
+        self.chk_hide_axes.stateChanged.connect(self._on_plot)
+        chk_row.addWidget(self.chk_hide_axes)
+        self.chk_hide_colorbar = QCheckBox("Hide colorbar")
+        self.chk_hide_colorbar.stateChanged.connect(self._on_plot)
+        chk_row.addWidget(self.chk_hide_colorbar)
+        rl.addLayout(chk_row)
         rl.addWidget(self.result_canvas)
 
         splitter.addWidget(left)
@@ -263,6 +273,7 @@ class ReynoldsWindow(PickerMixin, QWidget):
         self.field_ax.set_facecolor("white")
         self.field_ax.tick_params(labelsize=_FONT_TICK)
         self.field_canvas.draw()
+        self.field_toolbar.set_home_limits()
         self._x = x
         self._y = y
         self._last_field_values = speed
@@ -450,9 +461,12 @@ class ReynoldsWindow(PickerMixin, QWidget):
         self.result_fig.clear()
         ax = self.result_fig.add_subplot(111)
         cf = ax.contourf(self._x, self._y, field, levels=50, cmap=cmap)
-        self.result_fig.colorbar(cf, ax=ax,
-                                 label=f"{COMP_LABELS.get(comp, comp)} {unit_str}",
-                                 shrink=0.8)
+        cb = self.result_fig.colorbar(cf, ax=ax,
+                                      label=f"{COMP_LABELS.get(comp, comp)} {unit_str}",
+                                      shrink=0.8)
+        if self.chk_hide_colorbar.isChecked():
+            cb.remove()
+            self.result_fig.tight_layout(pad=0.5)
         ax.set_xlabel("x [mm]", fontsize=_FONT_AX)
         ax.set_ylabel("y [mm]", fontsize=_FONT_AX)
         ax.set_title(f"Reynolds Stress: {COMP_LABELS.get(comp, comp)}",
@@ -460,8 +474,12 @@ class ReynoldsWindow(PickerMixin, QWidget):
         ax.set_aspect("equal")
         ax.set_facecolor("white")
         ax.tick_params(labelsize=_FONT_TICK)
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
+            ax.set_title('')
         self.result_fig.tight_layout(pad=0.5)
         self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
         self._last_contour_comp = comp
         self.btn_export.setEnabled(True)
         self.lbl_status.setText(f"Contour: {comp}")
@@ -528,7 +546,9 @@ class ReynoldsWindow(PickerMixin, QWidget):
                     transform=ax.transAxes, ha="center", va="center")
         else:
             ax.axhline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
-            ax.set_xlabel("Distance along line [mm]", fontsize=_FONT_AX)
+            xlabel = {"horizontal": "x [mm]",
+                      "vertical":   "y [mm]"}.get(lmode, "Distance from origin [mm]")
+            ax.set_xlabel(xlabel, fontsize=_FONT_AX)
             ax.set_ylabel(f"Reynolds Stress {unit_str}", fontsize=_FONT_AX)
             ax.set_title("Reynolds Stress Profile", fontsize=_FONT_AX)
             ax.legend(fontsize=_FONT_LEG)
@@ -536,8 +556,11 @@ class ReynoldsWindow(PickerMixin, QWidget):
             ax.tick_params(labelsize=_FONT_TICK)
             self.btn_export.setEnabled(True)
 
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
         self.result_fig.tight_layout(pad=0.5)
         self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
         self.lbl_status.setText("Line profile plotted.")
 
     # ----------------------------------------------------------------------- #
@@ -566,20 +589,23 @@ class ReynoldsWindow(PickerMixin, QWidget):
             self.lbl_status.setText(f"Exported to {path}")
         else:
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export 2D Field", "reynolds_2d.dat",
+                self, "Export 2D Field", "reynolds_stresses_all.dat",
                 "Tecplot DAT (*.dat);;CSV Files (*.csv)")
             if not path:
                 return
-            comp  = self._last_contour_comp
-            field = self._stresses[comp].copy() * scale
-            vf    = np.mean(self.dataset["valid"], axis=2)
-            field[vf < 0.5] = np.nan
+            vf = np.mean(self.dataset["valid"], axis=2)
+            fields, labels = [], []
+            for comp in self._available:
+                f = self._stresses[comp].copy() * scale
+                f[vf < 0.5] = np.nan
+                fields.append(f)
+                labels.append(f"{COMP_LABELS.get(comp, comp)} {unit_str}")
             settings = {
-                "Analysis"    : f"Reynolds Stress 2D - {comp}",
+                "Analysis"    : "Reynolds Stresses - All Components",
                 "Snapshots"   : self.dataset["Nt"],
                 "Scaled by Um": (f"Yes, Um={self.spin_um.value():.3f} m/s"
                                  if self.chk_scale.isChecked() else "No"),
             }
-            export_2d_tecplot(path, self._x, self._y,
-                              [field], [f"{comp} {unit_str}"], settings)
-            self.lbl_status.setText(f"Exported to {path}")
+            export_2d_tecplot(path, self._x, self._y, fields, labels, settings)
+            self.lbl_status.setText(
+                f"Exported {len(fields)} stress components to {os.path.basename(path)}")

@@ -11,7 +11,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFileDialog, QComboBox,
     QProgressBar, QSplitter, QGroupBox, QSizePolicy,
     QMessageBox, QSpinBox, QDoubleSpinBox, QRadioButton,
-    QButtonGroup, QScrollArea, QStatusBar, QFrame
+    QButtonGroup, QScrollArea, QStatusBar, QFrame,
+    QDialog, QDialogButtonBox, QCheckBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
@@ -88,12 +89,17 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("uPrime v0.3")
+        self.setWindowTitle("uPrime v0.3.3")
         self.setMinimumSize(1100, 650)
         self.resize(1400, 820)
-        self.dataset       = None
-        self.loader_thread = None
-        self._windows      = []
+        self.dataset           = None
+        self.loader_thread     = None
+        self._windows          = []
+        self._full_file_list   = []   # complete original file list from dialog
+        self._last_file_list   = []   # actually loaded file list (after subsampling)
+        self._subsample_desc   = ""   # description of current subsampling
+        self._full_dataset     = None # copy before subset is applied
+        self._original_fs      = None # fs before any stride-based subset
         self._build_ui()
 
     # ----------------------------------------------------------------------- #
@@ -141,6 +147,30 @@ class MainWindow(PickerMixin, QMainWindow):
         self.btn_load = QPushButton("📂  Select .dat Files...")
         self.btn_load.clicked.connect(self._on_load_files)
         load_lay.addWidget(self.btn_load)
+        self.btn_reload = QPushButton("\u21ba  Reload Last Dataset")
+        self.btn_reload.clicked.connect(self._on_reload_files)
+        self.btn_reload.setStyleSheet(
+            "QPushButton { background: #1e2e3e; color: #90b8d8; }"
+            "QPushButton:hover { background: #253545; }"
+            "QPushButton:pressed { background: #162030; }")
+        self.btn_reload.setVisible(False)
+        load_lay.addWidget(self.btn_reload)
+        self.btn_subset = QPushButton("\u2702  Select Subset...")
+        self.btn_subset.clicked.connect(self._on_select_subset)
+        self.btn_subset.setStyleSheet(
+            "QPushButton { background: #1e3e2e; color: #90d8b8; }"
+            "QPushButton:hover { background: #253545; }"
+            "QPushButton:pressed { background: #162030; }")
+        self.btn_subset.setVisible(False)
+        load_lay.addWidget(self.btn_subset)
+        self.btn_restore_full = QPushButton("\u21a9  Restore Full Dataset")
+        self.btn_restore_full.clicked.connect(self._on_restore_full_dataset)
+        self.btn_restore_full.setStyleSheet(
+            "QPushButton { background: #3e2e1e; color: #d8b890; }"
+            "QPushButton:hover { background: #453525; }"
+            "QPushButton:pressed { background: #302010; }")
+        self.btn_restore_full.setVisible(False)
+        load_lay.addWidget(self.btn_restore_full)
         self.lbl_files = QLabel("No files loaded")
         self.lbl_files.setWordWrap(True)
         self.lbl_files.setStyleSheet("color:#888;font-size:10px;")
@@ -164,6 +194,7 @@ class MainWindow(PickerMixin, QMainWindow):
         self._acq_bg.addButton(self.rb_tr)
         self._acq_bg.addButton(self.rb_nontr)
         self.rb_tr.toggled.connect(self._on_acq_changed)
+        self.rb_tr.toggled.connect(self._update_ribbon)
         acq_row.addWidget(self.rb_tr)
         acq_row.addWidget(self.rb_nontr)
         acq_lay.addLayout(acq_row)
@@ -174,6 +205,7 @@ class MainWindow(PickerMixin, QMainWindow):
         self.spin_fs.setValue(1000.0)
         self.spin_fs.setDecimals(1)
         self.spin_fs.setEnabled(False)
+        self.spin_fs.valueChanged.connect(self._update_ribbon)
         fs_row.addWidget(self.spin_fs)
         acq_lay.addLayout(fs_row)
         sl.addWidget(self.acq_group)
@@ -281,6 +313,14 @@ class MainWindow(PickerMixin, QMainWindow):
         btn_apply.setFixedWidth(60)
         btn_apply.clicked.connect(self._on_field_changed)
         opts.addWidget(btn_apply)
+        self.chk_clean_export = QCheckBox("Clean export (hide axes)")
+        self.chk_clean_export.setChecked(False)
+        self.chk_clean_export.stateChanged.connect(self._on_field_changed)
+        opts.addWidget(self.chk_clean_export)
+        self.chk_hide_colorbar = QCheckBox("Hide colorbar")
+        self.chk_hide_colorbar.setChecked(False)
+        self.chk_hide_colorbar.stateChanged.connect(self._on_field_changed)
+        opts.addWidget(self.chk_hide_colorbar)
         opts.addStretch()
 
         right_lay.addWidget(self.options_strip)
@@ -291,7 +331,7 @@ class MainWindow(PickerMixin, QMainWindow):
         ribbon_lay = QHBoxLayout(self.info_ribbon)
         ribbon_lay.setContentsMargins(4, 2, 4, 2)
         self.lbl_info_ribbon = QLabel("")
-        self.lbl_info_ribbon.setStyleSheet("font-size:10px; color:#888;")
+        self.lbl_info_ribbon.setStyleSheet("font-size:13px; color:#aaa;")
         ribbon_lay.addWidget(self.lbl_info_ribbon)
         ribbon_lay.addStretch()
         right_lay.addWidget(self.info_ribbon)
@@ -309,7 +349,7 @@ class MainWindow(PickerMixin, QMainWindow):
         ts_lay.addWidget(ts_icon)
         self.lbl_transform_status = QLabel("Data transformed:")
         self.lbl_transform_status.setStyleSheet(
-            "color:#e06c75; font-size:10px; font-weight:bold;"
+            "color:#e06c75; font-size:13px; font-weight:bold;"
             "letter-spacing:0.3px;")
         ts_lay.addWidget(self.lbl_transform_status)
         ts_lay.addStretch()
@@ -318,6 +358,7 @@ class MainWindow(PickerMixin, QMainWindow):
         # -- Plot canvas --
         self.plot_canvas = PlotCanvas()
         right_lay.addWidget(self.plot_canvas)
+        self._override_home_button()
 
         root.addWidget(right_widget)
 
@@ -379,6 +420,120 @@ class MainWindow(PickerMixin, QMainWindow):
     # Load files
     # ----------------------------------------------------------------------- #
 
+    def _show_subsample_dialog(self, n_total):
+        """
+        Show a dialog asking the user how many snapshots to load.
+
+        Returns (indices, description) if OK, or (None, None) if cancelled.
+        """
+        # Use dataset dimensions if available, otherwise sensible defaults
+        if self.dataset is not None:
+            ny = self.dataset["ny"]
+            nx = self.dataset["nx"]
+            is_stereo = self.dataset.get("is_stereo", False)
+        else:
+            ny, nx, is_stereo = 253, 500, False
+
+        n_vel_components = 3 if is_stereo else 2
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Subsample Dataset")
+        dlg.setFixedWidth(420)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(10)
+
+        lay.addWidget(QLabel(
+            f"{n_total} files available. Choose how many snapshots to load:"))
+
+        # --- Radio buttons ---
+        bg = QButtonGroup(dlg)
+
+        rb_all    = QRadioButton(f"Load all {n_total} snapshots")
+        rb_stride = QRadioButton("Stride: load every K-th snapshot")
+        rb_limit  = QRadioButton("Limit: load first N snapshots")
+        rb_all.setChecked(True)
+
+        bg.addButton(rb_all,    0)
+        bg.addButton(rb_stride, 1)
+        bg.addButton(rb_limit,  2)
+
+        lay.addWidget(rb_all)
+
+        stride_row = QHBoxLayout()
+        stride_row.addWidget(rb_stride)
+        spin_stride = QSpinBox()
+        spin_stride.setRange(2, 50)
+        spin_stride.setValue(max(2, round(n_total / 2000)))
+        spin_stride.setFixedWidth(70)
+        spin_stride.setEnabled(False)
+        stride_row.addWidget(spin_stride)
+        stride_row.addStretch()
+        lay.addLayout(stride_row)
+
+        limit_row = QHBoxLayout()
+        limit_row.addWidget(rb_limit)
+        spin_limit = QSpinBox()
+        spin_limit.setRange(10, 9999)
+        spin_limit.setValue(min(n_total, 2000))
+        spin_limit.setFixedWidth(80)
+        spin_limit.setEnabled(False)
+        limit_row.addWidget(spin_limit)
+        limit_row.addStretch()
+        lay.addLayout(limit_row)
+
+        # --- Live-updating info labels ---
+        lbl_count  = QLabel()
+        lbl_memory = QLabel()
+        lbl_count.setStyleSheet("color: #aaa; font-size: 11px;")
+        lbl_memory.setStyleSheet("color: #aaa; font-size: 11px;")
+        lay.addWidget(lbl_count)
+        lay.addWidget(lbl_memory)
+
+        def _update():
+            if rb_all.isChecked():
+                n = n_total
+            elif rb_stride.isChecked():
+                n = len(range(0, n_total, spin_stride.value()))
+            else:
+                n = min(spin_limit.value(), n_total)
+            mem_mb = ny * nx * n_vel_components * n * 4 / 1e6
+            lbl_count.setText(f"Snapshots to load:  {n}")
+            lbl_memory.setText(f"Estimated memory:  ~{mem_mb:.0f} MB")
+            spin_stride.setEnabled(rb_stride.isChecked())
+            spin_limit.setEnabled(rb_limit.isChecked())
+
+        rb_all.toggled.connect(_update)
+        rb_stride.toggled.connect(_update)
+        rb_limit.toggled.connect(_update)
+        spin_stride.valueChanged.connect(_update)
+        spin_limit.valueChanged.connect(_update)
+        _update()
+
+        # --- OK / Cancel ---
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        lay.addWidget(buttons)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return None, None
+
+        if rb_all.isChecked():
+            indices = list(range(n_total))
+            desc    = "All snapshots"
+        elif rb_stride.isChecked():
+            K       = spin_stride.value()
+            indices = list(range(0, n_total, K))
+            desc    = f"Every {K}th snapshot ({len(indices)} of {n_total})"
+        else:
+            N       = min(spin_limit.value(), n_total)
+            indices = list(range(N))
+            desc    = f"First {N} of {n_total} snapshots"
+
+        return indices, desc
+
     def _on_load_files(self):
         paths, _ = QFileDialog.getOpenFileNames(
             self, "Select DaVis .dat files", "",
@@ -386,14 +541,40 @@ class MainWindow(PickerMixin, QMainWindow):
         )
         if not paths:
             return
+
+        self._full_file_list = list(paths)
+
+        total_size = sum(os.path.getsize(p) for p in paths)
+        if total_size > 500 * 1024 * 1024:
+            indices, desc = self._show_subsample_dialog(len(paths))
+            if indices is None:
+                return
+            paths_to_load = [paths[i] for i in indices]
+            self._subsample_desc = desc
+        else:
+            paths_to_load = paths
+            self._subsample_desc = "All snapshots"
+
+        self._last_file_list = list(paths_to_load)
+        self._start_load(paths_to_load)
+
+    def _on_reload_files(self):
+        if not self._last_file_list:
+            return
+        n = len(self._last_file_list)
+        self.lbl_status.setText(f"Reloading {n} files from last session...")
+        self._start_load(self._last_file_list)
+
+    def _start_load(self, file_list):
         self.lbl_files.setText(
-            f"{len(paths)} file(s)\n{os.path.basename(paths[0])} ...")
+            f"{len(file_list)} file(s)\n{os.path.basename(file_list[0])} ...")
         self.lbl_status.setText("Loading files...")
         self.btn_load.setEnabled(False)
+        self.btn_reload.setEnabled(False)
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
 
-        self.loader_thread = LoaderThread(paths)
+        self.loader_thread = LoaderThread(file_list)
         self.loader_thread.progress.connect(self.progress_bar.setValue)
         self.loader_thread.finished.connect(self._on_load_finished)
         self.loader_thread.error.connect(self._on_load_error)
@@ -403,6 +584,13 @@ class MainWindow(PickerMixin, QMainWindow):
         self.dataset = dataset
         self.progress_bar.setVisible(False)
         self.btn_load.setEnabled(True)
+        self._last_file_list = list(self.loader_thread.file_list)
+        self._full_dataset = None
+        self._original_fs  = None
+        self.btn_reload.setVisible(True)
+        self.btn_reload.setEnabled(True)
+        self.btn_subset.setVisible(True)
+        self.btn_restore_full.setVisible(False)
 
         Nt     = dataset["Nt"]
         nx     = dataset["nx"]
@@ -411,18 +599,7 @@ class MainWindow(PickerMixin, QMainWindow):
         x      = dataset["x"]
         y      = dataset["y"]
 
-        dx = abs(x[0, 1] - x[0, 0])
-        dy = abs(y[1, 0] - y[0, 0])
-        mem_mb = (3 if stereo else 2) * ny * nx * Nt * 4 / 1e6
-
-        ribbon_text = (
-            f"Grid: {nx} \u00d7 {ny}"
-            f" \u00b7 dx/dy: {dx:.3f} mm"
-            f" \u00b7 Snapshots: {Nt}"
-            f" \u00b7 Type: {'Stereo' if stereo else '2D'}"
-            f" \u00b7 Memory: ~{mem_mb:.0f} MB"
-        )
-        self.lbl_info_ribbon.setText(ribbon_text)
+        self._update_ribbon()
         self.info_ribbon.setVisible(True)
         self.acq_group.setVisible(True)
         self.analysis_group.setVisible(True)
@@ -440,10 +617,8 @@ class MainWindow(PickerMixin, QMainWindow):
             self.combo_field.addItem("Mean Vorticity")
         self.combo_field.blockSignals(False)
 
-        # Auto skip based on grid
-        default_skip = max(1, min(nx, ny) // 20)
-        self.spin_skip_x.setValue(default_skip)
-        self.spin_skip_y.setValue(default_skip)
+        self.spin_skip_x.setValue(5)
+        self.spin_skip_y.setValue(5)
 
         self._check_convergence(Nt)
         self.lbl_status.setText(f"Loaded {Nt} snapshots.")
@@ -462,8 +637,147 @@ class MainWindow(PickerMixin, QMainWindow):
     def _on_load_error(self, msg):
         self.progress_bar.setVisible(False)
         self.btn_load.setEnabled(True)
+        self.btn_reload.setEnabled(True)
         self.lbl_status.setText(f"Error: {msg}")
         QMessageBox.critical(self, "Load Error", f"Failed to load:\n{msg}")
+
+    def _on_select_subset(self):
+        if self.dataset is None:
+            return
+
+        Nt = self.dataset["Nt"]
+        is_stereo = self.dataset.get("is_stereo", False)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Select Snapshot Subset")
+        dlg.setFixedWidth(380)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(8)
+
+        lay.addWidget(QLabel(
+            f"Dataset has {Nt} snapshots loaded.\n"
+            "Select a subset for analysis:"))
+
+        range_row = QHBoxLayout()
+        range_row.addWidget(QLabel("From snapshot:"))
+        spin_from = QSpinBox()
+        spin_from.setRange(1, Nt)
+        spin_from.setValue(1)
+        spin_from.setFixedWidth(75)
+        range_row.addWidget(spin_from)
+        range_row.addSpacing(12)
+        range_row.addWidget(QLabel("To snapshot:"))
+        spin_to = QSpinBox()
+        spin_to.setRange(1, Nt)
+        spin_to.setValue(Nt)
+        spin_to.setFixedWidth(75)
+        range_row.addWidget(spin_to)
+        range_row.addStretch()
+        lay.addLayout(range_row)
+
+        stride_row = QHBoxLayout()
+        stride_row.addWidget(QLabel("Use every K-th:"))
+        spin_stride = QSpinBox()
+        spin_stride.setRange(1, 50)
+        spin_stride.setValue(1)
+        spin_stride.setFixedWidth(65)
+        stride_row.addWidget(spin_stride)
+        stride_row.addStretch()
+        lay.addLayout(stride_row)
+
+        lbl_count = QLabel()
+        lbl_count.setStyleSheet("color: #aaa; font-size: 11px;")
+        lay.addWidget(lbl_count)
+
+        def _update():
+            n = len(range(spin_from.value() - 1, spin_to.value(), spin_stride.value()))
+            lbl_count.setText(f"Snapshots selected: {n}")
+
+        spin_from.valueChanged.connect(_update)
+        spin_to.valueChanged.connect(_update)
+        spin_stride.valueChanged.connect(_update)
+        _update()
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        lay.addWidget(buttons)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        indices = list(range(spin_from.value() - 1, spin_to.value(), spin_stride.value()))
+        if not indices:
+            return
+
+        original_Nt = Nt
+        if self._full_dataset is None:
+            import copy
+            self._full_dataset = copy.deepcopy(self.dataset)
+
+        ds = self.dataset
+        ds["U"]     = ds["U"][:, :, indices]
+        ds["V"]     = ds["V"][:, :, indices]
+        if is_stereo:
+            ds["W"] = ds["W"][:, :, indices]
+        ds["valid"] = ds["valid"][:, :, indices]
+        ds["Nt"]    = len(indices)
+        ds["valid_frac"] = np.mean(ds["valid"].astype(np.float32), axis=2)
+
+        stride = spin_stride.value()
+        status_msg = f"Subset applied: {len(indices)} of {original_Nt} snapshots"
+        if self.rb_tr.isChecked() and stride > 1:
+            if self._original_fs is None:
+                self._original_fs = self.spin_fs.value()
+            effective_fs = self._original_fs / stride
+            self.spin_fs.setValue(effective_fs)
+            status_msg += f". Effective fs updated to {effective_fs:.1f} Hz"
+
+        self._update_ribbon()
+        self.lbl_status.setText(status_msg)
+        self.btn_restore_full.setVisible(True)
+        self._plot_field()
+
+    def _on_restore_full_dataset(self):
+        if self._full_dataset is None:
+            return
+        self.dataset = self._full_dataset
+        self._full_dataset = None
+        self.btn_restore_full.setVisible(False)
+        self._update_ribbon()
+        status_msg = f"Full dataset restored: {self.dataset['Nt']} snapshots"
+        if self._original_fs is not None:
+            self.spin_fs.setValue(self._original_fs)
+            status_msg += f". fs restored to {self._original_fs:.1f} Hz"
+            self._original_fs = None
+        self.lbl_status.setText(status_msg)
+        self._plot_field()
+
+    def _update_ribbon(self, *_):
+        ds = self.dataset
+        if ds is None:
+            return
+        Nt     = ds["Nt"]
+        nx     = ds["nx"]
+        ny     = ds["ny"]
+        stereo = ds["is_stereo"]
+        x      = ds["x"]
+        dx     = abs(x[0, 1] - x[0, 0])
+        mem_mb = (3 if stereo else 2) * ny * nx * Nt * 4 / 1e6
+        acq_type = "2D3C" if stereo else "2D2C"
+        parts = [
+            f"Grid: {nx} \u00d7 {ny}",
+            f"dx/dy: {dx:.3f} mm",
+            f"Snapshots: {Nt}",
+        ]
+        if self.rb_tr.isChecked():
+            dt_ms = 1000.0 / self.spin_fs.value()
+            parts.append(f"dt: {dt_ms:.2f} ms")
+        parts.append(f"Type: {acq_type}")
+        parts.append(f"Memory: ~{mem_mb:.0f} MB")
+        self.lbl_info_ribbon.setText(" \u00b7 ".join(parts))
 
     def _check_convergence(self, Nt):
         if self.rb_tr.isChecked():
@@ -495,6 +809,31 @@ class MainWindow(PickerMixin, QMainWindow):
     def _on_field_changed(self):
         if self.dataset is not None:
             self._plot_field()
+
+    def _override_home_button(self):
+        toolbar = self.plot_canvas.toolbar
+        for action in toolbar.actions():
+            if 'home' in action.text().lower() or 'reset' in action.text().lower():
+                try:
+                    action.triggered.disconnect()
+                except Exception:
+                    pass
+                action.triggered.connect(self._go_home)
+                break
+        actions = toolbar.actions()
+        if actions:
+            try:
+                actions[0].triggered.disconnect()
+            except Exception:
+                pass
+            actions[0].triggered.connect(self._go_home)
+
+    def _go_home(self):
+        if hasattr(self, '_home_xlim') and self.plot_canvas.figure.axes:
+            ax = self.plot_canvas.figure.axes[0]
+            ax.set_xlim(self._home_xlim)
+            ax.set_ylim(self._home_ylim)
+            self.plot_canvas.canvas.draw_idle()
 
     def _plot_field(self):
         if self.dataset is None:
@@ -546,10 +885,23 @@ class MainWindow(PickerMixin, QMainWindow):
         self.plot_canvas.figure.set_facecolor("white")
         ax = self.plot_canvas.get_axes()
 
+        clean  = self.chk_clean_export.isChecked()
+        hide_cb = self.chk_hide_colorbar.isChecked()
+
         if "Contourf" in plot_type:
             cf = ax.contourf(x, y, field, levels=50, cmap="RdBu_r")
-            self.plot_canvas.figure.colorbar(cf, ax=ax,
-                                             label=cbar, shrink=0.8)
+            if hide_cb:
+                cb = self.plot_canvas.figure.colorbar(cf, ax=ax,
+                                                      label=cbar, shrink=0.8)
+                cb.remove()
+                self.plot_canvas.figure.tight_layout(pad=0.5)
+            else:
+                cb = self.plot_canvas.figure.colorbar(cf, ax=ax,
+                                                      label=cbar, shrink=0.8)
+                if clean:
+                    cb.ax.set_ylabel("")
+                    cb.ax.tick_params(size=0, labelsize=0)
+                    cb.outline.set_visible(False)
 
         if "Vectors" in plot_type:
             xs  = x[::skip_y, ::skip_x]
@@ -566,27 +918,32 @@ class MainWindow(PickerMixin, QMainWindow):
             u_scaled = us / max_mag
             v_scaled = vs / max_mag
 
-            # Auto-normalize: scale quiver so length=1 gives ~1/20 of domain
-            # User scale is a multiplier (1.0 = default, <1 shorter, >1 longer)
-            x_range  = float(np.nanmax(xs) - np.nanmin(xs))
-            y_range  = float(np.nanmax(ys) - np.nanmin(ys))
-            domain   = max(x_range, y_range)
-            n_arrows = max(xs.shape[0], xs.shape[1])
-            # base_scale: makes arrows fit neatly between grid points
-            base_scale = n_arrows / (domain * vec_scale + 1e-9)
+            x_range   = float(np.nanmax(xs) - np.nanmin(xs))
+            arrow_len = (x_range / xs.shape[1]) * vec_scale * 2.5
 
-            ax.quiver(xs, ys, u_scaled, v_scaled, color="k",
-                      scale=base_scale,
-                      scale_units="xy",
-                      angles="xy",
-                      alpha=0.7, width=0.002,
-                      headwidth=3, headlength=4)
+            ax.quiver(xs, ys, u_scaled, v_scaled,
+                      color='k',
+                      scale=1.0 / arrow_len,
+                      scale_units='xy',
+                      angles='xy',
+                      width=0.0012,
+                      headwidth=4,
+                      headlength=4,
+                      headaxislength=3.5,
+                      alpha=0.75)
 
         ax.set_xlabel("x [mm]"); ax.set_ylabel("y [mm]")
         ax.set_title(field_name, fontsize=10)
         ax.set_aspect("equal")
         ax.set_facecolor("white")
+
+        if clean:
+            ax.set_title("")
+            ax.axis('off')
+
         self.plot_canvas.canvas.draw()
+        self._home_xlim = ax.get_xlim()
+        self._home_ylim = ax.get_ylim()
 
         # Update picker
         if self.plot_canvas.figure.axes:
@@ -689,6 +1046,23 @@ class MainWindow(PickerMixin, QMainWindow):
         self._plot_field()
 
     # ----------------------------------------------------------------------- #
+    # Close event
+    # ----------------------------------------------------------------------- #
+
+    def closeEvent(self, event):
+        reply = QMessageBox.question(
+            self,
+            "Exit uPrime",
+            "Are you sure you want to exit uPrime?\nAny unsaved analysis results will be lost.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+    # ----------------------------------------------------------------------- #
     # About dialog
     # ----------------------------------------------------------------------- #
 
@@ -703,7 +1077,7 @@ class MainWindow(PickerMixin, QMainWindow):
         for text, size, bold, italic, color in [
             ("uPrime",                          22, True,  False, None),
             ("Because u\u2019 matters",         10, False, True,  "gray"),
-            ("v0.3  \u00b7  Alpha Release",      9,  False, False, "gray"),
+            ("v0.3.3  \u00b7  Alpha Release",    9,  False, False, "gray"),
         ]:
             lbl = QLabel(text)
             f   = QFont("Arial", size, QFont.Weight.Bold if bold else QFont.Weight.Normal)

@@ -21,6 +21,14 @@ else:
 
 sys.path.insert(0, base_path)
 
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype']  = 42
+matplotlib.rcParams['svg.fonttype'] = 'none'
+matplotlib.rcParams['font.family']  = 'serif'
+matplotlib.rcParams['font.serif']   = ['Times New Roman', 'Times', 'DejaVu Serif']
+matplotlib.rcParams['mathtext.fontset'] = 'stix'
+
 from PyQt6.QtWidgets import QApplication
 from gui.main_window import MainWindow
 

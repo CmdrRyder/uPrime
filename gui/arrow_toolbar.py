@@ -20,18 +20,94 @@ defaults to False (PickerMixin cross marker always shown).
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 import numpy as np
 from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QMessageBox
 
 
 class DrawAwareToolbar(NavigationToolbar2QT):
     """
     Standard matplotlib toolbar that exposes whether zoom/pan is active,
     so drawing interactions can be suppressed when zoom/pan is on.
+    Also overrides home() to restore the originally captured axis limits.
     """
+
+    def __init__(self, canvas, parent=None):
+        super().__init__(canvas, parent)
+        self._home_limits   = {}
+        self._home_captured = False
+        canvas.mpl_connect('draw_event', self._on_first_draw)
+
+    def _on_first_draw(self, event):
+        if not self._home_captured:
+            self._capture_home_limits()
+            self._home_captured = True
+
+    def _capture_home_limits(self):
+        for ax in self.canvas.figure.axes:
+            self._home_limits[id(ax)] = {
+                'xlim': ax.get_xlim(),
+                'ylim': ax.get_ylim(),
+            }
+
+    def set_home_limits(self):
+        """Call after drawing a new plot to update the stored home state."""
+        self._home_captured = False
+        self._home_limits   = {}
+        self._capture_home_limits()
+        self._home_captured = True
+
+    def home(self, *args):
+        if self._home_limits:
+            for ax in self.canvas.figure.axes:
+                limits = self._home_limits.get(id(ax))
+                if limits:
+                    ax.set_xlim(limits['xlim'])
+                    ax.set_ylim(limits['ylim'])
+            self.canvas.draw_idle()
+        else:
+            super().home(*args)
 
     def is_draw_mode(self):
         """Return True if user can draw (zoom/pan NOT active)."""
         return self.mode.name in ("NONE", "") if hasattr(self.mode, "name") \
                else str(self.mode) == ""
+
+    def save_figure(self, *args):
+        """Save figure, falling back to PNG if the PDF backend is unavailable."""
+        import os
+
+        fig = self.canvas.figure
+        original_savefig = fig.savefig
+
+        _RASTER_EXTS = {'.png', '.jpg', '.jpeg'}
+
+        def _savefig_with_pdf_fallback(fname, **kwargs):
+            ext = os.path.splitext(fname)[1].lower()
+            fmt = kwargs.get('format', '').lower()
+            is_raster = ext in _RASTER_EXTS or fmt in ('png', 'jpg', 'jpeg')
+            if is_raster and 'dpi' not in kwargs:
+                kwargs['dpi'] = 300
+            try:
+                original_savefig(fname, **kwargs)
+            except ModuleNotFoundError as exc:
+                if "backend_pdf" not in str(exc):
+                    raise
+                png_fname = os.path.splitext(fname)[0] + ".png"
+                kwargs.pop("format", None)
+                if 'dpi' not in kwargs:
+                    kwargs['dpi'] = 300
+                original_savefig(png_fname, **kwargs)
+                QMessageBox.information(
+                    self,
+                    "PDF export not available",
+                    "PDF export is not available in this build.\n\n"
+                    f"The file was saved as PNG instead:\n{png_fname}",
+                )
+
+        fig.savefig = _savefig_with_pdf_fallback
+        try:
+            super().save_figure(*args)
+        finally:
+            del fig.savefig  # restore the class-level method
 
 
 class PickerMixin:

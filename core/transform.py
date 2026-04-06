@@ -224,6 +224,54 @@ def apply_shift(dataset, dx_mm, dy_mm):
 
 
 # ---------------------------------------------------------------------------
+# Mirror
+# ---------------------------------------------------------------------------
+
+def apply_mirror_x(dataset):
+    """
+    Mirror the dataset left-right in-place.
+
+    1. Negate all x-coordinates (x = -x) and the U velocity component.
+    2. Flip column order (axis=1) on all spatial arrays so that x remains
+       in ascending order, as required by RegularGridInterpolator and all
+       plotting code.
+    """
+    dataset["x"] *= np.float32(-1)
+    dataset["U"] *= np.float32(-1)
+
+    # Restore ascending column order after negation
+    for key in ("x", "y", "U", "V", "valid"):
+        dataset[key] = np.ascontiguousarray(np.flip(dataset[key], axis=1))
+    if dataset.get("W") is not None:
+        dataset["W"] = np.ascontiguousarray(np.flip(dataset["W"], axis=1))
+
+    dataset.setdefault("transform_log", [])
+    dataset["transform_log"].append({"type": "mirror_x"})
+
+
+def apply_mirror_y(dataset):
+    """
+    Mirror the dataset top-bottom in-place.
+
+    1. Negate all y-coordinates (y = -y) and the V velocity component.
+    2. Flip row order (axis=0) on all spatial arrays so that y remains
+       in ascending order, as required by RegularGridInterpolator and all
+       plotting code.
+    """
+    dataset["y"] *= np.float32(-1)
+    dataset["V"] *= np.float32(-1)
+
+    # Restore ascending row order after negation
+    for key in ("x", "y", "U", "V", "valid"):
+        dataset[key] = np.ascontiguousarray(np.flip(dataset[key], axis=0))
+    if dataset.get("W") is not None:
+        dataset["W"] = np.ascontiguousarray(np.flip(dataset["W"], axis=0))
+
+    dataset.setdefault("transform_log", [])
+    dataset["transform_log"].append({"type": "mirror_y"})
+
+
+# ---------------------------------------------------------------------------
 # Status string from log
 # ---------------------------------------------------------------------------
 
@@ -242,5 +290,9 @@ def transform_status_string(dataset):
             parts.append(f"Rot {entry['angle_deg']:+.2f}\u00b0 ({entry['interpolation']})")
         elif entry["type"] == "shift":
             parts.append(f"Shift ({entry['dx']:+.2f}, {entry['dy']:+.2f}) mm")
+        elif entry["type"] == "mirror_x":
+            parts.append("Mirrored X")
+        elif entry["type"] == "mirror_y":
+            parts.append("Mirrored Y")
 
     return "  |  ".join(parts)

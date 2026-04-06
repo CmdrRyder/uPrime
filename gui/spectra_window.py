@@ -9,6 +9,7 @@ Unified spectral analysis window with three tabs:
 Replaces separate spectral_window.py and spatial_spectra_window.py in the menu.
 """
 
+import os
 import numpy as np
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
@@ -151,8 +152,17 @@ class SpectraWindow(PickerMixin, QWidget):
         self.result_canvas.setMaximumHeight(560)
         self.result_canvas.setSizePolicy(QSizePolicy.Policy.Expanding,
                                          QSizePolicy.Policy.Preferred)
-        self.result_toolbar = NavToolbar(self.result_canvas, self)
+        self.result_toolbar = DrawAwareToolbar(self.result_canvas, self)
         rl.addWidget(self.result_toolbar)
+        chk_row = QHBoxLayout()
+        chk_row.addStretch()
+        self.chk_hide_axes = QCheckBox("Hide axes")
+        self.chk_hide_axes.stateChanged.connect(self._on_compute)
+        chk_row.addWidget(self.chk_hide_axes)
+        self.chk_hide_colorbar = QCheckBox("Hide colorbar")
+        self.chk_hide_colorbar.stateChanged.connect(self._on_compute)
+        chk_row.addWidget(self.chk_hide_colorbar)
+        rl.addLayout(chk_row)
 
         # Center the canvas with side margins so 2D plots don't fill wall-to-wall
         center_row = QHBoxLayout()
@@ -326,6 +336,7 @@ class SpectraWindow(PickerMixin, QWidget):
         self.field_ax.tick_params(labelsize=8)
         self.field_fig.tight_layout(pad=0.3)
         self.field_canvas.draw()
+        self.field_toolbar.set_home_limits()
         self._x = x; self._y = y; self._last_field_values = speed
 
     # ----------------------------------------------------------------------- #
@@ -603,7 +614,11 @@ class SpectraWindow(PickerMixin, QWidget):
             ax=self.result_fig.add_subplot(1,n,i+1)
             self._plot_psd_ax(ax,k,psds[c],f"E_{c}(k_{dl})",colors[c],
                               compensate=comp,alpha_exp=alpha)
+        if self.chk_hide_axes.isChecked():
+            for a in self.result_fig.axes:
+                a.axis('off')
         self.result_fig.tight_layout(pad=1.2); self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
 
     def _plot_spatial_roi(self,results,n_lines):
         comps=self._active_comps_spatial()
@@ -624,7 +639,11 @@ class SpectraWindow(PickerMixin, QWidget):
         for i,(k_,p_,lbl,col) in enumerate(pairs):
             ax=self.result_fig.add_subplot(nrows,ncols,i+1)
             self._plot_psd_ax(ax,k_,p_,lbl,col,compensate=comp,alpha_exp=alpha)
+        if self.chk_hide_axes.isChecked():
+            for a in self.result_fig.axes:
+                a.axis('off')
         self.result_fig.tight_layout(pad=1.2); self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
 
     def _plot_temporal(self,freq,psds,title_suffix):
         comps=self._active_comps_temporal()
@@ -640,7 +659,11 @@ class SpectraWindow(PickerMixin, QWidget):
                               colors[c],x_label="f [Hz]",
                               compensate=False,alpha_exp=5/3,
                               show_kolmogorov=show_k)
+        if self.chk_hide_axes.isChecked():
+            for a in self.result_fig.axes:
+                a.axis('off')
         self.result_fig.tight_layout(pad=1.2); self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
 
     def _plot_st(self,k,f,psds,direction):
         comp="u" if self.rb_st_u.isChecked() else ("v" if self.rb_st_v.isChecked() else "w")
@@ -654,8 +677,11 @@ class SpectraWindow(PickerMixin, QWidget):
         self.result_fig.clear()
         ax=self.result_fig.add_subplot(111)
         pcm=ax.pcolormesh(k_plot,f_plot,logE.T,cmap="inferno",shading="nearest")
-        self.result_fig.colorbar(pcm,ax=ax,
-                                 label=r"$\log_{10}$ E(k,f) [(m/s)²/(rad/m·Hz)]")
+        cb = self.result_fig.colorbar(pcm,ax=ax,
+                                      label=r"$\log_{10}$ E(k,f) [(m/s)²/(rad/m·Hz)]")
+        if self.chk_hide_colorbar.isChecked():
+            cb.remove()
+            self.result_fig.tight_layout(pad=0.5)
         ax.set_xscale("log"); ax.set_yscale("log")
         ax.set_xlabel(f"k_{dl} [rad/m]",fontsize=10)
         ax.set_ylabel("f [Hz]",fontsize=10)
@@ -671,7 +697,11 @@ class SpectraWindow(PickerMixin, QWidget):
                 ax.plot(k_line[valid],f_line[valid],"w--",linewidth=1.5,
                         alpha=0.8,label=f"Uc={Uc:.2f} m/s")
                 ax.legend(fontsize=9)
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
+            ax.set_title('')
         self.result_fig.tight_layout(pad=0.5); self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
 
     # ----------------------------------------------------------------------- #
     # Export
@@ -680,12 +710,20 @@ class SpectraWindow(PickerMixin, QWidget):
     def _on_export(self):
         if self._last_result is None: return
         res=self._last_result
-        path,_=QFileDialog.getSaveFileName(self,"Export","spectrum.csv","CSV (*.csv)")
+        if res["tab"]=="spatial":
+            default="spatial_spectra_all.csv"
+        elif res["tab"]=="temporal":
+            default="temporal_spectra_all.csv"
+        else:
+            default="spatiotemporal_spectra_all.csv"
+        path,_=QFileDialog.getSaveFileName(self,"Export",default,"CSV (*.csv)")
         if not path: return
         settings={"Analysis":"Spectral","Snapshots":self.dataset["Nt"]}
         if res["tab"]=="spatial":
             if res["type"]=="line":
                 export_spectra_csv(path,res["k"],res["psds"],settings)
+                n=len([p for p in res["psds"].values() if p is not None])
+                self.lbl_status.setText(f"✓ Exported {n} component spectra to {os.path.basename(path)}")
             else:
                 combined={}; k_ref=None
                 for d in ["x","y"]:
@@ -693,18 +731,24 @@ class SpectraWindow(PickerMixin, QWidget):
                     if k is not None and k_ref is None: k_ref=k
                     for c,p in res["results"][d]["psds"].items():
                         if p is not None: combined[f"{c}_k{d}"]=p
-                if k_ref is not None: export_spectra_csv(path,k_ref,combined,settings)
+                if k_ref is not None:
+                    export_spectra_csv(path,k_ref,combined,settings)
+                    self.lbl_status.setText(f"✓ Exported {len(combined)} spectra to {os.path.basename(path)}")
         elif res["tab"]=="temporal":
             export_spectra_csv(path,res["freq"],res["psds"],settings)
+            n=len([p for p in res["psds"].values() if p is not None])
+            self.lbl_status.setText(f"✓ Exported {n} component spectra to {os.path.basename(path)}")
         else:
             k=res["k"][1:]; f=res["f"][1:]
-            comp="u" if self.rb_st_u.isChecked() else ("v" if self.rb_st_v.isChecked() else "w")
-            E=res["psds"].get(comp)
-            if E is not None:
-                E=E[1:,1:]
-                rows=["# Spatiotemporal spectrum","# k_rad_m,f_Hz,E"]
+            combined_st={}
+            for comp,E in res["psds"].items():
+                if E is not None:
+                    combined_st[comp]=E[1:,1:]
+            if combined_st:
+                rows=["# Spatiotemporal spectra - all components","# k_rad_m,f_Hz," + ",".join(combined_st.keys())]
                 for ik,kv in enumerate(k):
                     for jf,fv in enumerate(f):
-                        rows.append(f"{kv:.6e},{fv:.6e},{E[ik,jf]:.6e}")
+                        vals=",".join(f"{combined_st[c][ik,jf]:.6e}" for c in combined_st)
+                        rows.append(f"{kv:.6e},{fv:.6e},{vals}")
                 open(path,"w").write("\n".join(rows))
-        self.lbl_status.setText(f"✓ Exported to {path}")
+                self.lbl_status.setText(f"✓ Exported {len(combined_st)} component spatiotemporal spectra to {os.path.basename(path)}")

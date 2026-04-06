@@ -8,6 +8,7 @@ Right : Lumley triangle (-II vs III) with points colored by distance along line
         OR barycentric RGB map overlaid on the flow domain
 """
 
+import os
 import numpy as np
 from scipy.ndimage import median_filter
 from PyQt6.QtWidgets import (
@@ -166,7 +167,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
         # Tab 1: Lumley triangle
         self.lumley_fig    = Figure(figsize=(5, 5), tight_layout=True)
         self.lumley_canvas = FigureCanvas(self.lumley_fig)
-        self.lumley_toolbar = NavToolbar(self.lumley_canvas, self)
+        self.lumley_toolbar = DrawAwareToolbar(self.lumley_canvas, self)
         lumley_widget = QWidget()
         lw_lay = QVBoxLayout(lumley_widget)
         lw_lay.addWidget(self.lumley_toolbar)
@@ -176,13 +177,22 @@ class AnisotropyWindow(PickerMixin, QWidget):
         # Tab 2: Barycentric map
         self.bary_fig    = Figure(figsize=(7, 4), tight_layout=True)
         self.bary_canvas = FigureCanvas(self.bary_fig)
-        self.bary_toolbar = NavToolbar(self.bary_canvas, self)
+        self.bary_toolbar = DrawAwareToolbar(self.bary_canvas, self)
         bary_widget = QWidget()
         bw_lay = QVBoxLayout(bary_widget)
         bw_lay.addWidget(self.bary_toolbar)
         bw_lay.addWidget(self.bary_canvas)
         self.tabs.addTab(bary_widget, "Barycentric Map")
 
+        chk_row = QHBoxLayout()
+        chk_row.addStretch()
+        self.chk_hide_axes = QCheckBox("Hide axes")
+        self.chk_hide_axes.stateChanged.connect(self._on_compute)
+        chk_row.addWidget(self.chk_hide_axes)
+        self.chk_hide_colorbar = QCheckBox("Hide colorbar")
+        self.chk_hide_colorbar.stateChanged.connect(self._on_compute)
+        chk_row.addWidget(self.chk_hide_colorbar)
+        rl.addLayout(chk_row)
         rl.addWidget(self.tabs)
 
         splitter.addWidget(left)
@@ -218,7 +228,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
         self.field_ax.set_aspect("equal")
         self.field_ax.set_facecolor("white")
         self.field_canvas.draw()
-
+        self.field_toolbar.set_home_limits()
         self._x = x
         self._y = y
         self._last_field_values = speed
@@ -428,21 +438,30 @@ class AnisotropyWindow(PickerMixin, QWidget):
         # Draw Lumley triangle boundary
         self._draw_lumley_boundary(ax)
 
-        # Scatter points colored by distance along line
+        # Scatter points colored by distance from origin along line
+        cb_label = {"horizontal": "x [mm]",
+                    "vertical":   "y [mm]"}.get(lmode, "Distance from origin [mm]")
         sc = ax.scatter(III, neg_II, c=dist, cmap="plasma",
                         s=20, zorder=5, linewidths=0)
-        self.lumley_fig.colorbar(sc, ax=ax, label="Distance along line [mm]")
+        cb = self.lumley_fig.colorbar(sc, ax=ax, label=cb_label)
+        if self.chk_hide_colorbar.isChecked():
+            cb.remove()
+            self.lumley_fig.tight_layout(pad=0.5)
 
         ax.set_xlabel("III  (third invariant)")
         ax.set_ylabel("-II  (second invariant)")
         ax.set_title(f"Lumley Triangle  ({len(neg_II)} points along line)")
         ax.grid(True, alpha=0.3)
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
+            ax.set_title('')
 
         self._last_result = {"type": "line", "dist": dist,
                               "xpts": xpts, "ypts": ypts,
                               "neg_II": neg_II, "III": III}
         self.btn_export.setEnabled(True)
         self.lumley_canvas.draw()
+        self.lumley_toolbar.set_home_limits()
 
     def _draw_lumley_boundary(self, ax):
         """
@@ -573,7 +592,11 @@ class AnisotropyWindow(PickerMixin, QWidget):
                 transform=ax.transAxes, color="blue",
                 fontsize=8, va="top")
 
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
+            ax.set_title('')
         self.bary_canvas.draw()
+        self.bary_toolbar.set_home_limits()
 
         # Also populate the Lumley triangle with all points in the rectangle
         neg_I2_field, I3_field = self._get_smooth_fields()
@@ -595,7 +618,11 @@ class AnisotropyWindow(PickerMixin, QWidget):
             ax2.set_ylabel("-II")
             ax2.set_title(f"Lumley Triangle  ({valid.sum()} pts in rectangle)")
             ax2.grid(True, alpha=0.3)
+            if self.chk_hide_axes.isChecked():
+                ax2.axis('off')
+                ax2.set_title('')
             self.lumley_canvas.draw()
+            self.lumley_toolbar.set_home_limits()
 
         self.lbl_status.setText(
             f"Done. {mask.sum()} points in rectangle."
@@ -608,24 +635,42 @@ class AnisotropyWindow(PickerMixin, QWidget):
 
         if res["type"] == "line":
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export Lumley Data", "lumley_line.csv", "CSV Files (*.csv)"
+                self, "Export Anisotropy Line Data", "anisotropy_line_all.csv",
+                "CSV Files (*.csv)"
             )
             if not path:
                 return
             settings = {
-                "Analysis"  : "Anisotropy Invariants - Line",
+                "Analysis"  : "Anisotropy Invariants - Line (all quantities)",
                 "Snapshots" : self.dataset["Nt"],
                 "Grid"      : f"{self.dataset['nx']} x {self.dataset['ny']}",
             }
-            import numpy as np
             dist   = res["dist"]
             xpts   = res["xpts"]
             ypts   = res["ypts"]
             neg_II = res["neg_II"]
             I3     = res["III"]
+
+            # Compute barycentric coordinates for each point along the line
+            # by looking up the nearest grid point in self._b [ny, nx, 3, 3]
+            C1c = np.full(len(xpts), np.nan)
+            C2c = np.full(len(xpts), np.nan)
+            C3c = np.full(len(xpts), np.nan)
+            for idx, (xi, yi) in enumerate(zip(xpts, ypts)):
+                d2 = (self._x - xi) ** 2 + (self._y - yi) ** 2
+                r, c = np.unravel_index(np.argmin(d2), d2.shape)
+                bij = self._b[r, c]   # [3, 3]
+                eigs = np.sort(np.linalg.eigvalsh(bij))[::-1]   # descending
+                C1c[idx] = eigs[0] - eigs[1]
+                C2c[idx] = 2.0 * (eigs[1] - eigs[2])
+                C3c[idx] = 3.0 * eigs[2] + 1.0
+
             export_line_csv(path, dist, xpts, ypts,
-                            {"-I2": neg_II, "I3": I3}, {}, settings)
-            self.lbl_status.setText(f"Exported to {path}")
+                            {"-II": neg_II, "III": I3,
+                             "C1c": C1c, "C2c": C2c, "C3c": C3c},
+                            {}, settings)
+            self.lbl_status.setText(
+                f"Exported II, III, C1c, C2c, C3c to {os.path.basename(path)}")
 
         else:
             path, _ = QFileDialog.getSaveFileName(
@@ -639,7 +684,6 @@ class AnisotropyWindow(PickerMixin, QWidget):
                 "Snapshots" : self.dataset["Nt"],
                 "Grid"      : f"{self.dataset['nx']} x {self.dataset['ny']}",
             }
-            import numpy as np
             mask = res["mask"]
             r0, r1, c0, c1 = res["r0"], res["r1"], res["c0"], res["c1"]
             x_sub = self._x[r0:r1, c0:c1]

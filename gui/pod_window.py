@@ -19,7 +19,7 @@ import numpy as np
 
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
-    QPushButton, QComboBox, QSpinBox,
+    QPushButton, QComboBox, QSpinBox, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QTabWidget,
     QApplication, QFileDialog, QFrame, QSlider,
 )
@@ -209,6 +209,16 @@ class PODWindow(QWidget):
         right = QWidget()
         rl = QVBoxLayout(right)
         rl.setContentsMargins(4, 4, 4, 4)
+
+        chk_row = QHBoxLayout()
+        chk_row.addStretch()
+        self.chk_hide_axes = QCheckBox("Hide axes")
+        self.chk_hide_axes.stateChanged.connect(self._on_display_changed)
+        chk_row.addWidget(self.chk_hide_axes)
+        self.chk_hide_colorbar = QCheckBox("Hide colorbar")
+        self.chk_hide_colorbar.stateChanged.connect(self._on_display_changed)
+        chk_row.addWidget(self.chk_hide_colorbar)
+        rl.addLayout(chk_row)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_energy_tab(),    "Energy Spectrum")
@@ -508,7 +518,10 @@ class PODWindow(QWidget):
 
         cf = ax.contourf(self._x, self._y, phi,
                          levels=levels, cmap=_CMAP_DIV, extend="neither")
-        self.mode_fig.colorbar(cf, ax=ax, label="φ [ ]", shrink=0.8)
+        cb = self.mode_fig.colorbar(cf, ax=ax, label="φ [ ]", shrink=0.8)
+        if self.chk_hide_colorbar.isChecked():
+            cb.remove()
+            self.mode_fig.tight_layout(pad=0.5)
         ax.set_xlabel("x [mm]", fontsize=_FONT_AX)
         ax.set_ylabel("y [mm]", fontsize=_FONT_AX)
         ax.set_title(
@@ -517,9 +530,13 @@ class PODWindow(QWidget):
         ax.set_aspect("equal")
         ax.set_facecolor("white")
         ax.tick_params(labelsize=_FONT_TICK)
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
+            ax.set_title('')
 
         self.mode_fig.tight_layout(pad=0.5)
         self.mode_canvas.draw()
+        self.mode_toolbar.set_home_limits()
 
     # -----------------------------------------------------------------------
     # Plot: temporal coefficients
@@ -565,8 +582,13 @@ class PODWindow(QWidget):
                      transform=ax2.transAxes, ha="center", va="center",
                      color="gray", fontsize=_FONT_AX)
 
+        if self.chk_hide_axes.isChecked():
+            for a in self.temporal_fig.axes:
+                a.axis('off')
+                a.set_title('')
         self.temporal_fig.tight_layout(pad=0.5)
         self.temporal_canvas.draw()
+        self.temporal_toolbar.set_home_limits()
 
     # -----------------------------------------------------------------------
     # Reconstruction
@@ -620,25 +642,34 @@ class PODWindow(QWidget):
                 levels = np.linspace(fmin, fmax, 41)
             cf = ax.contourf(self._x, self._y, field,
                              levels=levels, cmap=_CMAP_DIV, extend="neither")
-            fig.colorbar(cf, ax=ax, label=label, shrink=0.8)
+            cb = fig.colorbar(cf, ax=ax, label=label, shrink=0.8)
+            if self.chk_hide_colorbar.isChecked():
+                cb.remove()
+                fig.tight_layout(pad=0.5)
             ax.set_xlabel("x [mm]", fontsize=_FONT_AX)
             ax.set_ylabel("y [mm]", fontsize=_FONT_AX)
             ax.set_title(title, fontsize=_FONT_AX)
             ax.set_aspect("equal")
             ax.set_facecolor("white")
             ax.tick_params(labelsize=_FONT_TICK)
+            if self.chk_hide_axes.isChecked():
+                ax.axis('off')
+                ax.set_title('')
             fig.tight_layout(pad=0.5)
             canvas.draw()
 
         _draw(self.recon_orig_fig, self.recon_orig_canvas,
               orig_field, f"Original {comp}  —  snapshot {snap_idx}",
               label=cb_label)
+        self.recon_orig_toolbar.set_home_limits()
         _draw(self.recon_rec_fig, self.recon_rec_canvas,
               rec_field,  f"Reconstructed {comp}  —  {n_recon} modes",
               label=cb_label)
+        self.recon_rec_toolbar.set_home_limits()
         _draw(self.recon_diff_fig, self.recon_diff_canvas,
               diff, f"Residual {comp} (original \u2212 reconstructed)",
               label=cb_dlabel, symmetric=True)
+        self.recon_diff_toolbar.set_home_limits()
 
         pct_str = f"{rms_pct:.2f}%" if not np.isnan(rms_pct) else "--"
         self.lbl_recon_error.setText(

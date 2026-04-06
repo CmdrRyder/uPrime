@@ -10,7 +10,7 @@ Three sub-tabs:
 
 Reference modes
   Point : click on field.  Optional 3x3 kernel toggle.
-  ROI   : right-click drag on field (rectangle).
+  ROI   : left-click drag on field (rectangle).
 
 Integral scales computed automatically after each correlation and
 displayed in a compact panel below each plot.
@@ -230,7 +230,7 @@ class CorrelationWindow(PickerMixin, QWidget):
         ref_lay.addWidget(self.chk_kernel)
 
         self.lbl_hint = QLabel(
-            "Left-click: pick point.   Right-click drag: draw ROI.")
+            "Left-click on field to pick reference point.")
         self.lbl_hint.setStyleSheet("color: #888; font-size: 10px;")
         self.lbl_hint.setWordWrap(True)
         ref_lay.addWidget(self.lbl_hint)
@@ -271,6 +271,16 @@ class CorrelationWindow(PickerMixin, QWidget):
         right = QWidget()
         rl = QVBoxLayout(right)
         rl.setContentsMargins(4, 4, 4, 4)
+
+        chk_row = QHBoxLayout()
+        chk_row.addStretch()
+        self.chk_hide_axes = QCheckBox("Hide axes")
+        self.chk_hide_axes.stateChanged.connect(self._replot_current)
+        chk_row.addWidget(self.chk_hide_axes)
+        self.chk_hide_colorbar = QCheckBox("Hide colorbar")
+        self.chk_hide_colorbar.stateChanged.connect(self._replot_current)
+        chk_row.addWidget(self.chk_hide_colorbar)
+        rl.addLayout(chk_row)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_spatial_tab(),  "Spatial")
@@ -427,6 +437,12 @@ class CorrelationWindow(PickerMixin, QWidget):
     # Reference mode toggle
     # -----------------------------------------------------------------------
 
+    def _replot_current(self):
+        if self.tabs.currentIndex() == 0:
+            self._run_spatial()
+        else:
+            self._run_temporal()
+
     def _on_mode_changed(self):
         if self.rb_point.isChecked():
             self._pick_mode = "point"
@@ -439,7 +455,7 @@ class CorrelationWindow(PickerMixin, QWidget):
             self._pick_mode = "roi"
             self.chk_kernel.setEnabled(False)
             self.lbl_hint.setText(
-                "Right-click drag on field to draw ROI rectangle.")
+                "Left-click and drag on field to draw ROI rectangle.")
             # In ROI mode hide 2D map, show only 1D panels
             self.sp2d_wrap.setVisible(False)
 
@@ -467,6 +483,7 @@ class CorrelationWindow(PickerMixin, QWidget):
         self.field_ax.tick_params(labelsize=_FONT_TICK)
         self.field_fig.tight_layout(pad=0.5)
         self.field_canvas.draw()
+        self.field_toolbar.set_home_limits()
         self._last_field_values = U_mean
 
     def _redraw_marker(self):
@@ -517,7 +534,7 @@ class CorrelationWindow(PickerMixin, QWidget):
                 self._x, self._y, event.xdata, event.ydata)
             self._set_point_reference(row, col)
 
-        elif event.button == 3:
+        elif event.button == 1 and self._pick_mode == "roi":
             self._roi_active = True
             self._roi_start  = (event.xdata, event.ydata)
 
@@ -645,7 +662,7 @@ class CorrelationWindow(PickerMixin, QWidget):
             else:
                 if self._roi_coords is None:
                     QMessageBox.warning(self, "No ROI",
-                        "Please draw an ROI first (right-click drag).")
+                        "Please draw an ROI first (left-click drag in ROI mode).")
                     return
                 x0, x1, y0, y1 = self._roi_coords
                 dx_arr, R_x, dy_arr, R_y, Lx_roi, Ly_roi = \
@@ -702,7 +719,10 @@ class CorrelationWindow(PickerMixin, QWidget):
         cf = ax.contourf(self._x, self._y, R_norm,
                          levels=np.linspace(-1, 1, 41),
                          cmap=_CMAP_DIV, extend="neither")
-        self.spatial_2d_fig.colorbar(cf, ax=ax, label="R [ ]", shrink=0.8)
+        cb = self.spatial_2d_fig.colorbar(cf, ax=ax, label="R [ ]", shrink=0.8)
+        if self.chk_hide_colorbar.isChecked():
+            cb.remove()
+            self.spatial_2d_fig.tight_layout(pad=0.5)
         xr = self._x[self._ref_row, self._ref_col]
         yr = self._y[self._ref_row, self._ref_col]
         ax.plot(xr, yr, "k+", markersize=10, markeredgewidth=2, zorder=10)
@@ -715,8 +735,12 @@ class CorrelationWindow(PickerMixin, QWidget):
         ax.set_aspect("equal")
         ax.set_facecolor("white")
         ax.tick_params(labelsize=_FONT_TICK)
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
+            ax.set_title('')
         self.spatial_2d_fig.tight_layout(pad=0.5)
         self.spatial_2d_canvas.draw()
+        self.spatial_2d_toolbar.set_home_limits()
 
     def _plot_spatial_1d(self, r_vals, R, xlabel, ref_val, extras, L,
                          direction='x', color="tab:blue"):
@@ -791,8 +815,12 @@ class CorrelationWindow(PickerMixin, QWidget):
                        linestyle="--", alpha=0.9, label=lbl)
 
         ax.legend(fontsize=_FONT_LEG, loc="upper right")
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
         fig.tight_layout(pad=0.5)
         canvas.draw()
+        toolbar = self.spatial_1dx_toolbar if direction == 'x' else self.spatial_1dy_toolbar
+        toolbar.set_home_limits()
 
     def _show_diagnostic(self):
         """Open a small dialog showing the cumulative integral for x and y."""
@@ -967,8 +995,12 @@ class CorrelationWindow(PickerMixin, QWidget):
             ax2.grid(True, alpha=0.3)
             ax2.set_box_aspect(1)
 
+        if self.chk_hide_axes.isChecked():
+            for a in self.temporal_fig.axes:
+                a.axis('off')
         self.temporal_fig.tight_layout(pad=0.5)
         self.temporal_canvas.draw()
+        self.temporal_toolbar.set_home_limits()
 
     # -----------------------------------------------------------------------
     # Export

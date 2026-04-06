@@ -8,6 +8,7 @@ Invalid vectors (isValid == 0) are set to NaN.
 import os
 import re
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def parse_header(filepath):
@@ -176,6 +177,21 @@ def load_single_file(filepath, header):
     return u, v, w, valid, vort
 
 
+def _read_single_file(args):
+    """Module-level worker for ThreadPoolExecutor (must be picklable)."""
+    idx, filepath, header = args
+    try:
+        u, v, w, valid, vort = load_single_file(filepath, header)
+        u     = u.astype(np.float32)
+        v     = v.astype(np.float32)
+        valid = valid.astype(bool)
+        if w    is not None: w    = w.astype(np.float32)
+        if vort is not None: vort = vort.astype(np.float32)
+        return idx, u, v, w, valid, vort, None
+    except Exception as e:
+        return idx, None, None, None, None, None, str(e)
+
+
 def load_dataset(file_list, progress_callback=None):
     if not file_list:
         raise ValueError("No files provided.")
@@ -183,43 +199,72 @@ def load_dataset(file_list, progress_callback=None):
     file_list = sorted(file_list)
     Nt = len(file_list)
 
+    # --- Step 1: read first file to detect grid and metadata ---
     header    = parse_header(file_list[0])
     nx        = header["nx"]
     ny        = header["ny"]
     is_stereo = header["is_stereo"]
+    has_vort  = header.get("has_vort", False)
 
     x, y = load_grid(file_list[0], header)
 
-    dtype = np.float32
-    U     = np.full((ny, nx, Nt), np.nan, dtype=dtype)
-    V     = np.full((ny, nx, Nt), np.nan, dtype=dtype)
-    W     = np.full((ny, nx, Nt), np.nan, dtype=dtype) if is_stereo else None
-    VALID = np.zeros((ny, nx, Nt), dtype=bool)
+    # --- Step 2: pre-allocate output arrays as float32 ---
+    U     = np.empty((ny, nx, Nt), dtype=np.float32)
+    V     = np.empty((ny, nx, Nt), dtype=np.float32)
+    W     = np.empty((ny, nx, Nt), dtype=np.float32) if is_stereo else None
+    VALID = np.empty((ny, nx, Nt), dtype=bool)
+    VORT  = np.empty((ny, nx, Nt), dtype=np.float32) if has_vort else None
 
-    has_vort = header.get("has_vort", False)
-    VORT = np.full((ny, nx, Nt), np.nan, dtype=dtype) if has_vort else None
+    # Fill with NaN / False so skipped files are safe
+    U[:]     = np.nan
+    V[:]     = np.nan
+    VALID[:] = False
+    if W    is not None: W[:]    = np.nan
+    if VORT is not None: VORT[:] = np.nan
 
-    for i, fpath in enumerate(file_list):
-        try:
-            u, v, w, valid, vort = load_single_file(fpath, header)
-            U[..., i]      = u
-            V[..., i]      = v
-            VALID[..., i]  = valid
-            if is_stereo and w is not None:
-                W[..., i]  = w
-            if has_vort and vort is not None:
-                VORT[..., i] = vort
-        except Exception as e:
-            print(f"Warning: skipping {os.path.basename(fpath)}: {e}")
+    # --- Steps 3 & 4: parallel read with ThreadPoolExecutor ---
+    args_list   = [(i, fp, header) for i, fp in enumerate(file_list)]
+    report_every = max(1, Nt // 100)
+    n_done       = 0
+    max_workers  = min(8, os.cpu_count() or 1)
 
-        if progress_callback:
-            progress_callback(int((i + 1) / Nt * 100))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_read_single_file, args): args[0]
+                   for args in args_list}
 
+        for future in as_completed(futures):
+            idx, u, v, w, valid, vort, err = future.result()
+
+            if err is not None:
+                print(f"Warning: skipping file {idx} ({os.path.basename(file_list[idx])}): {err}")
+            else:
+                U[:, :, idx]     = u
+                V[:, :, idx]     = v
+                VALID[:, :, idx] = valid
+                if W    is not None and w    is not None: W[:, :, idx]    = w
+                if VORT is not None and vort is not None: VORT[:, :, idx] = vort
+
+            n_done += 1
+
+            # --- Step 5: progress callback ---
+            if progress_callback and (n_done % report_every == 0 or n_done == Nt):
+                progress_callback(int(100 * n_done / Nt))
+
+    # --- Step 6: if W is all-NaN, discard it ---
+    if W is not None and np.all(np.isnan(W)):
+        W         = None
+        is_stereo = False
+
+    # --- Step 7: pre-compute valid_frac ---
+    valid_frac = np.mean(VALID.astype(np.float32), axis=2)
+
+    # --- Step 8: return dataset ---
     return {
         "x": x, "y": y,
         "U": U, "V": V, "W": W,
         "vort": VORT,
         "valid": VALID,
+        "valid_frac": valid_frac,
         "is_stereo": is_stereo,
         "has_vort": has_vort,
         "Nt": Nt, "nx": nx, "ny": ny,

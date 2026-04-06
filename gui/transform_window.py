@@ -37,7 +37,9 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from core.transform import apply_rotation, apply_shift, transform_status_string
+from core.transform import (apply_rotation, apply_shift,
+                            apply_mirror_x, apply_mirror_y,
+                            transform_status_string)
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +101,8 @@ class TransformWindow(PickerMixin, QWidget):
         self._ref_line_artist  = None
         self._origin_dot       = None
         self._pick_origin_mode = False   # True while waiting for origin click
+        self._clicked_x        = None    # last clicked coords (mode 2)
+        self._clicked_y        = None
         self._worker           = None
 
         self.setWindowTitle("Transform / Align Dataset")
@@ -144,7 +148,7 @@ class TransformWindow(PickerMixin, QWidget):
             "\u25cf  Transforms overwrite data in memory and are NOT reversible.\n"
             "To undo, close this window and reload the dataset.")
         warn.setStyleSheet(
-            "color:#e06c75; font-size:10px; background:#0e0e1a;"
+            "color:#e06c75; font-size:11px; background:#0e0e1a;"
             "padding:5px; border-left:3px solid #e06c75; border-radius:2px;")
         warn.setWordWrap(True)
         ll.addWidget(warn)
@@ -155,15 +159,21 @@ class TransformWindow(PickerMixin, QWidget):
         # Section 1: Rotation
         # ----------------------------------------------------------------
         rot_grp = QGroupBox("1.  Rotate  (correct calibration tilt)")
+        rot_grp.setStyleSheet(
+            "QGroupBox::title { font-size: 12px; font-weight: bold; }")
         rl = QVBoxLayout(rot_grp)
 
-        rl.addWidget(QLabel(
+        _lbl_rot_instr = QLabel(
             "Draw a line on the preview (right panel) over a feature that\n"
             "should be horizontal or vertical. The correction angle is\n"
-            "computed automatically. Max \u00b110\u00b0."))
+            "computed automatically. Max \u00b110\u00b0.")
+        _lbl_rot_instr.setStyleSheet("font-size: 11px;")
+        rl.addWidget(_lbl_rot_instr)
 
         ref_row = QHBoxLayout()
-        ref_row.addWidget(QLabel("Reference line is:"))
+        _lbl_ref = QLabel("Reference line is:")
+        _lbl_ref.setStyleSheet("font-size: 11px;")
+        ref_row.addWidget(_lbl_ref)
         self.rb_horiz = QRadioButton("Horizontal")
         self.rb_vert  = QRadioButton("Vertical")
         self.rb_horiz.setChecked(True)
@@ -180,7 +190,9 @@ class TransformWindow(PickerMixin, QWidget):
         rl.addWidget(self.lbl_angle_detected)
 
         angle_row = QHBoxLayout()
-        angle_row.addWidget(QLabel("Correction angle [°]:"))
+        _lbl_angle = QLabel("Correction angle [°]:")
+        _lbl_angle.setStyleSheet("font-size: 11px;")
+        angle_row.addWidget(_lbl_angle)
         self.spin_angle = QDoubleSpinBox()
         self.spin_angle.setRange(-10.0, 10.0)
         self.spin_angle.setValue(0.0)
@@ -195,7 +207,9 @@ class TransformWindow(PickerMixin, QWidget):
         rl.addLayout(angle_row)
 
         interp_row = QHBoxLayout()
-        interp_row.addWidget(QLabel("Interpolation:"))
+        _lbl_interp = QLabel("Interpolation:")
+        _lbl_interp.setStyleSheet("font-size: 11px;")
+        interp_row.addWidget(_lbl_interp)
         self.combo_interp = QComboBox()
         self.combo_interp.addItems(["Linear", "Cubic"])
         self.combo_interp.setToolTip(
@@ -221,19 +235,39 @@ class TransformWindow(PickerMixin, QWidget):
         # Section 2: Shift
         # ----------------------------------------------------------------
         shift_grp = QGroupBox("2.  Shift Origin")
+        shift_grp.setStyleSheet(
+            "QGroupBox::title { font-size: 12px; font-weight: bold; }")
         sl = QVBoxLayout(shift_grp)
+        sl.setSpacing(5)
 
-        sl.addWidget(QLabel(
-            "Click on the preview to set a point as the new origin,\n"
-            "or type x/y offset values directly."))
+        # Mode selector
+        mode_row = QHBoxLayout()
+        self.rb_shift_set_origin = QRadioButton("Set new origin")
+        self.rb_shift_set_known  = QRadioButton("Set known point")
+        self.rb_shift_set_origin.setChecked(True)
+        self.rb_shift_set_origin.setStyleSheet("font-size: 11px;")
+        self.rb_shift_set_known.setStyleSheet("font-size: 11px;")
+        _shift_bg = QButtonGroup(self)
+        _shift_bg.addButton(self.rb_shift_set_origin)
+        _shift_bg.addButton(self.rb_shift_set_known)
+        self.rb_shift_set_origin.toggled.connect(self._on_shift_mode_changed)
+        mode_row.addWidget(self.rb_shift_set_origin)
+        mode_row.addWidget(self.rb_shift_set_known)
+        mode_row.addStretch()
+        sl.addLayout(mode_row)
 
-        self.btn_pick_origin = QPushButton("Click on preview to set origin")
+        self.btn_pick_origin = QPushButton("Activate click mode")
         self.btn_pick_origin.setCheckable(True)
         self.btn_pick_origin.clicked.connect(self._on_toggle_pick_origin)
         sl.addWidget(self.btn_pick_origin)
 
-        shift_val_row = QHBoxLayout()
-        shift_val_row.addWidget(QLabel("X shift [mm]:"))
+        # Mode 1: direct x/y shift spinboxes
+        self._shift_mode1_widget = QWidget()
+        m1 = QHBoxLayout(self._shift_mode1_widget)
+        m1.setContentsMargins(0, 0, 0, 0)
+        _lbl_dx = QLabel("X shift [mm]:")
+        _lbl_dx.setStyleSheet("font-size: 11px;")
+        m1.addWidget(_lbl_dx)
         self.spin_dx = QDoubleSpinBox()
         self.spin_dx.setRange(-5000.0, 5000.0)
         self.spin_dx.setValue(0.0)
@@ -241,9 +275,11 @@ class TransformWindow(PickerMixin, QWidget):
         self.spin_dx.setSingleStep(0.1)
         self.spin_dx.setFixedWidth(90)
         self.spin_dx.setToolTip("Subtract this value from all x coordinates.")
-        shift_val_row.addWidget(self.spin_dx)
-        shift_val_row.addSpacing(12)
-        shift_val_row.addWidget(QLabel("Y shift [mm]:"))
+        m1.addWidget(self.spin_dx)
+        m1.addSpacing(12)
+        _lbl_dy = QLabel("Y shift [mm]:")
+        _lbl_dy.setStyleSheet("font-size: 11px;")
+        m1.addWidget(_lbl_dy)
         self.spin_dy = QDoubleSpinBox()
         self.spin_dy.setRange(-5000.0, 5000.0)
         self.spin_dy.setValue(0.0)
@@ -251,9 +287,51 @@ class TransformWindow(PickerMixin, QWidget):
         self.spin_dy.setSingleStep(0.1)
         self.spin_dy.setFixedWidth(90)
         self.spin_dy.setToolTip("Subtract this value from all y coordinates.")
-        shift_val_row.addWidget(self.spin_dy)
-        shift_val_row.addStretch()
-        sl.addLayout(shift_val_row)
+        m1.addWidget(self.spin_dy)
+        m1.addStretch()
+        sl.addWidget(self._shift_mode1_widget)
+
+        # Mode 2: real-world coordinate entry + status
+        self._shift_mode2_widget = QWidget()
+        m2 = QVBoxLayout(self._shift_mode2_widget)
+        m2.setContentsMargins(0, 0, 0, 0)
+        m2.setSpacing(4)
+        real_row = QHBoxLayout()
+        _lbl_real_x = QLabel("Real x [mm]:")
+        _lbl_real_x.setStyleSheet("font-size: 11px;")
+        real_row.addWidget(_lbl_real_x)
+        self.spin_real_x = QDoubleSpinBox()
+        self.spin_real_x.setRange(-5000.0, 5000.0)
+        self.spin_real_x.setValue(0.0)
+        self.spin_real_x.setDecimals(3)
+        self.spin_real_x.setSingleStep(0.1)
+        self.spin_real_x.setFixedWidth(90)
+        self.spin_real_x.setToolTip(
+            "The physical x-coordinate the clicked point should have after the shift.")
+        self.spin_real_x.valueChanged.connect(self._update_known_point_status)
+        real_row.addWidget(self.spin_real_x)
+        real_row.addSpacing(12)
+        _lbl_real_y = QLabel("Real y [mm]:")
+        _lbl_real_y.setStyleSheet("font-size: 11px;")
+        real_row.addWidget(_lbl_real_y)
+        self.spin_real_y = QDoubleSpinBox()
+        self.spin_real_y.setRange(-5000.0, 5000.0)
+        self.spin_real_y.setValue(0.0)
+        self.spin_real_y.setDecimals(3)
+        self.spin_real_y.setSingleStep(0.1)
+        self.spin_real_y.setFixedWidth(90)
+        self.spin_real_y.setToolTip(
+            "The physical y-coordinate the clicked point should have after the shift.")
+        self.spin_real_y.valueChanged.connect(self._update_known_point_status)
+        real_row.addWidget(self.spin_real_y)
+        real_row.addStretch()
+        m2.addLayout(real_row)
+        self.lbl_known_point = QLabel("No point clicked yet.")
+        self.lbl_known_point.setStyleSheet("font-size: 10px; color: #aaa;")
+        self.lbl_known_point.setWordWrap(True)
+        m2.addWidget(self.lbl_known_point)
+        self._shift_mode2_widget.setVisible(False)
+        sl.addWidget(self._shift_mode2_widget)
 
         self.btn_apply_shift = QPushButton("Apply Shift")
         self.btn_apply_shift.clicked.connect(self._on_apply_shift)
@@ -263,11 +341,36 @@ class TransformWindow(PickerMixin, QWidget):
         ll.addWidget(_hline())
 
         # ----------------------------------------------------------------
+        # Section 3: Mirror
+        # ----------------------------------------------------------------
+        mirror_grp = QGroupBox("3.  Mirror")
+        mirror_grp.setStyleSheet(
+            "QGroupBox::title { font-size: 12px; font-weight: bold; }")
+        ml = QVBoxLayout(mirror_grp)
+
+        _lbl_mirror_instr = QLabel(
+            "Flip the dataset along an axis through the current origin.")
+        _lbl_mirror_instr.setStyleSheet("font-size: 11px;")
+        ml.addWidget(_lbl_mirror_instr)
+
+        mirror_btn_row = QHBoxLayout()
+        self.btn_mirror_x = QPushButton("Mirror X  (flip left\u2013right)")
+        self.btn_mirror_x.clicked.connect(self._on_apply_mirror_x)
+        self.btn_mirror_y = QPushButton("Mirror Y  (flip top\u2013bottom)")
+        self.btn_mirror_y.clicked.connect(self._on_apply_mirror_y)
+        mirror_btn_row.addWidget(self.btn_mirror_x)
+        mirror_btn_row.addWidget(self.btn_mirror_y)
+        ml.addLayout(mirror_btn_row)
+
+        ll.addWidget(mirror_grp)
+        ll.addWidget(_hline())
+
+        # ----------------------------------------------------------------
         # Transform history
         # ----------------------------------------------------------------
         self.lbl_history = QLabel("No transforms applied.")
         self.lbl_history.setStyleSheet(
-            "font-size:10px; color:#aaa; padding:2px;")
+            "font-size:11px; color:#aaa; padding:2px;")
         self.lbl_history.setWordWrap(True)
         ll.addWidget(self.lbl_history)
 
@@ -275,6 +378,17 @@ class TransformWindow(PickerMixin, QWidget):
         self.lbl_status.setStyleSheet("color:gray;font-size:11px;")
         self.lbl_status.setWordWrap(True)
         ll.addWidget(self.lbl_status)
+
+        ll.addWidget(_hline())
+
+        self.btn_close = QPushButton("Done \u2014 Close Window")
+        self.btn_close.setStyleSheet(
+            "QPushButton { background: #1e5c1e; color: #c8f0c8;"
+            " font-size: 11px; padding: 6px; border-radius: 3px; }"
+            "QPushButton:hover { background: #276827; }"
+            "QPushButton:pressed { background: #164416; }")
+        self.btn_close.clicked.connect(self.close)
+        ll.addWidget(self.btn_close)
 
         ll.addStretch(1)
 
@@ -477,11 +591,8 @@ class TransformWindow(PickerMixin, QWidget):
             "Edit spinbox if needed, then click Apply Rotation.")
 
     def _set_origin_from_click(self, x_click, y_click):
-        """Fill shift spinboxes from a click and show dot on preview."""
-        self.spin_dx.setValue(float(x_click))
-        self.spin_dy.setValue(float(y_click))
-
-        # Update dot
+        """Handle a preview click for either shift mode."""
+        # Draw / update red-cross marker
         if self._origin_dot is not None:
             try:
                 self._origin_dot.remove()
@@ -492,20 +603,55 @@ class TransformWindow(PickerMixin, QWidget):
             markersize=16, markeredgewidth=2, zorder=20)
         self._origin_dot = dot
         self.preview_canvas.draw()
-        self.lbl_status.setText(
-            f"Origin picked at ({x_click:.2f}, {y_click:.2f}) mm. "
-            "Click 'Apply Shift' when ready.")
+
+        if self.rb_shift_set_origin.isChecked():
+            # Mode 1: clicked point becomes (0, 0) -- shift = click coords
+            self.spin_dx.setValue(float(x_click))
+            self.spin_dy.setValue(float(y_click))
+            self.lbl_status.setText(
+                f"Origin picked at ({x_click:.2f}, {y_click:.2f}) mm. "
+                "Click \u2018Apply Shift\u2019 when ready.")
+        else:
+            # Mode 2: store click; shift computed from real-coord spinboxes
+            self._clicked_x = float(x_click)
+            self._clicked_y = float(y_click)
+            self._update_known_point_status()
+            self.lbl_status.setText(
+                f"Clicked ({x_click:.2f}, {y_click:.2f}) mm. "
+                "Enter real coordinates, then click \u2018Apply Shift\u2019.")
 
     def _on_toggle_pick_origin(self, checked):
         self._pick_origin_mode = checked
         if checked:
-            self.btn_pick_origin.setText("Click preview to pick origin  (active)")
+            self.btn_pick_origin.setText("Click mode  (active)")
             self.btn_pick_origin.setStyleSheet("background:#1a4f1a;")
-            self.lbl_status.setText("Click on the preview to set the new origin.")
+            if self.rb_shift_set_origin.isChecked():
+                self.lbl_status.setText("Click on the preview to set the new origin.")
+            else:
+                self.lbl_status.setText("Click on the preview to select the known point.")
         else:
-            self.btn_pick_origin.setText("Click on preview to set origin")
+            self.btn_pick_origin.setText("Activate click mode")
             self.btn_pick_origin.setStyleSheet("")
             self.lbl_status.setText("Ready.")
+
+    def _on_shift_mode_changed(self, checked):
+        """Show/hide mode-specific widgets when radio button toggles."""
+        is_origin = self.rb_shift_set_origin.isChecked()
+        self._shift_mode1_widget.setVisible(is_origin)
+        self._shift_mode2_widget.setVisible(not is_origin)
+        # Deactivate click mode when switching to avoid stale state
+        self.btn_pick_origin.setChecked(False)
+        self._on_toggle_pick_origin(False)
+
+    def _update_known_point_status(self):
+        """Refresh the 'Clicked → will become' status label in mode 2."""
+        if self._clicked_x is None:
+            return
+        rx = self.spin_real_x.value()
+        ry = self.spin_real_y.value()
+        self.lbl_known_point.setText(
+            f"Clicked: ({self._clicked_x:.2f}, {self._clicked_y:.2f}) mm"
+            f"  \u2192  will become ({rx:.3f}, {ry:.3f}) mm")
 
     # -----------------------------------------------------------------------
     # Apply rotation
@@ -592,8 +738,18 @@ class TransformWindow(PickerMixin, QWidget):
     # -----------------------------------------------------------------------
 
     def _on_apply_shift(self):
-        dx = self.spin_dx.value()
-        dy = self.spin_dy.value()
+        if self.rb_shift_set_origin.isChecked():
+            # Mode 1: direct shift values
+            dx = self.spin_dx.value()
+            dy = self.spin_dy.value()
+        else:
+            # Mode 2: shift = clicked_pos - real_world_pos
+            if self._clicked_x is None:
+                QMessageBox.information(self, "No Point Clicked",
+                    "Activate click mode and click a point on the preview first.")
+                return
+            dx = self._clicked_x - self.spin_real_x.value()
+            dy = self._clicked_y - self.spin_real_y.value()
 
         if abs(dx) < 1e-6 and abs(dy) < 1e-6:
             QMessageBox.information(self, "No Shift",
@@ -629,13 +785,58 @@ class TransformWindow(PickerMixin, QWidget):
         self._draw_preview()
         self.lbl_status.setText(
             f"Shift applied: \u0394x={dx:+.3f}, \u0394y={dy:+.3f} mm.")
-        self.spin_dx.setValue(0.0)
-        self.spin_dy.setValue(0.0)
 
-        # Deactivate origin pick mode
+        # Reset mode-specific state
+        if self.rb_shift_set_origin.isChecked():
+            self.spin_dx.setValue(0.0)
+            self.spin_dy.setValue(0.0)
+        else:
+            self._clicked_x = None
+            self._clicked_y = None
+            self.lbl_known_point.setText("No point clicked yet.")
+
+        # Deactivate click mode
         self.btn_pick_origin.setChecked(False)
         self._on_toggle_pick_origin(False)
 
+        if self._on_done_cb:
+            self._on_done_cb()
+
+    # -----------------------------------------------------------------------
+    # Apply mirror
+    # -----------------------------------------------------------------------
+
+    def _on_apply_mirror_x(self):
+        if QMessageBox.warning(
+            self, "Irreversible Operation",
+            "This will negate all x-coordinates and the U velocity component.\n\n"
+            "\u26a0  This is NOT reversible without reloading the dataset.\n\n"
+            "Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ) != QMessageBox.StandardButton.Yes:
+            return
+
+        apply_mirror_x(self.dataset)
+        self._update_history()
+        self._draw_preview()
+        self.lbl_status.setText("Mirror X applied.")
+        if self._on_done_cb:
+            self._on_done_cb()
+
+    def _on_apply_mirror_y(self):
+        if QMessageBox.warning(
+            self, "Irreversible Operation",
+            "This will negate all y-coordinates and the V velocity component.\n\n"
+            "\u26a0  This is NOT reversible without reloading the dataset.\n\n"
+            "Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ) != QMessageBox.StandardButton.Yes:
+            return
+
+        apply_mirror_y(self.dataset)
+        self._update_history()
+        self._draw_preview()
+        self.lbl_status.setText("Mirror Y applied.")
         if self._on_done_cb:
             self._on_done_cb()
 

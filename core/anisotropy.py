@@ -212,7 +212,7 @@ def points_near_line(x, y, x0, y0, x1, y1):
     Returns
     -------
     rows, cols : arrays of grid indices along the line
-    dist       : distance along the line for each point (mm)
+    dist       : signed distance from origin projected onto the line direction [mm]
     """
     # Number of samples along the line -- use max grid dimension
     Npts = max(x.shape[0], x.shape[1]) * 2
@@ -242,10 +242,12 @@ def points_near_line(x, y, x0, y0, x1, y1):
     u_rows = np.array(u_rows)
     u_cols = np.array(u_cols)
 
-    # Distance along line from start point
-    dist = np.sqrt(
-        (x[u_rows, u_cols] - x0)**2 +
-        (y[u_rows, u_cols] - y0)**2
-    )
+    # Signed distance from origin projected onto line direction
+    line_len = np.hypot(x1 - x0, y1 - y0)
+    if line_len > 0:
+        tx, ty = (x1 - x0) / line_len, (y1 - y0) / line_len
+    else:
+        tx, ty = 1.0, 0.0
+    dist = x[u_rows, u_cols] * tx + y[u_rows, u_cols] * ty
 
     return u_rows, u_cols, dist

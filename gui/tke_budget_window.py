@@ -18,6 +18,7 @@ set_aspect("equal") fills the widget without white margins, and every pixel
 of the canvas is inside the axes -- left-click always registers.
 """
 
+import os
 import numpy as np
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
@@ -242,6 +243,15 @@ class TKEBudgetWindow(PickerMixin, QWidget):
                                          QSizePolicy.Policy.Expanding)
         self.result_toolbar = DrawAwareToolbar(self.result_canvas, self)
         rl.addWidget(self.result_toolbar)
+        chk_row = QHBoxLayout()
+        chk_row.addStretch()
+        self.chk_hide_axes = QCheckBox("Hide axes")
+        self.chk_hide_axes.stateChanged.connect(self._on_plot)
+        chk_row.addWidget(self.chk_hide_axes)
+        self.chk_hide_colorbar = QCheckBox("Hide colorbar")
+        self.chk_hide_colorbar.stateChanged.connect(self._on_plot)
+        chk_row.addWidget(self.chk_hide_colorbar)
+        rl.addLayout(chk_row)
         rl.addWidget(self.result_canvas)
 
         splitter.addWidget(left)
@@ -284,7 +294,7 @@ class TKEBudgetWindow(PickerMixin, QWidget):
         self.field_ax.tick_params(labelsize=_FONT_TICK)
         self.field_fig.tight_layout(pad=0.2)
         self.field_canvas.draw()
-
+        self.field_toolbar.set_home_limits()
         self._x = x
         self._y = y
         self._last_field_values = speed
@@ -490,17 +500,24 @@ class TKEBudgetWindow(PickerMixin, QWidget):
         self.result_fig.clear()
         ax = self.result_fig.add_subplot(111)
         cf = ax.contourf(self._x, self._y, data, levels=50, cmap=cmap)
-        self.result_fig.colorbar(cf, ax=ax,
-                                 label=f"{TERMS[key]['label']} {unit_str}",
-                                 shrink=0.8)
+        cb = self.result_fig.colorbar(cf, ax=ax,
+                                      label=f"{TERMS[key]['label']} {unit_str}",
+                                      shrink=0.8)
+        if self.chk_hide_colorbar.isChecked():
+            cb.remove()
+            self.result_fig.tight_layout(pad=0.5)
         ax.set_xlabel("x [mm]", fontsize=_FONT_AX)
         ax.set_ylabel("y [mm]", fontsize=_FONT_AX)
         ax.set_title(TERMS[key]["label"], fontsize=_FONT_AX)
         ax.set_aspect("equal")
         ax.set_facecolor("white")
         ax.tick_params(labelsize=_FONT_TICK)
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
+            ax.set_title('')
         self.result_fig.tight_layout(pad=0.5)
         self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
         self.btn_export.setEnabled(True)
         self.lbl_status.setText(f"Contour: {TERMS[key]['label']}")
 
@@ -517,8 +534,11 @@ class TKEBudgetWindow(PickerMixin, QWidget):
                            "means": {}, "unit_str": unit_str}
         plotted = False
 
-        keys_to_plot = [k for k in TERMS if self._budget.get(k) is not None]
-        for key in keys_to_plot:
+        # Plot budget terms (all except k) first, then k on top
+        other_keys = [k for k in TERMS if k != "k" and self._budget.get(k) is not None]
+        ordered_keys = other_keys + (["k"] if self._budget.get("k") is not None else [])
+
+        for key in ordered_keys:
             field = self._budget[key] * scale
             vals, dist, xpts, ypts = extract_line_profile(
                 field, self._x, self._y,
@@ -529,10 +549,18 @@ class TKEBudgetWindow(PickerMixin, QWidget):
             if not np.any(valid):
                 continue
 
-            ax.plot(dist[valid], vals[valid],
-                    color=TERMS[key]["color"],
-                    label=TERMS[key]["label"],
-                    linewidth=1.5)
+            if key == "k":
+                ax.plot(dist[valid], vals[valid],
+                        color=TERMS[key]["color"],
+                        label=TERMS[key]["label"],
+                        linewidth=2.0,
+                        linestyle="--",
+                        zorder=10)
+            else:
+                ax.plot(dist[valid], vals[valid],
+                        color=TERMS[key]["color"],
+                        label=TERMS[key]["label"],
+                        linewidth=1.2)
             plotted = True
             self._last_line["dist"] = dist
             self._last_line["xpts"] = xpts
@@ -545,15 +573,20 @@ class TKEBudgetWindow(PickerMixin, QWidget):
                     fontsize=11, color="gray")
         else:
             ax.axhline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
-            ax.set_xlabel("Distance along line [mm]", fontsize=_FONT_AX)
+            xlabel = {"horizontal": "x [mm]",
+                      "vertical":   "y [mm]"}.get(lmode, "Distance from origin [mm]")
+            ax.set_xlabel(xlabel, fontsize=_FONT_AX)
             ax.set_ylabel(f"TKE Budget {unit_str}", fontsize=_FONT_AX)
             ax.set_title("TKE Budget Profile", fontsize=_FONT_AX)
             ax.legend(fontsize=_FONT_LEG)
             ax.grid(True, alpha=0.3)
             ax.tick_params(labelsize=_FONT_TICK)
 
+        if self.chk_hide_axes.isChecked():
+            ax.axis('off')
         self.result_fig.tight_layout(pad=0.5)
         self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
         self.btn_export.setEnabled(True)
         self.lbl_status.setText("Line profile plotted.")
 
@@ -574,14 +607,20 @@ class TKEBudgetWindow(PickerMixin, QWidget):
 
         if self._mode == "contour" and self._budget:
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export 2D Field", "tke_budget_2d.dat",
+                self, "Export 2D Field", "tke_budget_all.dat",
                 "Tecplot DAT (*.dat);;CSV (*.csv)")
             if not path:
                 return
-            key   = self.combo_term.currentData()
-            field = self._budget[key] * scale
-            export_2d_tecplot(path, self._x, self._y,
-                              [field], [TERMS[key]["label"]], settings)
+            fields, labels = [], []
+            for key in TERMS:
+                if self._budget.get(key) is not None:
+                    fields.append(self._budget[key] * scale)
+                    labels.append(TERMS[key]["label"])
+            settings["Analysis"] = "TKE Budget - All Terms"
+            export_2d_tecplot(path, self._x, self._y, fields, labels, settings)
+            self.lbl_status.setText(
+                f"Exported {len(fields)} budget terms to {os.path.basename(path)}")
+            return
 
         elif self._mode == "line" and self._last_line and \
              self._last_line["dist"] is not None:
@@ -590,11 +629,12 @@ class TKEBudgetWindow(PickerMixin, QWidget):
                 "CSV (*.csv)")
             if not path:
                 return
+            n = len(self._last_line["means"])
             export_line_csv(path,
                             self._last_line["dist"],
                             self._last_line["xpts"],
                             self._last_line["ypts"],
                             self._last_line["means"],
                             {}, settings)
-
-        self.lbl_status.setText("Exported.")
+            self.lbl_status.setText(
+                f"Exported {n} budget terms to {os.path.basename(path)}")

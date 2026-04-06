@@ -73,7 +73,8 @@ def extract_line_profile(field, x, y, x0, y0, x1, y1,
     Returns
     -------
     vals : 1D averaged profile
-    dist : distance from start point [mm]
+    dist : coordinate from origin [mm] (x for horizontal, y for vertical,
+           projected onto line direction for free)
     xpts, ypts : coordinates along profile
     """
     ny, nx = x.shape
@@ -89,7 +90,7 @@ def extract_line_profile(field, x, y, x0, y0, x1, y1,
 
         xpts = x[row0, cols]
         ypts = y[row0, cols]
-        dist = xpts - xpts[0]
+        dist = xpts
 
         if avg_band > 0:
             r0 = max(0, row0 - avg_band)
@@ -109,7 +110,7 @@ def extract_line_profile(field, x, y, x0, y0, x1, y1,
 
         xpts = x[rows, col0]
         ypts = y[rows, col0]
-        dist = ypts - ypts[0]
+        dist = ypts
 
         if avg_band > 0:
             c0 = max(0, col0 - avg_band)
@@ -145,7 +146,12 @@ def extract_line_profile(field, x, y, x0, y0, x1, y1,
         vals = field[ur, uc]
         xpts = x[ur, uc]
         ypts = y[ur, uc]
-        dist = np.sqrt((xpts - x0)**2 + (ypts - y0)**2)
+        line_len = np.hypot(x1 - x0, y1 - y0)
+        if line_len > 0:
+            tx, ty = (x1 - x0) / line_len, (y1 - y0) / line_len
+        else:
+            tx, ty = 1.0, 0.0
+        dist = xpts * tx + ypts * ty
 
     return np.array(vals, dtype=float), np.array(dist, dtype=float),            np.array(xpts, dtype=float), np.array(ypts, dtype=float)
 

@@ -228,6 +228,7 @@ class TKEWindow(PickerMixin, QWidget):
         self.field_ax.set_aspect("equal")
         self.field_ax.set_facecolor("white")
         self.field_canvas.draw()
+        self.field_toolbar.set_home_limits()
         self._x = x
         self._y = y
         self._last_field_values = speed
@@ -357,6 +358,7 @@ class TKEWindow(PickerMixin, QWidget):
         ax.set_facecolor("white")
         self._last_contour_k = k
         self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
         self.btn_export.setEnabled(True)
         self.lbl_status.setText("TKE contour plotted.")
 
@@ -408,6 +410,7 @@ class TKEWindow(PickerMixin, QWidget):
                     transform=ax.transAxes, ha="center", va="center")
 
         self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()
         self.lbl_status.setText("TKE line profile plotted.")
 
     def _on_export(self):
