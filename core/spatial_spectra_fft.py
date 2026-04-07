@@ -222,12 +222,8 @@ def compute_1d_spectra(U, V, W, Lx, Ly, Lz):
         for i, kx_val in enumerate(kx):
             # For rfftn, kx=0 is at index 0, positive kx at indices 1:
             # and negative kx would be mirrored but rfftn only returns non-negative
-            if i == 0:
-                # kx=0 case
-                spectrum_kx_accum[i] += np.sum(energy_spectrum[0, :, :])
-            else:
-                # Positive kx values
-                spectrum_kx_accum[i] += np.sum(energy_spectrum[i, :, :])
+            # kx values are in the last dimension (x-axis)
+            spectrum_kx_accum[i] += np.sum(energy_spectrum[:, :, i])
         
         # Integrate over x,z planes for ky spectrum
         for j, ky_val in enumerate(ky):
