@@ -29,7 +29,11 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle as MplRect
 
 from core.spatial_spectra import spatial_psd_line, spatial_psd_roi
-from core.spatial_spectra_fft import compute_spectra_from_fluctuations, subtract_temporal_mean
+try:
+    from core.spatial_spectra_fft import compute_spectra_from_fluctuations, subtract_temporal_mean
+    PYFFTW_AVAILABLE = True
+except ImportError:
+    PYFFTW_AVAILABLE = False
 from core.spatiotemporal_spectra import compute_st_spectra
 from core.spectral import psd_at_point, psd_in_region, nearest_grid_point
 from core.export import export_spectra_csv
@@ -110,6 +114,9 @@ class SpectraWindow(PickerMixin, QWidget):
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_spatial_tab(),     "Spatial E(k)")
         self.tabs.addTab(self._build_3d_spatial_tab(),   "Spatial E(k) using FFT")
+        if not PYFFTW_AVAILABLE:
+            self.tabs.setTabEnabled(1, False)
+            self.tabs.setTabToolTip(1, "Requires pyFFTW -- install with: pip install pyfftw")
         self.tabs.addTab(self._build_temporal_tab(),    "Temporal E(f)")
         self.tabs.addTab(self._build_st_tab(),          "Spatiotemporal E(k,f)")
 
@@ -581,6 +588,8 @@ class SpectraWindow(PickerMixin, QWidget):
 
     # ---- 3D Spatial ----
     def _compute_3d_spatial(self):
+        if not PYFFTW_AVAILABLE:
+            raise ValueError("pyFFTW is not installed. Run: pip install pyfftw")
         ds=self.dataset
         sel=self._selection
         Lz=self.spin_3d_lz.value()
@@ -935,7 +944,9 @@ class SpectraWindow(PickerMixin, QWidget):
                 Ly = abs(roi['y1'] - roi['y0']) / 1000.0
                 rows.append(f"# Domain: Lx={Lx:.4f}m, Ly={Ly:.4f}m, Lz={self.spin_3d_lz.value():.4f}m")
             else:
-                rows.append(f"# Domain: Lx={self.spin_3d_lx.value():.4f}m, Ly={self.spin_3d_ly.value():.4f}m, Lz={self.spin_3d_lz.value():.4f}m")
+                Lx = abs(roi['x1'] - roi['x0']) / 1000.0
+                Ly = abs(roi['y1'] - roi['y0']) / 1000.0
+                rows.append(f"# Domain: Lx={Lx:.4f}m, Ly={Ly:.4f}m, Lz={self.spin_3d_lz.value():.4f}m")
             rows.append("")
             
             # Export 3D spectrum
