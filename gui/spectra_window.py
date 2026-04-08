@@ -195,15 +195,22 @@ class SpectraWindow(PickerMixin, QWidget):
         w = QWidget(); ll = QVBoxLayout(w)
         ll.setContentsMargins(4,4,4,4); ll.setSpacing(4)
 
+        lbl_welch = QLabel(
+            "Welch: segments the spatial line into overlapping windows and averages "
+            "their FFTs. Smoother result, lower spatial frequency resolution."
+        )
+        lbl_welch.setWordWrap(True)
+        lbl_welch.setStyleSheet("color: gray;")
+        ll.addWidget(lbl_welch)
+
         sg = QGroupBox("Selection Mode")
         sl = QVBoxLayout(sg)
         mr = QHBoxLayout()
         self.rb_horiz = QRadioButton("Horizontal (kx)")
         self.rb_vert  = QRadioButton("Vertical (ky)")
-        self.rb_roi   = QRadioButton("Rectangle ROI")
         self.rb_horiz.setChecked(True)
         bg = QButtonGroup(self)
-        for rb in [self.rb_horiz, self.rb_vert, self.rb_roi]:
+        for rb in [self.rb_horiz, self.rb_vert]:
             bg.addButton(rb); mr.addWidget(rb)
             rb.toggled.connect(self._on_mode_changed)
         sl.addLayout(mr)
@@ -216,11 +223,12 @@ class SpectraWindow(PickerMixin, QWidget):
         Nt = self.dataset["Nt"]
         r1 = QHBoxLayout(); r1.addWidget(QLabel("Segment (pts):"))
         self.spin_nperseg = QSpinBox(); self.spin_nperseg.setRange(4,10000)
-        self.spin_nperseg.setValue(max(16, min(256, Nt//4)))
+        _default_seg = max(16, min(256, Nt//2))
+        self.spin_nperseg.setValue(_default_seg)
         r1.addWidget(self.spin_nperseg); pl.addLayout(r1)
         r2 = QHBoxLayout(); r2.addWidget(QLabel("Overlap (pts):"))
         self.spin_overlap = QSpinBox(); self.spin_overlap.setRange(0,10000)
-        self.spin_overlap.setValue(max(8, min(128, Nt//8)))
+        self.spin_overlap.setValue(_default_seg // 2)
         r2.addWidget(self.spin_overlap); pl.addLayout(r2)
         self.chk_subtract = QCheckBox("Subtract spatial mean"); self.chk_subtract.setChecked(True)
         pl.addWidget(self.chk_subtract); ll.addWidget(pg)
@@ -293,17 +301,20 @@ class SpectraWindow(PickerMixin, QWidget):
         w = QWidget(); ll = QVBoxLayout(w)
         ll.setContentsMargins(4,4,4,4); ll.setSpacing(4)
 
-        ll.addWidget(QLabel("Spatial Spectra using FFT (rectangular ROI analysis)"))
-        ll.addWidget(QLabel("Left or right-click drag to draw rectangular ROI"))
+        lbl_fft = QLabel(
+            "FFT: computes a single 2D FFT over the full ROI for each snapshot, "
+            "then averages over time. Noisier but retains full spatial resolution."
+        )
+        lbl_fft.setWordWrap(True)
+        lbl_fft.setStyleSheet("color: gray;")
+        ll.addWidget(lbl_fft)
 
-        # Depth parameter (z-direction for 2D PIV)
-        dg = QGroupBox("Depth"); dl = QVBoxLayout(dg)
-        lr = QHBoxLayout(); lr.addWidget(QLabel("Lz [m]:"))
-        self.spin_3d_lz = QDoubleSpinBox(); self.spin_3d_lz.setRange(0.001,100)
-        self.spin_3d_lz.setValue(0.1); self.spin_3d_lz.setDecimals(4)
-        self.spin_3d_lz.setToolTip("Depth for 2D PIV (small value)")
-        lr.addWidget(self.spin_3d_lz); dl.addLayout(lr)
-        ll.addWidget(dg)
+        info = QLabel(
+            "Computes 2D spatial spectra (kx, ky) using pyFFTW.\n"
+            "Draw a rectangular ROI on the field to begin."
+        )
+        info.setWordWrap(True)
+        ll.addWidget(info)
 
         # Components
         cg = QGroupBox("Components"); cl = QHBoxLayout(cg)
@@ -419,12 +430,9 @@ class SpectraWindow(PickerMixin, QWidget):
     def _update_hint(self):
         tab = self._current_tab()
         if tab == 0:
-            if self.rb_horiz.isChecked():   self._mode = "horizontal"
-            elif self.rb_vert.isChecked():  self._mode = "vertical"
-            else:                           self._mode = "roi"
-            hints = {"horizontal":"Drag horizontally to set y and x range.",
-                     "vertical":  "Drag vertically to set x and y range.",
-                     "roi":       "Drag to draw a rectangle ROI."}
+            self._mode = "horizontal" if self.rb_horiz.isChecked() else "vertical"
+            hints = {"horizontal": "Drag horizontally to select a line; use ± pts to average over a band.",
+                     "vertical":   "Drag vertically to select a line; use ± pts to average over a band."}
             self.lbl_hint.setText(hints[self._mode])
         elif tab == 1:
             self._mode = "3d_roi"
@@ -473,9 +481,9 @@ class SpectraWindow(PickerMixin, QWidget):
             elif self._mode == "3d_roi":
                 self._press_xy = (event.xdata, event.ydata)
 
-        # Right click -- rectangle (temporal rect, ROI, or 3D ROI)
+        # Right click -- rectangle (temporal rect or 3D ROI)
         elif event.button == 3:
-            if self._mode in ("roi", "temp_rect", "3d_roi"):
+            if self._mode in ("temp_rect", "3d_roi"):
                 self._press_xy = (event.xdata, event.ydata)
 
     def _on_motion(self, event):
@@ -484,7 +492,7 @@ class SpectraWindow(PickerMixin, QWidget):
             self._press_xy = None; return
         x0, y0 = self._press_xy; x1, y1 = event.xdata, event.ydata
         self._clear_artist()
-        if self._mode in ("roi", "temp_rect", "3d_roi"):  # rect modes -- yellow
+        if self._mode in ("temp_rect", "3d_roi"):  # rect modes -- yellow
             p = MplRect((min(x0,x1),min(y0,y1)),abs(x1-x0),abs(y1-y0),
                         linewidth=1.5,edgecolor="#e8a000",facecolor="#ffe066",
                         alpha=0.25,linestyle="--",zorder=10)
@@ -505,7 +513,7 @@ class SpectraWindow(PickerMixin, QWidget):
         x0, y0 = self._press_xy; x1, y1 = event.xdata, event.ydata
         self._press_xy = None
 
-        if self._mode in ("roi", "temp_rect", "3d_roi"):
+        if self._mode in ("temp_rect", "3d_roi"):
             if abs(x1-x0)<1 or abs(y1-y0)<1:
                 self.lbl_hint.setText("Too small -- try again."); return
             self._selection = {"type":"rect","x0":x0,"x1":x1,"y0":y0,"y1":y1}
@@ -531,6 +539,29 @@ class SpectraWindow(PickerMixin, QWidget):
             self._artist=ln; self.field_canvas.draw()
 
         self.btn_compute.setEnabled(True)
+        if self._current_tab() == 0:
+            self._auto_set_welch(self._selection)
+
+    def _auto_set_welch(self, sel):
+        """Auto-set nperseg / noverlap based on selection geometry (spatial tab only)."""
+        x = self._x; y = self._y
+        if sel["type"] == "horizontal":
+            x0, x1 = min(sel["x0"], sel["x1"]), max(sel["x0"], sel["x1"])
+            N = int(np.sum((x[0, :] >= x0) & (x[0, :] <= x1)))
+        else:  # vertical
+            y0, y1 = min(sel["y0"], sel["y1"]), max(sel["y0"], sel["y1"])
+            N = int(np.sum((y[:, 0] >= y0) & (y[:, 0] <= y1)))
+
+        if N < 8:
+            return  # too few points to suggest anything useful
+
+        # nperseg = N//2 (2 non-overlapping windows minimum); floor at 8
+        nperseg = max(8, N // 2)
+        noverlap = nperseg // 2
+
+        self.spin_nperseg.setValue(nperseg)
+        self.spin_overlap.setValue(noverlap)
+        self.lbl_status.setText(f"Auto: N={N}  seg={nperseg}  ovlp={noverlap}")
 
     def _clear_artist(self):
         if self._artist is not None:
@@ -570,21 +601,13 @@ class SpectraWindow(PickerMixin, QWidget):
         nperseg=self.spin_nperseg.value(); noverlap=self.spin_overlap.value()
         subtract=self.chk_subtract.isChecked(); avg_band=self.spin_avg.value()
         if noverlap>=nperseg: raise ValueError("Overlap must be less than segment length.")
-        if sel["type"]=="roi":
-            results,n_lines=spatial_psd_roi(
-                ds["U"],ds["V"],ds["W"],self._x,self._y,
-                sel["x0"],sel["x1"],sel["y0"],sel["y1"],
-                nperseg,noverlap,subtract)
-            self._last_result={"tab":"spatial","type":"roi","results":results,"n_lines":n_lines}
-            self._plot_spatial_roi(results,n_lines)
-        else:
-            direction="x" if sel["type"]=="horizontal" else "y"
-            k,psds=spatial_psd_line(
-                ds["U"],ds["V"],ds["W"],self._x,self._y,
-                sel["x0"],sel["y0"],sel["x1"],sel["y1"],
-                direction,avg_band,nperseg,noverlap,subtract)
-            self._last_result={"tab":"spatial","type":"line","direction":direction,"k":k,"psds":psds}
-            self._plot_spatial_line(k,psds,direction)
+        direction="x" if sel["type"]=="horizontal" else "y"
+        k,psds=spatial_psd_line(
+            ds["U"],ds["V"],ds["W"],self._x,self._y,
+            sel["x0"],sel["y0"],sel["x1"],sel["y1"],
+            direction,avg_band,nperseg,noverlap,subtract)
+        self._last_result={"tab":"spatial","type":"line","direction":direction,"k":k,"psds":psds}
+        self._plot_spatial_line(k,psds,direction)
 
     # ---- 3D Spatial ----
     def _compute_3d_spatial(self):
@@ -592,8 +615,8 @@ class SpectraWindow(PickerMixin, QWidget):
             raise ValueError("pyFFTW is not installed. Run: pip install pyfftw")
         ds=self.dataset
         sel=self._selection
-        Lz=self.spin_3d_lz.value()
-        
+        Lz=1.0  # fixed; kz is not plotted or exported for 2D PIV
+
         if sel is None or sel["type"] != "rect":
             raise ValueError("Please draw a rectangle ROI for 3D spectral analysis.")
         
@@ -761,49 +784,73 @@ class SpectraWindow(PickerMixin, QWidget):
             self.result_fig.clear()
             ax1 = self.result_fig.add_subplot(121)
             
-            # Get ROI info for title if available
-            title_3d = "3D Spectrum E(k)"
+            # Determine spectrum label based on stereo mode
+            is_stereo = self.dataset["is_stereo"]
+            if is_stereo:
+                spectrum_label = "2D3C Spectrum E(k)"
+            else:
+                spectrum_label = "2D Spectrum E(k)"
+
+            # Get ROI info for suptitle if available
+            suptitle = spectrum_label
             if hasattr(self, '_last_result') and self._last_result.get("tab") == "3d_spatial":
                 roi = self._last_result.get("roi", {})
                 if roi:
-                    title_3d = (
-                        f"3D Spectrum E(k) - ROI: x=[{roi['x0']:.1f}, {roi['x1']:.1f}] mm, "
-                        f"y=[{roi['y0']:.1f}, {roi['y1']:.1f}] mm, Lz={self.spin_3d_lz.value():.1f} m"
+                    suptitle = (
+                        f"{spectrum_label} - ROI: x=[{roi['x0']:.1f}, {roi['x1']:.1f}] mm, "
+                        f"y=[{roi['y0']:.1f}, {roi['y1']:.1f}] mm"
                     )
-                else:
-                    title_3d = "3D Spectrum E(k) - Full Volume"
-            
-            self._plot_psd_ax(ax1, k_3d, spectrum_3d, "3D Spectrum E(k)", "black",
+
+            self._plot_psd_ax(ax1, k_3d, spectrum_3d, spectrum_label, "black",
                              compensate=comp, alpha_exp=alpha,
                              show_kolmogorov=self.chk_3d_kolmogorov.isChecked())
-            self.result_fig.suptitle(title_3d)
+            self.result_fig.suptitle(suptitle)
             
             # Plot 1D spectra
             ax2 = self.result_fig.add_subplot(122)
             
-            # Plot each component's 1D spectra
+            # Plot each component's 1D spectra (kx and ky only)
             for i, c in enumerate(comps):
                 kx = result.get('kx')
                 spectrum_kx = result.get(f'{c}_kx')
                 if kx is not None and spectrum_kx is not None:
-                    ax2.loglog(kx, spectrum_kx, color=colors[c], linewidth=1.2, 
+                    ax2.loglog(kx, spectrum_kx, color=colors[c], linewidth=1.2,
                               label=f'E_{c}(k_x)', alpha=0.8)
-                    
+
                 ky = result.get('ky')
                 spectrum_ky = result.get(f'{c}_ky')
                 if ky is not None and spectrum_ky is not None:
                     ax2.loglog(ky, spectrum_ky, '--', color=colors[c], linewidth=1.2,
                               label=f'E_{c}(k_y)', alpha=0.8)
-                    
-                kz = result.get('kz')
-                spectrum_kz = result.get(f'{c}_kz')
-                if kz is not None and spectrum_kz is not None:
-                    ax2.loglog(kz, spectrum_kz, ':', color=colors[c], linewidth=1.2,
-                              label=f'E_{c}(k_z)', alpha=0.8)
-            
+
+            # -5/3 reference line based on kx range
+            if self.chk_3d_kolmogorov.isChecked():
+                kx = result.get('kx')
+                if kx is not None:
+                    kx_valid = kx[kx > 0]
+                    if len(kx_valid) > 4:
+                        nv = len(kx_valid)
+                        ilo = max(0, int(nv * 0.10)); ihi = min(nv - 1, int(nv * 0.60))
+                        if ihi > ilo + 2:
+                            klo = kx_valid[ilo]; khi = kx_valid[ihi]
+                            kl = np.logspace(np.log10(klo), np.log10(khi), 50)
+                            # anchor at median line visible in the plot
+                            ax2_lines = ax2.get_lines()
+                            if ax2_lines:
+                                y_anchor = ax2_lines[0].get_ydata()
+                                x_anchor = ax2_lines[0].get_xdata()
+                                x_anchor = x_anchor[np.isfinite(x_anchor) & (x_anchor > 0)]
+                                y_anchor = y_anchor[np.isfinite(y_anchor) & (y_anchor > 0)]
+                                if len(x_anchor) > 0 and len(y_anchor) > 0:
+                                    idx0 = np.searchsorted(x_anchor, klo)
+                                    idx0 = min(idx0, len(y_anchor) - 1)
+                                    pa = y_anchor[idx0]
+                                    ax2.loglog(kl, pa * (kl / klo) ** (-5/3), "k--",
+                                               linewidth=1.5, alpha=0.7, label="$k^{-5/3}$")
+
             ax2.set_xlabel("k [rad/m]", fontsize=8)
             ax2.set_ylabel("PSD [(m/s)^2/(rad/m)]", fontsize=7)
-            ax2.set_title("1D Spectra (all components)", fontsize=9)
+            ax2.set_title("1D Spectra E(kx), E(ky)", fontsize=9)
             ax2.tick_params(labelsize=7)
             ax2.grid(True, which="both", alpha=0.3)
             ax2.legend(fontsize=6)
@@ -918,20 +965,9 @@ class SpectraWindow(PickerMixin, QWidget):
         if not path: return
         settings={"Analysis":"Spectral","Snapshots":self.dataset["Nt"]}
         if res["tab"]=="spatial":
-            if res["type"]=="line":
-                export_spectra_csv(path,res["k"],res["psds"],settings)
-                n=len([p for p in res["psds"].values() if p is not None])
-                self.lbl_status.setText(f"✓ Exported {n} component spectra to {os.path.basename(path)}")
-            else:
-                combined={}; k_ref=None
-                for d in ["x","y"]:
-                    k=res["results"][d]["k"]
-                    if k is not None and k_ref is None: k_ref=k
-                    for c,p in res["results"][d]["psds"].items():
-                        if p is not None: combined[f"{c}_k{d}"]=p
-                if k_ref is not None:
-                    export_spectra_csv(path,k_ref,combined,settings)
-                    self.lbl_status.setText(f"✓ Exported {len(combined)} spectra to {os.path.basename(path)}")
+            export_spectra_csv(path,res["k"],res["psds"],settings)
+            n=len([p for p in res["psds"].values() if p is not None])
+            self.lbl_status.setText(f"✓ Exported {n} component spectra to {os.path.basename(path)}")
         elif res["tab"]=="3d_spatial":
             # Export 3D spatial spectra
             result = res["result"]
@@ -942,11 +978,7 @@ class SpectraWindow(PickerMixin, QWidget):
                 rows.append(f"# ROI: x=[{roi['x0']:.1f}, {roi['x1']:.1f}] mm, y=[{roi['y0']:.1f}, {roi['y1']:.1f}] mm")
                 Lx = abs(roi['x1'] - roi['x0']) / 1000.0
                 Ly = abs(roi['y1'] - roi['y0']) / 1000.0
-                rows.append(f"# Domain: Lx={Lx:.4f}m, Ly={Ly:.4f}m, Lz={self.spin_3d_lz.value():.4f}m")
-            else:
-                Lx = abs(roi['x1'] - roi['x0']) / 1000.0
-                Ly = abs(roi['y1'] - roi['y0']) / 1000.0
-                rows.append(f"# Domain: Lx={Lx:.4f}m, Ly={Ly:.4f}m, Lz={self.spin_3d_lz.value():.4f}m")
+                rows.append(f"# Domain: Lx={Lx:.4f}m, Ly={Ly:.4f}m")
             rows.append("")
             
             # Export 3D spectrum
@@ -959,8 +991,8 @@ class SpectraWindow(PickerMixin, QWidget):
                     rows.append(f"{k_3d[i]:.6e}, {spectrum_3d[i]:.6e}")
                 rows.append("")
             
-            # Export 1D spectra for each component
-            for direction, label in [('kx', 'x'), ('ky', 'y'), ('kz', 'z')]:
+            # Export 1D spectra for each component (kx, ky only)
+            for direction, label in [('kx', 'x'), ('ky', 'y')]:
                 k = result.get(direction)
                 if k is not None:
                     for comp in ['u', 'v', 'w']:
