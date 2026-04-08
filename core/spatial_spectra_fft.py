@@ -21,6 +21,40 @@ pyfftw.interfaces.cache.enable()
 pyfftw.interfaces.cache.set_keepalive_time(30.0)
 
 
+def create_fft_arrays_and_plan(nz, ny, nx):
+    """
+    Create aligned arrays and a single FFTW plan for efficient 3D FFT computation.
+
+    Parameters
+    ----------
+    nz, ny, nx : int
+                 Dimensions of the spatial grid
+
+    Returns
+    -------
+    input_array : pyfftw array
+                  Aligned input array for FFTW
+    output_array : pyfftw array
+                   Aligned output array for FFTW
+    fft_plan : pyfftw.FFTW
+              Single FFTW plan that can be reused
+    """
+    # Create aligned arrays for pyfftw
+    input_array = pyfftw.n_byte_align_empty((nz, ny, nx), 16, dtype="float64")
+
+    # For rfftn, output shape is (nz, ny, nx//2 + 1)
+    output_array = pyfftw.n_byte_align_empty(
+        (nz, ny, nx // 2 + 1), 16, dtype="complex128"
+    )
+
+    # Create a single FFTW plan
+    fft_plan = pyfftw.FFTW(
+        input_array, output_array, axes=(0, 1, 2), flags=("FFTW_MEASURE",)
+    )
+
+    return input_array, output_array, fft_plan
+
+
 def compute_3d_spectra(U, V, W, Lx, Ly, Lz):
     """
     Compute 3D energy spectra from velocity fields using pyfftw.
@@ -41,22 +75,22 @@ def compute_3d_spectra(U, V, W, Lx, Ly, Lz):
     """
     # Get dimensions
     nz, ny, nx, nt = U.shape
-    
+
     # Compute grid spacing
     dx = Lx / nx
     dy = Ly / ny
     dz = Lz / nz
-    
+
     # Create wavenumber grids using fftfreq for all directions
     # This gives us the correct symmetric wavenumbers for each dimension
-    kx_full = 2 * np.pi * np.fft.fftfreq(nx, d=dx)  # [rad/m] - shape (nx,)
+    # kx_full = 2 * np.pi * np.fft.fftfreq(nx, d=dx)  # [rad/m] - shape (nx,)
     ky_full = 2 * np.pi * np.fft.fftfreq(ny, d=dy)  # [rad/m] - shape (ny,)
     kz_full = 2 * np.pi * np.fft.fftfreq(nz, d=dz)  # [rad/m] - shape (nz,)
-    
+
     # Create meshgrid for full 3D wavenumbers (for proper binning)
-    KX_full, KY_full, KZ_full = np.meshgrid(kx_full, ky_full, kz_full, indexing="ij")
-    K_magnitude_full = np.sqrt(KX_full**2 + KY_full**2 + KZ_full**2)
-    
+    # KX_full, KY_full, KZ_full = np.meshgrid(kx_full, ky_full, kz_full, indexing="ij")
+    # K_magnitude_full = np.sqrt(KX_full**2 + KY_full**2 + KZ_full**2)
+
     # For rfftn output, we only have non-negative frequencies in x-direction
     # So we need to create a wavenumber grid that matches the FFT output shape
     # FFT output shape: (nz, ny, nx//2 + 1)
@@ -87,33 +121,8 @@ def compute_3d_spectra(U, V, W, Lx, Ly, Lz):
     # Initialize spectrum accumulator
     spectrum_accum = np.zeros(n_bins)
     
-    # Setup pyfftw for efficient 3D FFTs
-    # Create aligned arrays for pyfftw
-    u_fluct_aligned = pyfftw.n_byte_align_empty((nz, ny, nx), 16, dtype="float64")
-    v_fluct_aligned = pyfftw.n_byte_align_empty((nz, ny, nx), 16, dtype="float64")
-    w_fluct_aligned = pyfftw.n_byte_align_empty((nz, ny, nx), 16, dtype="float64")
-    
-    # For rfftn, output shape is (nz, ny, nx//2 + 1)
-    u_fft_aligned = pyfftw.n_byte_align_empty(
-        (nz, ny, nx // 2 + 1), 16, dtype="complex128"
-    )
-    v_fft_aligned = pyfftw.n_byte_align_empty(
-        (nz, ny, nx // 2 + 1), 16, dtype="complex128"
-    )
-    w_fft_aligned = pyfftw.n_byte_align_empty(
-        (nz, ny, nx // 2 + 1), 16, dtype="complex128"
-    )
-    
-    # Create FFTW plans
-    fft_u = pyfftw.FFTW(
-        u_fluct_aligned, u_fft_aligned, axes=(0, 1, 2), flags=("FFTW_MEASURE",)
-    )
-    fft_v = pyfftw.FFTW(
-        v_fluct_aligned, v_fft_aligned, axes=(0, 1, 2), flags=("FFTW_MEASURE",)
-    )
-    fft_w = pyfftw.FFTW(
-        w_fluct_aligned, w_fft_aligned, axes=(0, 1, 2), flags=("FFTW_MEASURE",)
-    )
+    # Setup pyfftw for efficient 3D FFTs using a single shared plan
+    input_array, output_array, fft_plan = create_fft_arrays_and_plan(nz, ny, nx)
     
     # Process each time step
     for t in range(nt):
@@ -123,20 +132,21 @@ def compute_3d_spectra(U, V, W, Lx, Ly, Lz):
         v_fluct = V[:, :, :, t]
         w_fluct = W[:, :, :, t]
         
-        # Copy data to aligned arrays
-        u_fluct_aligned[:] = u_fluct
-        v_fluct_aligned[:] = v_fluct
-        w_fluct_aligned[:] = w_fluct
+        # Step 2: Forward transform to spectral space using pyfftw with single plan
+        # Process u component
+        input_array[:] = u_fluct
+        fft_plan()
+        u_fft = output_array.copy()
         
-        # Step 2: Forward transform to spectral space using pyfftw
-        fft_u()
-        fft_v()
-        fft_w()
+        # Process v component
+        input_array[:] = v_fluct
+        fft_plan()
+        v_fft = output_array.copy()
         
-        # Get the FFT results
-        u_fft = u_fft_aligned.copy()
-        v_fft = v_fft_aligned.copy()
-        w_fft = w_fft_aligned.copy()
+        # Process w component
+        input_array[:] = w_fluct
+        fft_plan()
+        w_fft = output_array.copy()
         
         # Step 3: Compute energy spectrum
         # E(k) = 0.5 * (|u_fft|^2 + |v_fft|^2 + |w_fft|^2)
@@ -206,51 +216,32 @@ def compute_1d_spectra(U, V, W, Lx, Ly, Lz):
     spectrum_kz_accum_v = np.zeros(len(kz))
     spectrum_kz_accum_w = np.zeros(len(kz))
     
-    # Setup pyfftw for efficient 3D FFTs in 1D spectra computation
-    u_fluct_aligned_1d = pyfftw.n_byte_align_empty((nz, ny, nx), 16, dtype="float64")
-    v_fluct_aligned_1d = pyfftw.n_byte_align_empty((nz, ny, nx), 16, dtype="float64")
-    w_fluct_aligned_1d = pyfftw.n_byte_align_empty((nz, ny, nx), 16, dtype="float64")
-
-    u_fft_aligned_1d = pyfftw.n_byte_align_empty(
-        (nz, ny, nx // 2 + 1), 16, dtype="complex128"
-    )
-    v_fft_aligned_1d = pyfftw.n_byte_align_empty(
-        (nz, ny, nx // 2 + 1), 16, dtype="complex128"
-    )
-    w_fft_aligned_1d = pyfftw.n_byte_align_empty(
-        (nz, ny, nx // 2 + 1), 16, dtype="complex128"
+    # Setup pyfftw for efficient 3D FFTs in 1D spectra computation using single plan
+    input_array_1d, output_array_1d, fft_plan_1d = create_fft_arrays_and_plan(
+        nz, ny, nx
     )
 
-    fft_u_1d = pyfftw.FFTW(
-        u_fluct_aligned_1d, u_fft_aligned_1d, axes=(0, 1, 2), flags=("FFTW_MEASURE",)
-    )
-    fft_v_1d = pyfftw.FFTW(
-        v_fluct_aligned_1d, v_fft_aligned_1d, axes=(0, 1, 2), flags=("FFTW_MEASURE",)
-    )
-    fft_w_1d = pyfftw.FFTW(
-        w_fluct_aligned_1d, w_fft_aligned_1d, axes=(0, 1, 2), flags=("FFTW_MEASURE",)
-    )
-    
     for t in range(nt):
         # Get fluctuations (assuming input are already fluctuations)
         u_fluct = U[:, :, :, t]
         v_fluct = V[:, :, :, t]
         w_fluct = W[:, :, :, t]
         
-        # Copy to aligned arrays
-        u_fluct_aligned_1d[:] = u_fluct
-        v_fluct_aligned_1d[:] = v_fluct
-        w_fluct_aligned_1d[:] = w_fluct
+        # Compute FFTs using pyfftw with single plan
+        # Process u component
+        input_array_1d[:] = u_fluct
+        fft_plan_1d()
+        u_fft = output_array_1d.copy()
         
-        # Compute FFTs using pyfftw
-        fft_u_1d()
-        fft_v_1d()
-        fft_w_1d()
+        # Process v component
+        input_array_1d[:] = v_fluct
+        fft_plan_1d()
+        v_fft = output_array_1d.copy()
         
-        # Get results
-        u_fft = u_fft_aligned_1d.copy()
-        v_fft = v_fft_aligned_1d.copy()
-        w_fft = w_fft_aligned_1d.copy()
+        # Process w component
+        input_array_1d[:] = w_fluct
+        fft_plan_1d()
+        w_fft = output_array_1d.copy()
         
         # Compute energy spectra for each component separately
         # No sum of components if we are calculating 1D "energy" spectra
@@ -344,16 +335,19 @@ def compute_spectra_from_fluctuations(U_fluct, V_fluct, W_fluct, Lx, Ly, Lz):
              Contains 'k_3d', 'spectrum_3d', 'kx', 'u_kx', 'v_kx', 'w_kx', etc.
     """
     result = {}
-    
+
+    # Get dimensions to create reusable FFT arrays and plans
+    nz, ny, nx, nt = U_fluct.shape
+
     # Compute 3D spectrum
     result["k_3d"], result["spectrum_3d"] = compute_3d_spectra(
         U_fluct, V_fluct, W_fluct, Lx, Ly, Lz
     )
-    
+
     # Compute 1D spectra
     spectra_1d = compute_1d_spectra(U_fluct, V_fluct, W_fluct, Lx, Ly, Lz)
     result.update(spectra_1d)
-    
+
     return result
 
 
