@@ -293,7 +293,7 @@ class SpectraWindow(PickerMixin, QWidget):
         dg = QGroupBox("Depth"); dl = QVBoxLayout(dg)
         lr = QHBoxLayout(); lr.addWidget(QLabel("Lz [m]:"))
         self.spin_3d_lz = QDoubleSpinBox(); self.spin_3d_lz.setRange(0.001,100)
-        self.spin_3d_lz.setValue(0.01); self.spin_3d_lz.setDecimals(4)
+        self.spin_3d_lz.setValue(0.1); self.spin_3d_lz.setDecimals(4)
         self.spin_3d_lz.setToolTip("Depth for 2D PIV (small value)")
         lr.addWidget(self.spin_3d_lz); dl.addLayout(lr)
         ll.addWidget(dg)
@@ -626,7 +626,7 @@ class SpectraWindow(PickerMixin, QWidget):
         result = compute_spectra_from_fluctuations(U_fluct, V_fluct, W_fluct, Lx, Ly, Lz)
         
         self._last_result={"tab":"3d_spatial","result":result, "roi": {"x0":x0, "x1":x1, "y0":y0, "y1":y1}}
-        self._plot_3d_spatial(result)
+        self._plot_spatial_fft(result)
 
     # ---- Temporal ----
     def _compute_temporal(self):
@@ -705,7 +705,7 @@ class SpectraWindow(PickerMixin, QWidget):
                 pa=p_plot[valid][ilo]
                 slope=-5/3+alpha_exp if compensate else -5/3
                 ax.loglog(kl,pa*(kl/klo)**slope,"k--",linewidth=1.5,alpha=0.7,
-                          label=f"k^{slope:.2f}")
+                          label=f"$k^{{{slope:.2f}}}$")
         ax.set_xlabel(x_label,fontsize=8); ax.set_ylabel(y_label,fontsize=7)
         ax.set_title(label,fontsize=9); ax.tick_params(labelsize=7)
         ax.set_aspect("auto")   # never let loglog impose equal aspect
@@ -730,7 +730,7 @@ class SpectraWindow(PickerMixin, QWidget):
         self.result_fig.tight_layout(pad=1.2); self.result_canvas.draw()
         self.result_toolbar.set_home_limits()
 
-    def _plot_3d_spatial(self, result):
+    def _plot_spatial_fft(self, result):
         # Get active components
         comps = []
         if self.chk_3d_u.isChecked(): comps.append("u")
@@ -757,31 +757,37 @@ class SpectraWindow(PickerMixin, QWidget):
             if hasattr(self, '_last_result') and self._last_result.get("tab") == "3d_spatial":
                 roi = self._last_result.get("roi", {})
                 if roi:
-                    title_3d = f"3D Spectrum E(k) - ROI: [{roi['x0']:.0f},{roi['y0']:.0f}]-[{roi['x1']:.0f},{roi['y1']:.0f}] mm"
+                    title_3d = (
+                        f"3D Spectrum E(k) - ROI: x=[{roi['x0']:.1f}, {roi['x1']:.1f}] mm, "
+                        f"y=[{roi['y0']:.1f}, {roi['y1']:.1f}] mm, Lz={self.spin_3d_lz.value():.1f} m"
+                    )
+                else:
+                    title_3d = "3D Spectrum E(k) - Full Volume"
             
-            self._plot_psd_ax(ax1, k_3d, spectrum_3d, title_3d, "black",
+            self._plot_psd_ax(ax1, k_3d, spectrum_3d, "3D Spectrum E(k)", "black",
                              compensate=comp, alpha_exp=alpha,
                              show_kolmogorov=self.chk_3d_kolmogorov.isChecked())
+            self.result_fig.suptitle(title_3d)
             
             # Plot 1D spectra
             ax2 = self.result_fig.add_subplot(122)
             
             # Plot each component's 1D spectra
             for i, c in enumerate(comps):
-                kx = result.get(f'kx')
-                spectrum_kx = result.get(f'spectrum_kx')
+                kx = result.get('kx')
+                spectrum_kx = result.get(f'{c}_kx')
                 if kx is not None and spectrum_kx is not None:
                     ax2.loglog(kx, spectrum_kx, color=colors[c], linewidth=1.2, 
                               label=f'E_{c}(k_x)', alpha=0.8)
                     
-                ky = result.get(f'ky')
-                spectrum_ky = result.get(f'spectrum_ky')
+                ky = result.get('ky')
+                spectrum_ky = result.get(f'{c}_ky')
                 if ky is not None and spectrum_ky is not None:
                     ax2.loglog(ky, spectrum_ky, '--', color=colors[c], linewidth=1.2,
                               label=f'E_{c}(k_y)', alpha=0.8)
                     
-                kz = result.get(f'kz')
-                spectrum_kz = result.get(f'spectrum_kz')
+                kz = result.get('kz')
+                spectrum_kz = result.get(f'{c}_kz')
                 if kz is not None and spectrum_kz is not None:
                     ax2.loglog(kz, spectrum_kz, ':', color=colors[c], linewidth=1.2,
                               label=f'E_{c}(k_z)', alpha=0.8)
@@ -942,16 +948,18 @@ class SpectraWindow(PickerMixin, QWidget):
                     rows.append(f"{k_3d[i]:.6e}, {spectrum_3d[i]:.6e}")
                 rows.append("")
             
-            # Export 1D spectra
+            # Export 1D spectra for each component
             for direction, label in [('kx', 'x'), ('ky', 'y'), ('kz', 'z')]:
                 k = result.get(direction)
-                spectrum = result.get(f'spectrum_{direction}')
-                if k is not None and spectrum is not None:
-                    rows.append(f"# 1D Spectrum {label}-direction")
-                    rows.append(f"# k_{label}_rad_m, E_k_{label}_m3_s2")
-                    for i in range(len(k)):
-                        rows.append(f"{k[i]:.6e}, {spectrum[i]:.6e}")
-                    rows.append("")
+                if k is not None:
+                    for comp in ['u', 'v', 'w']:
+                        spectrum = result.get(f'{comp}_{direction}')
+                        if spectrum is not None:
+                            rows.append(f"# 1D Spectrum {comp}-component {label}-direction")
+                            rows.append(f"# k_{label}_rad_m, E_{comp}_k_{label}_m3_s2")
+                            for i in range(len(k)):
+                                rows.append(f"{k[i]:.6e}, {spectrum[i]:.6e}")
+                            rows.append("")
             
             open(path, "w").write("\n".join(rows))
             self.lbl_status.setText(f"✓ Exported 3D spatial spectra to {os.path.basename(path)}")
