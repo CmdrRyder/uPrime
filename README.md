@@ -123,7 +123,7 @@ Includes:
 
 ## 🧠 Development Status
 
-uPrime is under active development (**v0.3 alpha**).  
+uPrime is under active development (**v0.3.4 alpha**).  
 Core analysis modules are stable, while additional features are being refined.
 
 ---
@@ -149,7 +149,7 @@ To ensure consistency and reliability, extensions are encouraged to be integrate
 ## 📖 Citation
 
 If uPrime contributes to your research, please be kind and cite us:
-Jose, J. T., & Ram, O. (2026). uPrime : Open-source software for velocity field and turbulence analysis from PIV and CFD data. (v0.3.3-alpha). TFML, Technion (v0.3.3-alpha). Zenodo.  https://doi.org/10.5281/zenodo.19376184
+Jose, J. T., & Ram, O. (2026). uPrime : Open-source software for velocity field and turbulence analysis from PIV and CFD data. (v0.3.4-alpha). TFML, Technion (v0.3.3-alpha). Zenodo.  https://doi.org/10.5281/zenodo.19376184
 
 ---
 
