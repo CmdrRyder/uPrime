@@ -3,6 +3,29 @@
 All notable changes to uPrime are documented here.  
 
 ---
+## [v0.3.4] — Alpha Release
+
+### Added
+- Streamline support: rake-based seed drawing on the field, multiple rakes drawn cumulatively, reset button to clear all, color picker with preset palette, and line width control.
+- Spatial FFT tab: 2D ROI-based spatial spectra using pyFFTW, averaged over all snapshots, with 1D marginal spectra E(kx) and E(ky) shown alongside.
+- Vector controls ribbon: skip x/y, length, and arrow size controls in a dedicated second toolbar ribbon that appears only when Vectors or Streamlines is selected.
+- Instruction labels on Welch and FFT spectral tabs describing what each method computes.
+
+### Changed
+- Welch spatial spectra tab restricted to Horizontal and Vertical line modes only; Rectangle ROI removed and is now exclusive to the FFT tab.
+- Default Welch segment size changed from N//4 to N//2; segment and overlap auto-set when line selection changes based on available spatial points.
+- Overlay controls (vectors/streamlines) moved to a dedicated second ribbon below the main toolbar.
+- Apply button moved into the second ribbon next to the relevant controls.
+- Improved memory usage: velocity arrays loaded as float32 instead of float64, halving memory footprint for large datasets. Invalid vectors masked to NaN at load time rather than during analysis.
+- Subset loading and reload: users can now specify a snapshot range (start, end) and step/skip when loading, avoiding loading the full time series into memory. A reload button restores the full original dataset if a subset was previously selected.
+- Export improvements: PNG export now uses 300 dpi for publication-quality output. Clean export mode (hide axes, hide colorbar) available as checkboxes before saving. PDF export quality improved.
+- Version updated to v0.3.4 throughout.
+
+### Fixed
+- FFT tab: NaN regions filled with zero before FFT to prevent empty plot for partially masked ROIs.
+- FFT tab: masked region warning shown below the plot only when masked fraction exceeds 5%.
+- requirements.txt encoding corrected from UTF-16 to UTF-8.
+- Vector ribbon now visible at startup when Vectors is the default overlay mode.
 
 ## [v0.3] — Alpha Release
 
