@@ -68,6 +68,17 @@ All notable changes to uPrime are documented here.
 
 ---
 
+## [v0.3.4] — Alpha Release
+
+### Added
+
+- Streamline support added
+- Minor GUI improvements
+- Spatial FFT added
+- Bug fixes
+
+---
+
 ## [v0.2] — Alpha Release
 
 ### Added

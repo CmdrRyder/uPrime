@@ -14,12 +14,7 @@ REM    pyfftw      -- collect-all + collect-binaries (FFTW DLLs)
 REM    PIL/Pillow  -- collect-all (image handling)
 REM ============================================================
 
-python -m pyinstaller --version >nul 2>&1
-if errorlevel 1 (
-    echo PyInstaller not found. Install with: pip install pyinstaller
-    pause
-    exit /b 1
-)
+python -m pip install pyinstaller --quiet
 
 pyinstaller ^
     --onefile ^

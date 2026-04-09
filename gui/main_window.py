@@ -105,7 +105,6 @@ class MainWindow(PickerMixin, QMainWindow):
         self._full_dataset     = None # copy before subset is applied
         self._original_fs      = None # fs before any stride-based subset
         self._build_ui()
-        self._on_overlay_mode_changed()  # show ribbon with vector controls at startup
 
     # ----------------------------------------------------------------------- #
     # UI construction
@@ -676,6 +675,7 @@ class MainWindow(PickerMixin, QMainWindow):
         self.analysis_group.setVisible(True)
         self.transform_group.setVisible(True)
         self.options_strip.setVisible(True)
+        self._on_overlay_mode_changed()
 
         # Populate field selector
         self.combo_field.blockSignals(True)
@@ -1065,7 +1065,7 @@ class MainWindow(PickerMixin, QMainWindow):
     def _on_overlay_mode_changed(self):
         vec  = self.rb_overlay_vec.isChecked()
         sl   = self.rb_overlay_sl.isChecked()
-        show = vec or sl
+        show = (vec or sl) and self.dataset is not None
         self.overlay_ribbon.setVisible(show)
         self._vec_controls.setVisible(vec)
         self._sl_controls.setVisible(sl)
