@@ -181,6 +181,13 @@ class SpectraWindow(PickerMixin, QWidget):
         center_row.addWidget(self.result_canvas, stretch=8)
         center_row.addStretch(1)
         rl.addLayout(center_row)
+
+        self.lbl_mask_warning = QLabel("")
+        self.lbl_mask_warning.setStyleSheet("color: gray; font-size: 10px;")
+        self.lbl_mask_warning.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_mask_warning.setVisible(False)
+        rl.addWidget(self.lbl_mask_warning)
+
         rl.addStretch(1)   # push canvas to top-center, empty space below
 
         splitter.addWidget(left)
@@ -636,17 +643,39 @@ class SpectraWindow(PickerMixin, QWidget):
         Ly = abs(y1 - y0) / 1000.0  # Convert mm to m
         
         # Extract velocity data within ROI
-        U_roi = ds["U"][rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :]
-        V_roi = ds["V"][rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :]
-        
+        U_roi = ds["U"][rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :].copy()
+        V_roi = ds["V"][rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :].copy()
+
         # Handle W component if available
         if ds["W"] is not None:
-            W_roi = ds["W"][rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :]
+            W_roi = ds["W"][rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :].copy()
         else:
             W_roi = np.zeros_like(U_roi)
-        
-        # Reshape to 4D arrays with nz=1 (single plane) for 3D FFT
+
+        # Diagnostic: count NaN / masked points
         ny_roi, nx_roi, nt = U_roi.shape
+        nan_mask = np.isnan(U_roi) | np.isnan(V_roi)
+        if ds["W"] is not None:
+            nan_mask |= np.isnan(W_roi)
+        total_pts = ny_roi * nx_roi * nt
+        n_nan    = int(np.sum(nan_mask))
+        n_valid  = total_pts - n_nan
+        mask_pct = 100.0 * n_nan / total_pts
+        print(f"[FFT Spectra] ROI: x=[{x0:.1f}, {x1:.1f}] mm  y=[{y0:.1f}, {y1:.1f}] mm")
+        print(f"[FFT Spectra] Grid: {ny_roi}×{nx_roi} × {nt} snapshots = {total_pts} pts")
+        print(f"[FFT Spectra] Valid: {n_valid}/{total_pts}  ({100-mask_pct:.1f}% valid, {mask_pct:.1f}% masked)")
+
+        if n_valid < total_pts * 0.5:
+            raise ValueError(
+                f"{mask_pct:.1f}% of ROI points are masked/NaN — too few valid vectors. "
+                "Select a region with more valid data."
+            )
+
+        # Fill NaNs with zero so FFT can proceed; warn in the plot
+        if n_nan > 0:
+            U_roi[nan_mask] = 0.0
+            V_roi[nan_mask] = 0.0
+            W_roi[nan_mask] = 0.0
         U_4d = U_roi.reshape(1, ny_roi, nx_roi, nt)
         V_4d = V_roi.reshape(1, ny_roi, nx_roi, nt)
         W_4d = W_roi.reshape(1, ny_roi, nx_roi, nt)
@@ -657,8 +686,10 @@ class SpectraWindow(PickerMixin, QWidget):
         # Compute spectra using FFT
         result = compute_spectra_from_fluctuations(U_fluct, V_fluct, W_fluct, Lx, Ly, Lz)
         
-        self._last_result={"tab":"3d_spatial","result":result, "roi": {"x0":x0, "x1":x1, "y0":y0, "y1":y1}}
-        self._plot_spatial_fft(result)
+        self._last_result={"tab":"3d_spatial","result":result,
+                           "roi": {"x0":x0,"x1":x1,"y0":y0,"y1":y1},
+                           "mask_pct": mask_pct}
+        self._plot_spatial_fft(result, mask_pct=mask_pct)
 
     # ---- Temporal ----
     def _compute_temporal(self):
@@ -762,7 +793,7 @@ class SpectraWindow(PickerMixin, QWidget):
         self.result_fig.tight_layout(pad=1.2); self.result_canvas.draw()
         self.result_toolbar.set_home_limits()
 
-    def _plot_spatial_fft(self, result):
+    def _plot_spatial_fft(self, result, mask_pct=0.0):
         # Get active components
         comps = []
         if self.chk_3d_u.isChecked(): comps.append("u")
@@ -855,7 +886,13 @@ class SpectraWindow(PickerMixin, QWidget):
             ax2.grid(True, which="both", alpha=0.3)
             ax2.legend(fontsize=6)
             ax2.set_aspect("auto")
-            
+
+        if mask_pct > 5.0:
+            self.lbl_mask_warning.setText(f"{mask_pct:.1f}% of ROI was masked and filled with 0 before FFT.")
+            self.lbl_mask_warning.setVisible(True)
+        else:
+            self.lbl_mask_warning.setVisible(False)
+
         if self.chk_hide_axes.isChecked():
             for a in self.result_fig.axes:
                 a.axis('off')

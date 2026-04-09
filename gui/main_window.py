@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QProgressBar, QSplitter, QGroupBox, QSizePolicy,
     QMessageBox, QSpinBox, QDoubleSpinBox, QRadioButton,
     QButtonGroup, QScrollArea, QStatusBar, QFrame,
-    QDialog, QDialogButtonBox, QCheckBox
+    QDialog, QDialogButtonBox, QCheckBox, QColorDialog
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
@@ -89,7 +89,7 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("uPrime v0.3.3")
+        self.setWindowTitle("uPrime v0.3.4")
         self.setMinimumSize(1100, 650)
         self.resize(1400, 820)
         self.dataset           = None
@@ -98,9 +98,14 @@ class MainWindow(PickerMixin, QMainWindow):
         self._full_file_list   = []   # complete original file list from dialog
         self._last_file_list   = []   # actually loaded file list (after subsampling)
         self._subsample_desc   = ""   # description of current subsampling
+        self._rakes            = []     # list of rake dicts {p0,p1,n_seeds,lw,color}
+        self._rake_artist      = None  # temporary line artist during drag
+        self._rake_press_xy    = None  # mouse-down position during rake drag
+        self._sl_color         = "#ffffff"  # streamline color
         self._full_dataset     = None # copy before subset is applied
         self._original_fs      = None # fs before any stride-based subset
         self._build_ui()
+        self._on_overlay_mode_changed()  # show ribbon with vector controls at startup
 
     # ----------------------------------------------------------------------- #
     # UI construction
@@ -279,40 +284,25 @@ class MainWindow(PickerMixin, QMainWindow):
         self.combo_field.currentIndexChanged.connect(self._on_field_changed)
         opts.addWidget(self.combo_field)
 
-        opts.addWidget(QLabel("Plot:"))
-        self.combo_plot = QComboBox()
-        self.combo_plot.addItems(["Contourf + Vectors",
-                                   "Contourf only",
-                                   "Vectors only"])
-        self.combo_plot.currentIndexChanged.connect(self._on_field_changed)
-        opts.addWidget(self.combo_plot)
+        # -- Overlay radio buttons --
+        opts.addWidget(QLabel("Overlay:"))
+        self.rb_overlay_none = QRadioButton("None")
+        self.rb_overlay_vec  = QRadioButton("Vectors")
+        self.rb_overlay_sl   = QRadioButton("Streamlines")
+        self.rb_overlay_vec.setChecked(True)
+        self._overlay_bg = QButtonGroup()
+        for rb in [self.rb_overlay_none, self.rb_overlay_vec, self.rb_overlay_sl]:
+            self._overlay_bg.addButton(rb)
+            opts.addWidget(rb)
+            rb.toggled.connect(self._on_overlay_mode_changed)
 
         opts.addWidget(self._vsep())
-        opts.addWidget(QLabel("Skip x:"))
-        self.spin_skip_x = QSpinBox()
-        self.spin_skip_x.setRange(1, 50); self.spin_skip_x.setValue(10)
-        self.spin_skip_x.setFixedWidth(55)
-        opts.addWidget(self.spin_skip_x)
 
-        opts.addWidget(QLabel("Skip y:"))
-        self.spin_skip_y = QSpinBox()
-        self.spin_skip_y.setRange(1, 50); self.spin_skip_y.setValue(10)
-        self.spin_skip_y.setFixedWidth(55)
-        opts.addWidget(self.spin_skip_y)
+        self.chk_draw_on_contour = QCheckBox("Draw on contour")
+        self.chk_draw_on_contour.setChecked(True)
+        self.chk_draw_on_contour.stateChanged.connect(self._on_field_changed)
+        opts.addWidget(self.chk_draw_on_contour)
 
-        opts.addWidget(QLabel("Vec length:"))
-        self.spin_scale = QDoubleSpinBox()
-        self.spin_scale.setRange(0.01, 10.0)
-        self.spin_scale.setValue(1.0)
-        self.spin_scale.setDecimals(2)
-        self.spin_scale.setSingleStep(0.05)
-        self.spin_scale.setFixedWidth(65)
-        opts.addWidget(self.spin_scale)
-
-        btn_apply = QPushButton("Apply")
-        btn_apply.setFixedWidth(60)
-        btn_apply.clicked.connect(self._on_field_changed)
-        opts.addWidget(btn_apply)
         self.chk_clean_export = QCheckBox("Clean export (hide axes)")
         self.chk_clean_export.setChecked(False)
         self.chk_clean_export.stateChanged.connect(self._on_field_changed)
@@ -324,6 +314,87 @@ class MainWindow(PickerMixin, QMainWindow):
         opts.addStretch()
 
         right_lay.addWidget(self.options_strip)
+
+        # -- Second ribbon: vector / streamline controls (hidden when None) --
+        self.overlay_ribbon = QWidget()
+        self.overlay_ribbon.setVisible(False)
+        orb = QHBoxLayout(self.overlay_ribbon)
+        orb.setContentsMargins(4, 2, 4, 2)
+        orb.setSpacing(8)
+
+        # Vector controls
+        self._vec_controls = QWidget()
+        vc = QHBoxLayout(self._vec_controls)
+        vc.setContentsMargins(0, 0, 0, 0); vc.setSpacing(6)
+        vc.addWidget(QLabel("Skip x:"))
+        self.spin_skip_x = QSpinBox()
+        self.spin_skip_x.setRange(1, 50); self.spin_skip_x.setValue(5)
+        self.spin_skip_x.setFixedWidth(55)
+        vc.addWidget(self.spin_skip_x)
+        vc.addWidget(QLabel("Skip y:"))
+        self.spin_skip_y = QSpinBox()
+        self.spin_skip_y.setRange(1, 50); self.spin_skip_y.setValue(5)
+        self.spin_skip_y.setFixedWidth(55)
+        vc.addWidget(self.spin_skip_y)
+        vc.addWidget(QLabel("Length:"))
+        self.spin_scale = QDoubleSpinBox()
+        self.spin_scale.setRange(0.01, 10.0); self.spin_scale.setValue(1.0)
+        self.spin_scale.setDecimals(1); self.spin_scale.setSingleStep(0.1)
+        self.spin_scale.setFixedWidth(60)
+        vc.addWidget(self.spin_scale)
+        vc.addWidget(QLabel("Arrow size:"))
+        self.spin_arrow_size = QDoubleSpinBox()
+        self.spin_arrow_size.setRange(0.1, 5.0); self.spin_arrow_size.setValue(1.0)
+        self.spin_arrow_size.setDecimals(1); self.spin_arrow_size.setSingleStep(0.1)
+        self.spin_arrow_size.setFixedWidth(60)
+        vc.addWidget(self.spin_arrow_size)
+        btn_apply_vec = QPushButton("Apply")
+        btn_apply_vec.setFixedWidth(60)
+        btn_apply_vec.clicked.connect(self._on_field_changed)
+        vc.addWidget(btn_apply_vec)
+        orb.addWidget(self._vec_controls)
+
+        # Streamline controls
+        self._sl_controls = QWidget()
+        sc = QHBoxLayout(self._sl_controls)
+        sc.setContentsMargins(0, 0, 0, 0); sc.setSpacing(6)
+        self.btn_draw_rake = QPushButton("Draw Rake")
+        self.btn_draw_rake.setFixedWidth(85)
+        self.btn_draw_rake.setCheckable(True)
+        self.btn_draw_rake.clicked.connect(self._on_draw_rake_toggle)
+        sc.addWidget(self.btn_draw_rake)
+        sc.addWidget(QLabel("Seeds:"))
+        self.spin_sl_seeds = QSpinBox()
+        self.spin_sl_seeds.setRange(2, 100); self.spin_sl_seeds.setValue(20)
+        self.spin_sl_seeds.setFixedWidth(50)
+        sc.addWidget(self.spin_sl_seeds)
+        sc.addWidget(QLabel("Line width:"))
+        self.spin_sl_lw = QDoubleSpinBox()
+        self.spin_sl_lw.setRange(0.1, 5.0); self.spin_sl_lw.setValue(1.0)
+        self.spin_sl_lw.setDecimals(1); self.spin_sl_lw.setSingleStep(0.1)
+        self.spin_sl_lw.setFixedWidth(55)
+        sc.addWidget(self.spin_sl_lw)
+        sc.addWidget(QLabel("Color:"))
+        self.btn_sl_color = QPushButton()
+        self.btn_sl_color.setFixedSize(24, 24)
+        self.btn_sl_color.setStyleSheet(
+            f"background: {self._sl_color}; border: 1px solid #888;")
+        self.btn_sl_color.clicked.connect(self._on_sl_color_pick)
+        sc.addWidget(self.btn_sl_color)
+        self.btn_sl_reset = QPushButton("Reset")
+        self.btn_sl_reset.setFixedWidth(55)
+        self.btn_sl_reset.setToolTip("Clear all drawn rakes")
+        self.btn_sl_reset.clicked.connect(self._on_sl_reset)
+        sc.addWidget(self.btn_sl_reset)
+        btn_apply_sl = QPushButton("Apply")
+        btn_apply_sl.setFixedWidth(60)
+        btn_apply_sl.clicked.connect(self._on_field_changed)
+        sc.addWidget(btn_apply_sl)
+        self._sl_controls.setVisible(False)
+        orb.addWidget(self._sl_controls)
+
+        orb.addStretch()
+        right_lay.addWidget(self.overlay_ribbon)
 
         # -- Info ribbon (compact dataset summary, shown after load) --
         self.info_ribbon = QWidget()
@@ -843,10 +914,10 @@ class MainWindow(PickerMixin, QMainWindow):
         x, y       = ds["x"], ds["y"]
         U, V, W    = ds["U"], ds["V"], ds["W"]
         field_name = self.combo_field.currentText()
-        plot_type  = self.combo_plot.currentText()
         skip_x     = self.spin_skip_x.value()
         skip_y     = self.spin_skip_y.value()
         vec_scale  = self.spin_scale.value()
+        arrow_size = self.spin_arrow_size.value()
 
         mean_u = np.nanmean(U, axis=2)
         mean_v = np.nanmean(V, axis=2)
@@ -888,7 +959,9 @@ class MainWindow(PickerMixin, QMainWindow):
         clean  = self.chk_clean_export.isChecked()
         hide_cb = self.chk_hide_colorbar.isChecked()
 
-        if "Contourf" in plot_type:
+        draw_contour = self.chk_draw_on_contour.isChecked()
+
+        if draw_contour:
             cf = ax.contourf(x, y, field, levels=50, cmap="RdBu_r")
             if hide_cb:
                 cb = self.plot_canvas.figure.colorbar(cf, ax=ax,
@@ -903,7 +976,7 @@ class MainWindow(PickerMixin, QMainWindow):
                     cb.ax.tick_params(size=0, labelsize=0)
                     cb.outline.set_visible(False)
 
-        if "Vectors" in plot_type:
+        if self.rb_overlay_vec.isChecked():
             xs  = x[::skip_y, ::skip_x]
             ys  = y[::skip_y, ::skip_x]
             us  = mean_u[::skip_y, ::skip_x].copy()
@@ -926,11 +999,45 @@ class MainWindow(PickerMixin, QMainWindow):
                       scale=1.0 / arrow_len,
                       scale_units='xy',
                       angles='xy',
-                      width=0.0012,
-                      headwidth=4,
-                      headlength=4,
-                      headaxislength=3.5,
+                      width=0.0012 * arrow_size,
+                      headwidth=4 * arrow_size,
+                      headlength=4 * arrow_size,
+                      headaxislength=3.5 * arrow_size,
                       alpha=0.75)
+
+        elif self.rb_overlay_sl.isChecked() and self._rakes:
+            # Use linspace to guarantee perfectly uniform spacing (PIV grids
+            # are uniform but floating-point noise causes streamplot to reject them)
+            x_raw = ds["x"][0, :]
+            y_raw = ds["y"][:, 0]
+            x_1d = np.linspace(float(x_raw[0]), float(x_raw[-1]), len(x_raw))
+            y_1d = np.linspace(float(y_raw[0]), float(y_raw[-1]), len(y_raw))
+            # Replace NaN with 0 so streamplot doesn't crash on masked areas
+            u_sl = np.where(invalid_mask, 0.0, mean_u)
+            v_sl = np.where(invalid_mask, 0.0, mean_v)
+
+            for rake in self._rakes:
+                x0r, y0r = rake["p0"]
+                x1r, y1r = rake["p1"]
+                n_seeds  = rake["n_seeds"]
+                lw       = rake["lw"]
+                color    = rake["color"]
+                seed_x = np.linspace(x0r, x1r, n_seeds)
+                seed_y = np.linspace(y0r, y1r, n_seeds)
+                start_points = np.column_stack([seed_x, seed_y])
+                try:
+                    ax.streamplot(x_1d, y_1d, u_sl, v_sl,
+                                  start_points=start_points,
+                                  color=color,
+                                  linewidth=lw,
+                                  density=5,
+                                  integration_direction='both',
+                                  broken_streamlines=True)
+                except Exception as e:
+                    import traceback
+                    print("[Streamlines] EXCEPTION:", e)
+                    print(traceback.format_exc())
+                    self.lbl_status.setText(f"Streamplot error: {e}")
 
         ax.set_xlabel("x [mm]"); ax.set_ylabel("y [mm]")
         ax.set_title(field_name, fontsize=10)
@@ -950,6 +1057,100 @@ class MainWindow(PickerMixin, QMainWindow):
             self._pick_field_ax = self.plot_canvas.figure.axes[0]
         self._last_field_values = field
         self.lbl_status.setText(f"Displaying: {field_name}")
+
+    # ----------------------------------------------------------------------- #
+    # Overlay mode helpers
+    # ----------------------------------------------------------------------- #
+
+    def _on_overlay_mode_changed(self):
+        vec  = self.rb_overlay_vec.isChecked()
+        sl   = self.rb_overlay_sl.isChecked()
+        show = vec or sl
+        self.overlay_ribbon.setVisible(show)
+        self._vec_controls.setVisible(vec)
+        self._sl_controls.setVisible(sl)
+        self._on_field_changed()
+
+    def _on_draw_rake_toggle(self, checked):
+        if checked:
+            self.btn_draw_rake.setText("Cancel")
+            self._rake_press_xy = None
+            self._cid_press   = self.plot_canvas.canvas.mpl_connect(
+                "button_press_event",   self._on_rake_press)
+            self._cid_motion  = self.plot_canvas.canvas.mpl_connect(
+                "motion_notify_event",  self._on_rake_motion)
+            self._cid_release = self.plot_canvas.canvas.mpl_connect(
+                "button_release_event", self._on_rake_release)
+            self.lbl_status.setText("Click and drag on the field to draw a rake line.")
+        else:
+            self.btn_draw_rake.setText("Draw Rake")
+            for cid in ("_cid_press", "_cid_motion", "_cid_release"):
+                if hasattr(self, cid):
+                    self.plot_canvas.canvas.mpl_disconnect(getattr(self, cid))
+            self._clear_rake_artist()
+
+    def _on_rake_press(self, event):
+        if event.inaxes is None: return
+        self._rake_press_xy = (event.xdata, event.ydata)
+
+    def _on_rake_motion(self, event):
+        if self._rake_press_xy is None or event.inaxes is None: return
+        self._clear_rake_artist()
+        x0, y0 = self._rake_press_xy
+        ln, = event.inaxes.plot([x0, event.xdata], [y0, event.ydata],
+                                 "w--", linewidth=1.5, alpha=0.8, zorder=20)
+        self._rake_artist = ln
+        self.plot_canvas.canvas.draw_idle()
+
+    def _on_rake_release(self, event):
+        if self._rake_press_xy is None or event.inaxes is None: return
+        x0, y0 = self._rake_press_xy
+        x1, y1 = event.xdata, event.ydata
+        self._rake_press_xy = None
+        if abs(x1 - x0) < 0.5 and abs(y1 - y0) < 0.5:
+            self.lbl_status.setText("Rake too short — try again.")
+            return
+        self._rakes.append({
+            "p0": (x0, y0), "p1": (x1, y1),
+            "n_seeds": self.spin_sl_seeds.value(),
+            "lw": self.spin_sl_lw.value(),
+            "color": self._sl_color,
+        })
+        # Disconnect events and reset button (rake artist stays visible during replot)
+        self.btn_draw_rake.setChecked(False)
+        self.btn_draw_rake.setText("Draw Rake")
+        for cid in ("_cid_press", "_cid_motion", "_cid_release"):
+            if hasattr(self, cid):
+                self.plot_canvas.canvas.mpl_disconnect(getattr(self, cid))
+        # Replot — this clears and redraws the figure (rake artist removed naturally)
+        self._rake_artist = None   # prevent _clear_rake_artist from crashing on stale ref
+        self._on_field_changed()
+
+    def _clear_rake_artist(self):
+        if self._rake_artist is not None:
+            try: self._rake_artist.remove()
+            except Exception: pass
+            self._rake_artist = None
+            self.plot_canvas.canvas.draw_idle()
+
+    def _on_sl_color_pick(self):
+        from PyQt6.QtGui import QColor
+        presets = [
+            QColor("white"), QColor("black"), QColor("red"),
+            QColor("blue"),  QColor("green"), QColor("yellow"),
+            QColor("cyan"),  QColor("magenta"),
+        ]
+        dlg = QColorDialog(QColor(self._sl_color), self)
+        for i, c in enumerate(presets):
+            QColorDialog.setCustomColor(i, c)
+        if dlg.exec() == QColorDialog.DialogCode.Accepted:
+            self._sl_color = dlg.selectedColor().name()
+            self.btn_sl_color.setStyleSheet(
+                f"background: {self._sl_color}; border: 1px solid #888;")
+
+    def _on_sl_reset(self):
+        self._rakes.clear()
+        self._on_field_changed()
 
     # ----------------------------------------------------------------------- #
     # Analysis launchers
@@ -1077,7 +1278,7 @@ class MainWindow(PickerMixin, QMainWindow):
         for text, size, bold, italic, color in [
             ("uPrime",                          22, True,  False, None),
             ("Because u\u2019 matters",         10, False, True,  "gray"),
-            ("v0.3.3  \u00b7  Alpha Release",    9,  False, False, "gray"),
+            ("v0.3.4  \u00b7  Alpha Release",    9,  False, False, "gray"),
         ]:
             lbl = QLabel(text)
             f   = QFont("Arial", size, QFont.Weight.Bold if bold else QFont.Weight.Normal)

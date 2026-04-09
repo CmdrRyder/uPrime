@@ -365,10 +365,10 @@ def subtract_temporal_mean(U, V, W):
     U_fluct, V_fluct, W_fluct : 3D arrays
                                Velocity fluctuations u'(x,t) = u(x,t) - <u>(x)
     """
-    # Compute temporal means
-    U_mean = np.mean(U, axis=3, keepdims=True)
-    V_mean = np.mean(V, axis=3, keepdims=True)
-    W_mean = np.mean(W, axis=3, keepdims=True)
+    # Compute temporal means (nanmean tolerates any residual NaNs)
+    U_mean = np.nanmean(U, axis=3, keepdims=True)
+    V_mean = np.nanmean(V, axis=3, keepdims=True)
+    W_mean = np.nanmean(W, axis=3, keepdims=True)
     
     # Subtract to get fluctuations
     U_fluct = U - U_mean
