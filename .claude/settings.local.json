@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python:*)",
-      "Bash(py -3.11 main.py)",
-      "Bash(npm install:*)"
-    ]
-  }
-}
