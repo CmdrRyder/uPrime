@@ -8,7 +8,7 @@
 ### *Because u′ matters*
 
 <p align="center">
-  <img src="docs/images/gui.png" width="850">
+  <img src="docs/images/gui.png" width="855">
 </p>
 
 **uPrime** is a standalone software for post-processing and analysis of velocity field data from PIV and CFD. It provides a unified graphical interface to perform turbulence analysis without scripting, integrating multiple workflows into a single environment.
