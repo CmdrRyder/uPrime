@@ -3,3 +3,4 @@ scipy
 matplotlib
 PyQt6
 pyfftw
+
