@@ -44,6 +44,7 @@ pyinstaller ^
     --hidden-import scipy.ndimage ^
     --hidden-import scipy.ndimage.filters ^
     --hidden-import scipy.interpolate ^
+    --hidden-import scipy.interpolate.fitpack2 ^
     --hidden-import scipy._lib ^
     --hidden-import scipy._lib.messagestream ^
     --hidden-import scipy.special ^
@@ -59,6 +60,8 @@ pyinstaller ^
     --hidden-import PIL.ImageDraw ^
     --hidden-import concurrent.futures ^
     --hidden-import csv ^
+    --hidden-import datetime ^
+    --hidden-import re ^
     --hidden-import traceback ^
     main.py
 
