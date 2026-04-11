@@ -97,7 +97,7 @@ uPrime reads **Tecplot ASCII `.dat` files**:
 
 ```
 TITLE = "filename"
-VARIABLES = "x [mm]", "y [mm]", "Velocity u [m/s]", "Velocity v [m/s]", ...
+VARIABLES = "x [mm]", "y [mm]", "Velocity u [m/s]", "Velocity v [m/s]", ... "isValid"
 ZONE T="Frame 0", I=NX, J=NY, F=POINT
 ...data...
 ```
@@ -107,6 +107,11 @@ ZONE T="Frame 0", I=NX, J=NY, F=POINT
 - Supports 2D and stereo data
 
 Compatible with **DaVis** and CFD exports.
+
+> **Note:** Each `.dat` file should include an `isValid` or `mask` column as the last column, 
+> consisting of `1` (valid vector) and `0` (invalid vector) values. 
+> This is the default export format from DaVis. If this column is absent, 
+> invalid vectors will not be masked and results may be erroneous.
 
 ---
 
