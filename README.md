@@ -178,7 +178,7 @@ To ensure consistency and reliability, extensions are encouraged to be integrate
 
 ## 📖 Citation
 
-If uPrime contributes to your research, please be kind and cite us:
+If uPrime contributes to your research, please cite us:
 
 Jibu Tom Jose, & Ram, O. (2026). uPrime : Open-source software for velocity field and turbulence analysis from PIV and CFD data. TFML, Technion (v0.3.4-alpha). Zenodo..  https://doi.org/10.5281/zenodo.19376184
 
