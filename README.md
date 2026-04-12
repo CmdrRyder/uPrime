@@ -119,6 +119,9 @@ Compatible with **DaVis** and CFD exports.
 
 A sample dataset is available to help you test uPrime with real experimental velocity-field data in the required Tecplot ASCII format.
 
+🔗 **Download from Zenodo:**  
+https://doi.org/10.5281/zenodo.19539711
+
 It includes:
 
 - **One non-time-resolved stereo PIV dataset (2D3C)** with **100 snapshots**
