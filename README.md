@@ -115,6 +115,28 @@ Compatible with **DaVis** and CFD exports.
 
 ---
 
+## 🧪 Sample Dataset
+
+A sample dataset is available to help you test uPrime with real experimental velocity-field data in the required Tecplot ASCII format.
+
+It includes:
+
+- **One non-time-resolved stereo PIV dataset (2D3C)** with **100 snapshots**
+- **One time-resolved planar PIV dataset (2D2C, side-by-side)** with **200 snapshots**
+
+Both datasets are provided in the **required Tecplot `.dat` format** and can be loaded directly into uPrime for testing and demonstration.
+
+> 💡 This sample dataset is intended for quick evaluation of uPrime workflows, including loading, masking, statistics, and analysis of both stereo and time-resolved planar data.
+
+> 📎 The dataset is derived from experimental data used in previously published studies.  
+> Full citation details are provided in the associated Zenodo record.
+
+> ⚠️ **Dataset Usage Notice**  
+> All rights to this dataset are reserved. It is provided **strictly for testing and evaluation of uPrime only**.  
+> The data must not be used for research, publications, redistribution, or any other purpose without explicit permission from the authors.  
+> This dataset is derived from experimental data used in two research papers and remains the intellectual property of the authors.
+
+
 ## 📘 Documentation
 
 📄 [uPrime User Manual](docs/manual.pdf)
