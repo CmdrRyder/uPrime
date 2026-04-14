@@ -168,12 +168,14 @@ To ensure consistency and reliability, extensions are encouraged to be integrate
 
 ## 🛣️ Roadmap
 
-- [ ] FTLE
+- [ ] Vortex identification
+- [ ] Virtual Probe
 - [ ] DMD
 - [ ] SPOD
 - [ ] Phase averaging
 - [ ] macOS / Linux builds
 - [ ] Tomographic data support
+- [ ] FTLE
 ---
 
 ## 📖 Citation
