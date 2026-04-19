@@ -2,16 +2,24 @@
 
 [![DOI](https://zenodo.org/badge/1197739784.svg)](https://doi.org/10.5281/zenodo.19376184)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
-![Version](https://img.shields.io/badge/version-0.3%20alpha-blue)
+![Version](https://img.shields.io/badge/version-0.4.1%20alpha-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
 ### *Because u′ matters*
 
 <p align="center">
-  <img src="./docs/images/gui_v034.png" width="855">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo.png">
+    <img src="assets/logo.png" width="200">
+  </picture>
 </p>
 
-**uPrime** is a standalone software for post-processing and analysis of velocity field data from PIV and CFD. It provides a unified graphical interface to perform turbulence analysis without scripting, integrating multiple workflows into a single environment.
+<p align="center">
+  <img src="docs/images/gui_v041.png" width="855">
+</p>
+
+**uPrime** is a standalone desktop application for post-processing and turbulence analysis of velocity field data from PIV and CFD. It provides a unified graphical interface covering the full range of standard turbulence diagnostics — from Reynolds stresses to DMD — without requiring any scripting or programming knowledge.
 
 Originally developed for Particle Image Velocimetry (PIV), uPrime is equally applicable to CFD and other structured velocity datasets. It is designed to handle large, high-resolution, and time-resolved datasets commonly encountered in modern fluid mechanics research.
 
@@ -23,10 +31,10 @@ Currently supports **planar (2D2C)** and **stereo (2D3C)** velocity fields.
 
 ### Windows (recommended)
 
-Download the latest executable from:  
+Download the latest executable from:
 https://github.com/CmdrRyder/uPrime/releases
 
-No installation required.
+No installation required. Double-click to launch.
 
 > Windows Defender may flag the `.exe` on first run. Click **More info → Run anyway**.
 
@@ -40,38 +48,45 @@ cd uPrime
 pip install -r requirements.txt
 python main.py
 ```
+
 ---
 
 ## ⚡ Quick Start
 
 1. Launch uPrime
-2. Select `.dat` files
-3. Choose **Time-Resolved** or **Non-TR**
-4. Inspect fields in the viewer
-5. Apply **Align / Transform** if needed
-6. Open analysis modules
+2. Select `.dat` files -- a subsampling dialog appears for large datasets
+3. Set **Time-Resolved** or **Non-TR** and enter $f_s$ if TR
+4. Apply **Transform / Align** to correct camera tilt and shift origin
+5. Draw masks in **Mask Editor** if needed
+6. Open any analysis module from the sidebar
 
 ---
 
 ## 🔬 Analysis Modules
 
-- Reynolds stress tensor and profiles
-- Turbulent kinetic energy (TKE) and budget terms
-- Spatial, temporal, and space-time spectral analysis
-- Two-point correlations and integral scales
-- Anisotropy invariants (Lumley triangle, barycentric map)
-- Proper Orthogonal Decomposition (POD)
+| Module | Description | TR required |
+|---|---|---|
+| Reynolds Stresses | All $R_{ij}$ components, 2D maps, line profiles | No |
+| TKE Budget | Production, convection, diffusion, residual | No |
+| Space-Time Spectra | Spatial E(k), temporal E(f), space-time E(k,f) | Temporal tabs only |
+| Anisotropy Invariants | Lumley triangle, barycentric map | No (stereo only) |
+| Correlation Analysis | Two-point spatial and temporal correlations, integral scales | Temporal tab only |
+| POD Analysis | Energy spectrum, spatial modes, temporal coefficients, reconstruction | No |
+| DMD Analysis | Frequency–growth rate spectrum, spatial mode viewer | **Yes** |
+| Vortex Identification | ω, Q, λci, λ2, Γ1/Γ2, per-vortex statistics | No |
 
 ---
 
 ## ⭐ Key Features
 
-- **Standalone executable**: no setup required
-- **User-friendly GUI**: no scripting needed
-- **Unified workflow**: multiple analyses in one place
-- **PIV + CFD compatible**: any structured velocity data
-- **Handles large datasets**: time-resolved and high-resolution
-- **Alignment tools**: rotation and shifting for PIV calibration issues
+- **Standalone executable**: no Python or setup required on Windows
+- **User-friendly GUI**: no scripting needed -- point and click
+- **Non-blocking computation**: all heavy analysis runs in the background; the window stays responsive
+- **Large dataset support**: datasets exceeding 4 GB are automatically memory-mapped to disk
+- **Non-destructive masking**: draw masks over wall regions, shadows, or reflections without modifying raw data
+- **Unit auto-detection**: reads mm/m/s units from `.dat` file headers automatically
+- **PIV + CFD compatible**: any structured velocity data in Tecplot ASCII format
+- **Publication-ready export**: PNG (300 DPI), PDF, SVG with editable text
 
 ---
 
@@ -93,7 +108,7 @@ python main.py
 
 ## 📂 Input Format
 
-uPrime reads **Tecplot ASCII `.dat` files**:
+uPrime reads **Tecplot ASCII `.dat` files** in DaVis export format:
 
 ```
 TITLE = "filename"
@@ -102,102 +117,98 @@ ZONE T="Frame 0", I=NX, J=NY, F=POINT
 ...data...
 ```
 
-- Multiple files can be loaded as a time series
-- Automatic column detection
-- Supports 2D and stereo data
+- One file per snapshot; select multiple files to load a time series
+- Variable names and units auto-detected from the header
+- Supports 2D2C and 2D3C (stereo) data
+- Compatible with **DaVis** (LaVision) and most CFD post-processors
 
-Compatible with **DaVis** and CFD exports.
-
-> **Note:** Each `.dat` file should include an `isValid` or `mask` column as the last column, 
-> consisting of `1` (valid vector) and `0` (invalid vector) values. 
-> This is the default export format from DaVis. If this column is absent, 
-> invalid vectors will not be masked and results may be erroneous.
+> **Note:** Each `.dat` file should include an `isValid` column (1 = valid, 0 = invalid).
+> This is the default DaVis export format. If absent, all vectors are treated as valid
+> and a warning is shown.
 
 ---
 
 ## 🧪 Sample Dataset
 
-A sample dataset is available to help you test uPrime with real experimental velocity-field data in the required Tecplot ASCII format.
+A sample dataset is available for testing and evaluating uPrime workflows.
 
-🔗 **Download from Zenodo:**  
+🔗 **Download from Zenodo:**
 https://doi.org/10.5281/zenodo.19539711
 
-It includes:
+Includes:
+- **One non-time-resolved stereo PIV dataset (2D3C)** — 100 snapshots. Suitable for Reynolds stress, TKE budget, correlation, anisotropy, POD, and vortex identification.
+- **One time-resolved planar PIV dataset (2D2C)** — 200 snapshots. Suitable for temporal spectra, temporal correlation, TR-POD, and DMD.
 
-- **One non-time-resolved stereo PIV dataset (2D3C)** with **100 snapshots**
-- **One time-resolved planar PIV dataset (2D2C, side-by-side)** with **200 snapshots**
+Both datasets load directly into uPrime without any configuration.
 
-Both datasets are provided in the **required Tecplot `.dat` format** and can be loaded directly into uPrime for testing and demonstration.
+> ⚠️ **Dataset Usage Notice:** provided strictly for testing and evaluation of uPrime.
+> Must not be used for research, publications, or redistribution without explicit
+> permission from the authors.
 
-> 💡 This sample dataset is intended for quick evaluation of uPrime workflows, including loading, masking, statistics, and analysis of both stereo and time-resolved planar data.
-
-> 📎 The dataset is derived from experimental data used in previously published studies.  
-> Full citation details are provided in the associated Zenodo record.
-
-> ⚠️ **Dataset Usage Notice**  
-> All rights to this dataset are reserved. It is provided **strictly for testing and evaluation of uPrime only**.  
-> The data must not be used for research, publications, redistribution, or any other purpose without explicit permission from the authors.  
-> This dataset is derived from experimental data used in two research papers and remains the intellectual property of the authors.
-
+---
 
 ## 📘 Documentation
 
-📄 [uPrime User Manual](docs/manual.pdf)
+📄 [uPrime User Manual (PDF)](docs/manual.pdf)
 
-Includes:
-- module descriptions
-- workflows
-- implementation notes
+Covers all modules with governing equations, step-by-step instructions, and references.
+
+---
+
+## 🧪 Running Tests
+
+A pytest suite is included covering all core modules and GUI smoke tests:
+
+```bash
+py -3.11 -m pytest              # all 30 tests
+py -3.11 -m pytest -k "not GUI" # core modules only
+py -3.11 -m pytest -k "GUI"     # GUI smoke tests only
+```
+
+Tests run headlessly (Agg backend + offscreen Qt) with no real `.dat` files required.
 
 ---
 
 ## 🧠 Development Status
 
-uPrime is under active development (**v0.3.4 alpha**).  
-Core analysis modules are stable, while additional features are being refined.
-
----
-
-## 🧭 Development Philosophy
-
-uPrime is developed and maintained at the **Transient Fluid Mechanics Laboratory (TFML), Technion**.
-
-To ensure consistency and reliability, extensions are encouraged to be integrated into the main repository rather than maintained as separate forks.
+uPrime is under active development (**v0.4.1 alpha**).
+Core analysis modules are stable. Performance and usability improvements ongoing.
 
 ---
 
 ## 🛣️ Roadmap
 
-- [ ] Vortex identification
-- [ ] Virtual Probe
-- [ ] DMD
-- [ ] SPOD
+- [ ] Vortex tracking across snapshots
 - [ ] Phase averaging
+- [ ] Pressure field reconstruction from PIV
+- [ ] SPOD
+- [ ] Virtual probe (point extraction and time series)
 - [ ] macOS / Linux builds
-- [ ] Tomographic data support
-- [ ] FTLE
+- [ ] Tomographic PIV support
+- [ ] FTLE / LCS
+
 ---
 
 ## 📖 Citation
 
-If uPrime contributes to your research, please cite us:
+If uPrime contributes to your research, please cite:
 
-Jibu Tom Jose, & Ram, O. (2026). uPrime : Open-source software for velocity field and turbulence analysis from PIV and CFD data. TFML, Technion (v0.3.4-alpha). Zenodo..  https://doi.org/10.5281/zenodo.19376184
+> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.4.1-alpha). Zenodo.
+> https://doi.org/10.5281/zenodo.19376184
 
 ---
 
 ## 📜 License
 
-This project is licensed under the GNU General Public License v3.0 (GPLv3).
-
+GNU General Public License v3.0 (GPLv3).
 https://www.gnu.org/licenses/gpl-3.0.en.html
 
 ---
 
 ## 👤 Author
 
-**Jibu Tom Jose**  
-Postdoctoral Research Fellow  
+**Jibu Tom Jose**
+Postdoctoral Research Fellow
 Technion — Israel Institute of Technology
 
 Built with assistance from [Claude](https://www.anthropic.com) (Anthropic).
