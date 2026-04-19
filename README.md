@@ -104,6 +104,12 @@ python main.py
   <img src="docs/images/spectra.png" width="600">
 </p>
 
+### Vortex Identification
+
+<p align="center">
+  <img src="docs/images/vortex.png" width="600">
+</p>
+
 ---
 
 ## 📂 Input Format
