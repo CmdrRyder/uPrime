@@ -5,60 +5,243 @@
   <title>uPrime - PIV & CFD Velocity Field Analysis Software</title>
   <meta name="description" content="GUI-based velocity field analysis software for PIV and CFD. Turbulence analysis without scripting.">
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: Arial, sans-serif;
       background: #0f1117;
       color: #e6edf3;
       text-align: center;
-      margin: 0;
-      padding: 40px;
+      padding: 40px 20px;
     }
     .container {
-      max-width: 900px;
+      max-width: 960px;
       margin: auto;
     }
-    img {
-      width: 100%;
-      border-radius: 10px;
-      margin-top: 25px;
+    .logo {
+      width: 140px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 2.8rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .tagline {
+      font-style: italic;
+      color: #8b949e;
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+    }
+    .description {
+      font-size: 1.05rem;
+      color: #c9d1d9;
+      max-width: 640px;
+      margin: 0 auto 24px;
+      line-height: 1.6;
+    }
+    .buttons {
+      margin-bottom: 32px;
     }
     a.button {
       display: inline-block;
-      margin: 15px;
-      padding: 10px 20px;
+      margin: 8px;
+      padding: 10px 22px;
       background: #238636;
       color: white;
       border-radius: 6px;
       text-decoration: none;
+      font-size: 0.95rem;
     }
     a.secondary {
       background: #30363d;
     }
+    .gui-img {
+      width: 100%;
+      border-radius: 10px;
+      margin-bottom: 48px;
+      border: 1px solid #30363d;
+    }
+    .badge {
+      display: inline-block;
+      background: #1f2937;
+      color: #8b949e;
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 12px;
+      margin: 4px;
+      border: 1px solid #30363d;
+    }
+    .badges {
+      margin-bottom: 28px;
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      text-align: left;
+      margin-bottom: 48px;
+    }
+    .feature-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+    .feature-card h3 {
+      font-size: 0.95rem;
+      color: #58a6ff;
+      margin-bottom: 6px;
+    }
+    .feature-card p {
+      font-size: 0.85rem;
+      color: #8b949e;
+      line-height: 1.5;
+    }
+    .modules {
+      text-align: left;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 24px 28px;
+      margin-bottom: 48px;
+    }
+    .modules h2 {
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+      color: #e6edf3;
+    }
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+    }
+    .module-item {
+      font-size: 0.875rem;
+      color: #c9d1d9;
+      padding: 6px 0;
+      border-bottom: 1px solid #21262d;
+    }
+    .module-item span {
+      color: #3fb950;
+      margin-right: 8px;
+    }
+    .module-badge {
+      font-size: 0.7rem;
+      background: #1f3a5f;
+      color: #58a6ff;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+    }
+    .footer {
+      color: #8b949e;
+      font-size: 0.85rem;
+      margin-top: 24px;
+      line-height: 1.8;
+    }
+    .footer a {
+      color: #58a6ff;
+      text-decoration: none;
+    }
+    h2.section-title {
+      font-size: 1.3rem;
+      margin-bottom: 20px;
+      color: #e6edf3;
+    }
   </style>
 </head>
 <body>
-
 <div class="container">
 
-<h1>uPrime</h1>
-<p><i>Turbulence is complex. Analysis shouldn’t be.</i></p>
+  <!-- Logo -->
+  <img class="logo" src="assets/logo_dark.png" alt="uPrime logo">
 
-<p>
-uPrime is a GUI-based software for post-processing and turbulence analysis
-of velocity field data from PIV and CFD.  
-No scripting. No setup. Just analysis.
-</p>
+  <!-- Title -->
+  <h1>uPrime</h1>
+  <p class="tagline">Turbulence is complex. Analysis shouldn't be.</p>
 
-<a class="button" href="https://github.com/CmdrRyder/uPrime">View on GitHub</a>
-<a class="button secondary" href="https://doi.org/10.5281/zenodo.19376184">View DOI</a>
+  <!-- Badges -->
+  <div class="badges">
+    <span class="badge">v0.4.1 alpha</span>
+    <span class="badge">Python 3.10+</span>
+    <span class="badge">GPLv3</span>
+    <span class="badge">Windows · macOS · Linux</span>
+  </div>
 
-<img src="docs/images/gui.png" alt="uPrime GUI">
+  <!-- Description -->
+  <p class="description">
+    uPrime is a standalone desktop application for post-processing and turbulence analysis
+    of velocity field data from PIV and CFD. No scripting. No setup. Just analysis.
+  </p>
 
-<p style="margin-top:30px; color:#8b949e;">
-Built for experimental fluid mechanics workflows.
-</p>
+  <!-- Buttons -->
+  <div class="buttons">
+    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases">Download v0.4.1</a>
+    <a class="button secondary" href="https://github.com/CmdrRyder/uPrime">View on GitHub</a>
+    <a class="button secondary" href="https://doi.org/10.5281/zenodo.19376184">DOI</a>
+  </div>
+
+  <!-- GUI Screenshot -->
+  <img class="gui-img" src="docs/images/gui_v041.png" alt="uPrime v0.4.1 GUI">
+
+  <!-- Key Features -->
+  <h2 class="section-title">Key Features</h2>
+  <div class="features">
+    <div class="feature-card">
+      <h3>⚡ Non-blocking computation</h3>
+      <p>All heavy analysis runs in background threads. The window stays fully responsive during POD, DMD, TKE budget, and vortex identification.</p>
+    </div>
+    <div class="feature-card">
+      <h3>💾 Large dataset support</h3>
+      <p>Datasets exceeding 4 GB are automatically memory-mapped to disk. Handle 10,000+ snapshots without running out of RAM.</p>
+    </div>
+    <div class="feature-card">
+      <h3>🎭 Non-destructive masking</h3>
+      <p>Draw masks over walls, shadows, and reflections. Raw data is never modified — toggle masks on and off instantly.</p>
+    </div>
+    <div class="feature-card">
+      <h3>🔍 Unit auto-detection</h3>
+      <p>Reads mm/m/s units directly from DaVis .dat file headers. No manual configuration needed.</p>
+    </div>
+    <div class="feature-card">
+      <h3>📄 Publication-ready export</h3>
+      <p>PNG (300 DPI), PDF, and SVG with editable text. Compatible with Adobe Illustrator and Inkscape.</p>
+    </div>
+    <div class="feature-card">
+      <h3>🖥️ Standalone executable</h3>
+      <p>Windows .exe with no Python or dependencies required. macOS and Linux users run from source in three commands.</p>
+    </div>
+  </div>
+
+  <!-- Analysis Modules -->
+  <div class="modules">
+    <h2>Analysis Modules</h2>
+    <div class="module-grid">
+      <div class="module-item"><span>✓</span>Reynolds Stress Analysis</div>
+      <div class="module-item"><span>✓</span>TKE Budget</div>
+      <div class="module-item"><span>✓</span>Space-Time Spectral Analysis</div>
+      <div class="module-item"><span>✓</span>Anisotropy Invariants <span style="font-size:0.75rem;color:#8b949e">(stereo)</span></div>
+      <div class="module-item"><span>✓</span>Correlation Analysis</div>
+      <div class="module-item"><span>✓</span>POD Analysis</div>
+      <div class="module-item"><span>✓</span>DMD Analysis <span class="module-badge">TR only</span></div>
+      <div class="module-item"><span>✓</span>Vortex Identification</div>
+      <div class="module-item"><span>✓</span>Mask Editor</div>
+      <div class="module-item"><span>✓</span>Coordinate Transform</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>Developed by <strong>Jibu Tom Jose</strong> · Transient Fluid Mechanics Laboratory, Technion</p>
+    <p>Built with assistance from <a href="https://www.anthropic.com">Claude</a> (Anthropic)</p>
+    <p style="margin-top:8px;">
+      <a href="https://github.com/CmdrRyder/uPrime">GitHub</a> ·
+      <a href="https://doi.org/10.5281/zenodo.19376184">Zenodo</a> ·
+      <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPLv3</a>
+    </p>
+    <p style="margin-top:8px; color:#444d56;">These are derived quantities, not conclusions. Interpret with care.</p>
+  </div>
 
 </div>
-
 </body>
 </html>
