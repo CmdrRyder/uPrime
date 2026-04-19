@@ -40,7 +40,47 @@ No installation required. Double-click to launch.
 
 ---
 
-### Run from source
+---
+ 
+### macOS and Linux — Run from source
+ 
+A standalone executable is not currently available for macOS or Linux. Run directly from source instead:
+ 
+**1. Clone the repository**
+```bash
+git clone https://github.com/CmdrRyder/uPrime.git
+cd uPrime
+```
+ 
+**2. Create a virtual environment (recommended)**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+ 
+**3. Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+ 
+**4. Launch**
+```bash
+python main.py
+```
+ 
+> **macOS note:** If you see a Qt platform plugin error on first run, install PyQt6 separately:
+> `pip install PyQt6`
+ 
+> **Linux note:** You may need to install additional system packages for Qt:
+> `sudo apt install python3-dev libgl1-mesa-glx libglib2.0-0`
+ 
+> **pyfftw note:** If pyfftw fails to install, uPrime will fall back to numpy FFT automatically. You can skip it with:
+> `pip install -r requirements.txt --ignore-requires-python`
+> or manually install everything except pyfftw.
+ 
+---
+
+### Run from source (Windows)
 
 ```bash
 git clone https://github.com/CmdrRyder/uPrime.git
