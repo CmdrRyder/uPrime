@@ -94,24 +94,43 @@ def _roi_bounds_from_coords(x, y, x0, x1, y0, y1):
 # Integral scale computation -- four methods
 # ---------------------------------------------------------------------------
 
-_SUSTAINED_N   = 3      # consecutive negative points to confirm zero crossing
+_SUSTAINED_N   = 5      # consecutive negative points to confirm zero crossing
 _FIT_THRESHOLD = 0.05   # minimum R value used in exponential fit
+_POST_CROSS_WINDOW = 10  # points examined after a candidate crossing
+_POST_CROSS_THRESH = 0.05  # if post-crossing mean > this, treat as noise dip
 
 def _first_sustained_zero(R_1d):
     """
-    Return index of first sustained zero crossing.
-    "Sustained" = R stays <= 0 for at least _SUSTAINED_N consecutive points.
-    Returns None if no such crossing found.
+    Return index of first confirmed zero crossing.
+
+    A crossing is confirmed only when:
+    1. R stays <= 0 for at least _SUSTAINED_N consecutive points, AND
+    2. The mean of the next _POST_CROSS_WINDOW points after the candidate
+       start is <= _POST_CROSS_THRESH (i.e. R does not recover to positive).
+
+    This prevents noise dips from triggering a false zero crossing.
+    Returns None if no confirmed crossing is found.
     """
     n = len(R_1d)
     count = 0
-    for i in range(n):
+    i = 0
+    while i < n:
         if R_1d[i] <= 0:
             count += 1
             if count >= _SUSTAINED_N:
-                return i - _SUSTAINED_N + 1   # start of the negative run
+                i_cross = i - _SUSTAINED_N + 1   # start of the negative run
+                # Confirmation: check the mean of the next window of points
+                win_end  = min(n, i_cross + _POST_CROSS_WINDOW)
+                post_mean = float(np.mean(R_1d[i_cross:win_end]))
+                if post_mean <= _POST_CROSS_THRESH:
+                    return i_cross      # confirmed crossing
+                # Noise dip — skip past this run and keep scanning
+                i = i + 1
+                count = 0
+                continue
         else:
             count = 0
+        i += 1
     return None
 
 
@@ -167,7 +186,8 @@ def compute_length_scale(R_1d, spacing, method="zero_crossing"):
             L = np.nan
         else:
             L = float(_trapz(R_1d[:idx], dx=spacing))
-            extras["cutoff_idx"] = idx
+            extras["cutoff_idx"]   = idx
+            extras["crossing_lag"] = idx * spacing   # Δr where R crosses zero
 
     elif method == "exp_fit":
         # Fit only up to the first 1/e crossing; fall back to R > threshold
@@ -199,14 +219,27 @@ def compute_length_scale(R_1d, spacing, method="zero_crossing"):
                 extras["fit_R"] = R_plot
 
     elif method == "one_over_e":
-        target = 1.0 / np.e   # ~0.368
-        # Find first crossing below 1/e
-        for i in range(1, n):
-            if R_1d[i] <= target:
-                extras["cutoff_idx"] = i
-                # Integrate R from 0 to crossing point using trapezoid rule
-                L = float(_trapz(R_1d[:i+1], r[:i+1]))
+        ONE_OVER_E = 1.0 / np.e
+        idx = None
+        for i in range(n):
+            if R_1d[i] <= ONE_OVER_E:
+                idx = i
                 break
+        if idx is None:
+            L = np.nan
+            extras["marker_x"] = np.nan
+        elif idx == 0:
+            L = 0.0
+            extras["marker_x"] = 0.0
+            extras["marker_y"] = ONE_OVER_E
+        else:
+            r0 = (idx - 1) * spacing
+            r1 = idx * spacing
+            R0 = R_1d[idx - 1]
+            R1 = R_1d[idx]
+            L = r0 + (ONE_OVER_E - R0) / (R1 - R0) * (r1 - r0)
+            extras["marker_x"] = L
+            extras["marker_y"] = ONE_OVER_E
 
     elif method == "domain":
         # Integrate to first zero crossing if available, else full domain
@@ -216,7 +249,8 @@ def compute_length_scale(R_1d, spacing, method="zero_crossing"):
             L = np.nan
         else:
             L = float(_trapz(R_1d[:cutoff], dx=spacing))
-            extras["cutoff_idx"] = cutoff
+            extras["cutoff_idx"]   = cutoff
+            extras["crossing_lag"] = cutoff * spacing   # domain end or crossing lag
             if idx is None:
                 extras["no_crossing"] = True
 

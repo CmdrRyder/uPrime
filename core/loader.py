@@ -7,8 +7,34 @@ Invalid vectors (isValid == 0) are set to NaN.
 
 import os
 import re
+import tempfile
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+SIZE_THRESHOLD = 4 * 1024 ** 3   # 4 GB in bytes
+
+
+def estimate_dataset_size(file_list, header, stride=1):
+    """Return estimated memory in bytes for the dataset (float32)."""
+    ny = header["ny"]
+    nx = header["nx"]
+    n_components = 3 if header["is_stereo"] else 2
+    n_files = len(file_list) // max(1, stride)
+    return ny * nx * n_files * n_components * 4
+
+
+def cleanup_memmap(dataset):
+    """Delete memmap temp files created during load_dataset, if any."""
+    path = dataset.get("_memmap_path")
+    if not path:
+        return
+    for suffix in ("_U", "_V", "_W"):
+        try:
+            os.remove(path + suffix)
+        except FileNotFoundError:
+            pass
+    dataset["_memmap_path"] = None
 
 
 def parse_header(filepath):
@@ -80,12 +106,13 @@ def parse_header(filepath):
         elif "isvalid" in vl:
             col_valid = i
 
-    # Hard fallbacks if detection still fails
-    if col_x     is None: col_x     = 0
-    if col_y     is None: col_y     = 1
-    if col_u     is None: col_u     = 2
-    if col_v     is None: col_v     = 3
-    if col_valid is None: col_valid = len(variables) - 1
+    # Hard fallbacks for position/velocity columns if detection still fails.
+    # col_valid intentionally has NO fallback: if the column is absent we treat
+    # all vectors as valid rather than misreading an unrelated data column.
+    if col_x is None: col_x = 0
+    if col_y is None: col_y = 1
+    if col_u is None: col_u = 2
+    if col_v is None: col_v = 3
 
     header["col_x"]     = col_x
     header["col_y"]     = col_y
@@ -93,9 +120,45 @@ def parse_header(filepath):
     header["col_v"]     = col_v
     header["col_w"]     = col_w
     header["col_vort"]  = col_vort
-    header["col_valid"] = col_valid
+    header["col_valid"] = col_valid          # may be None if absent in file
+    header["has_valid"] = col_valid is not None
     header["is_stereo"] = col_w is not None
     header["has_vort"]  = col_vort is not None
+
+    # --- Unit extraction ---
+    x_var = variables[col_x] if col_x < len(variables) else ""
+    u_var = variables[col_u] if col_u < len(variables) else ""
+
+    x_match = re.search(r'\[([^\]]+)\]', x_var)
+    if x_match:
+        unit_str = x_match.group(1)
+        if 'mm' in unit_str:
+            x_unit = 'mm'
+        elif 'm' in unit_str:
+            x_unit = 'm'
+        else:
+            x_unit = 'mm'
+    else:
+        x_unit = 'mm'
+
+    u_match = re.search(r'\[([^\]]+)\]', u_var)
+    if u_match:
+        unit_str = u_match.group(1)
+        if 'mm/s' in unit_str:
+            vel_unit = 'mm/s'
+        elif 'm/s' in unit_str:
+            vel_unit = 'm/s'
+        else:
+            vel_unit = 'm/s'
+    else:
+        vel_unit = 'm/s'
+
+    header["x_unit"]    = x_unit
+    header["vel_unit"]  = vel_unit
+    header["xy_to_mm"]  = 1000.0 if x_unit == 'm' else 1.0
+    header["vel_to_ms"] = 0.001  if vel_unit == 'mm/s' else 1.0
+
+    print(f"[loader] Units detected: xy={x_unit} (scale x{header['xy_to_mm']}), vel={vel_unit} (scale x{header['vel_to_ms']})")
 
     return header
 
@@ -121,6 +184,9 @@ def load_grid(filepath, header):
         x = x[::-1, :]
         y = y[::-1, :]
 
+    x = x * header["xy_to_mm"]
+    y = y * header["xy_to_mm"]
+
     return x, y
 
 
@@ -129,12 +195,16 @@ def load_single_file(filepath, header):
     ny = header["ny"]
     n  = nx * ny
 
+    has_valid = header.get("has_valid", True)
+    col_valid = header.get("col_valid")   # None when column is absent
+
     cols_needed = [header["col_u"], header["col_v"]]
     if header["is_stereo"]:
         cols_needed.append(header["col_w"])
     if header.get("col_vort") is not None:
         cols_needed.append(header["col_vort"])
-    cols_needed.append(header["col_valid"])
+    if has_valid and col_valid is not None:
+        cols_needed.append(col_valid)
     cols_needed = sorted(set(cols_needed))
 
     raw = np.loadtxt(
@@ -147,9 +217,14 @@ def load_single_file(filepath, header):
 
     col_map = {c: i for i, c in enumerate(cols_needed)}
 
-    u     = raw[:, col_map[header["col_u"]]].reshape(ny, nx)
-    v     = raw[:, col_map[header["col_v"]]].reshape(ny, nx)
-    valid = raw[:, col_map[header["col_valid"]]].reshape(ny, nx).astype(bool)
+    u = raw[:, col_map[header["col_u"]]].reshape(ny, nx)
+    v = raw[:, col_map[header["col_v"]]].reshape(ny, nx)
+
+    if has_valid and col_valid is not None and col_valid in col_map:
+        valid = raw[:, col_map[col_valid]].reshape(ny, nx).astype(bool)
+    else:
+        # isValid column absent — treat every vector as valid
+        valid = np.ones((ny, nx), dtype=bool)
 
     if header["is_stereo"]:
         w = raw[:, col_map[header["col_w"]]].reshape(ny, nx)
@@ -168,10 +243,11 @@ def load_single_file(filepath, header):
     if w    is not None: w    = w[::-1, :]
     if vort is not None: vort = vort[::-1, :]
 
-    # Mask invalid vectors
-    u[~valid] = np.nan
-    v[~valid] = np.nan
-    if w    is not None: w[~valid]    = np.nan
+    u = u * header["vel_to_ms"]
+    v = v * header["vel_to_ms"]
+    if w is not None: w = w * header["vel_to_ms"]
+
+    # Apply valid mask to vorticity only; U/V/W stay raw (mask is stored separately)
     if vort is not None: vort[~valid] = np.nan
 
     return u, v, w, valid, vort
@@ -208,66 +284,117 @@ def load_dataset(file_list, progress_callback=None):
 
     x, y = load_grid(file_list[0], header)
 
-    # --- Step 2: pre-allocate output arrays as float32 ---
-    U     = np.empty((ny, nx, Nt), dtype=np.float32)
-    V     = np.empty((ny, nx, Nt), dtype=np.float32)
-    W     = np.empty((ny, nx, Nt), dtype=np.float32) if is_stereo else None
-    VALID = np.empty((ny, nx, Nt), dtype=bool)
-    VORT  = np.empty((ny, nx, Nt), dtype=np.float32) if has_vort else None
+    # --- Step 2: decide between in-memory and memory-mapped storage ---
+    est_size   = estimate_dataset_size(file_list, header)
+    use_memmap = est_size > SIZE_THRESHOLD
 
-    # Fill with NaN / False so skipped files are safe
-    U[:]     = np.nan
-    V[:]     = np.nan
-    VALID[:] = False
-    if W    is not None: W[:]    = np.nan
-    if VORT is not None: VORT[:] = np.nan
+    mask_2d  = None
+    VORT     = None
+    tmp_path = None
 
-    # --- Steps 3 & 4: parallel read with ThreadPoolExecutor ---
-    args_list   = [(i, fp, header) for i, fp in enumerate(file_list)]
-    report_every = max(1, Nt // 100)
-    n_done       = 0
-    max_workers  = min(8, os.cpu_count() or 1)
+    if use_memmap:
+        print(f"[loader] Dataset estimated at {est_size / 1024**3:.1f} GB — "
+              "using memory-mapped arrays.")
+        tmp_dir  = tempfile.gettempdir()
+        tmp_path = os.path.join(tmp_dir, f"uprime_memmap_{os.getpid()}.bin")
+        shape    = (ny, nx, Nt)
+        U = np.memmap(tmp_path + '_U', dtype='float32', mode='w+', shape=shape)
+        V = np.memmap(tmp_path + '_V', dtype='float32', mode='w+', shape=shape)
+        W = np.memmap(tmp_path + '_W', dtype='float32', mode='w+', shape=shape) \
+            if is_stereo else None
+        U[:] = np.nan
+        V[:] = np.nan
+        if W is not None:
+            W[:] = np.nan
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_read_single_file, args): args[0]
-                   for args in args_list}
+        # Sequential load into memmap
+        report_every = max(1, Nt // 100)
+        for i, fpath in enumerate(file_list):
+            try:
+                u, v, w, valid, _vort = load_single_file(fpath, header)
+                U[:, :, i] = u.astype(np.float32)
+                V[:, :, i] = v.astype(np.float32)
+                if W is not None and w is not None:
+                    W[:, :, i] = w.astype(np.float32)
+                if i == 0:
+                    mask_2d = valid
+            except Exception as e:
+                print(f"Warning: skipping file {i} "
+                      f"({os.path.basename(fpath)}): {e}")
+            if progress_callback and (i % report_every == 0 or i == Nt - 1):
+                progress_callback(int(100 * (i + 1) / Nt))
 
-        for future in as_completed(futures):
-            idx, u, v, w, valid, vort, err = future.result()
+        U.flush()
+        V.flush()
+        if W is not None:
+            W.flush()
 
-            if err is not None:
-                print(f"Warning: skipping file {idx} ({os.path.basename(file_list[idx])}): {err}")
-            else:
-                U[:, :, idx]     = u
-                V[:, :, idx]     = v
-                VALID[:, :, idx] = valid
-                if W    is not None and w    is not None: W[:, :, idx]    = w
-                if VORT is not None and vort is not None: VORT[:, :, idx] = vort
+    else:
+        # --- In-memory: pre-allocate and parallel read ---
+        U    = np.empty((ny, nx, Nt), dtype=np.float32)
+        V    = np.empty((ny, nx, Nt), dtype=np.float32)
+        W    = np.empty((ny, nx, Nt), dtype=np.float32) if is_stereo else None
+        VORT = np.empty((ny, nx, Nt), dtype=np.float32) if has_vort  else None
+        U[:] = np.nan
+        V[:] = np.nan
+        if W    is not None: W[:]    = np.nan
+        if VORT is not None: VORT[:] = np.nan
 
-            n_done += 1
+        args_list    = [(i, fp, header) for i, fp in enumerate(file_list)]
+        report_every = max(1, Nt // 100)
+        n_done       = 0
+        max_workers  = min(8, os.cpu_count() or 1)
 
-            # --- Step 5: progress callback ---
-            if progress_callback and (n_done % report_every == 0 or n_done == Nt):
-                progress_callback(int(100 * n_done / Nt))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_read_single_file, args): args[0]
+                       for args in args_list}
 
-    # --- Step 6: if W is all-NaN, discard it ---
+            for future in as_completed(futures):
+                idx, u, v, w, valid, vort, err = future.result()
+
+                if err is not None:
+                    print(f"Warning: skipping file {idx} "
+                          f"({os.path.basename(file_list[idx])}): {err}")
+                else:
+                    U[:, :, idx] = u
+                    V[:, :, idx] = v
+                    if W    is not None and w    is not None: W[:, :, idx]    = w
+                    if VORT is not None and vort is not None: VORT[:, :, idx] = vort
+                    if idx == 0:
+                        mask_2d = valid
+
+                n_done += 1
+                if progress_callback and (n_done % report_every == 0 or n_done == Nt):
+                    progress_callback(int(100 * n_done / Nt))
+
+    # --- Finalise ---
     if W is not None and np.all(np.isnan(W)):
+        if use_memmap:
+            try:
+                os.remove(tmp_path + '_W')
+            except FileNotFoundError:
+                pass
         W         = None
         is_stereo = False
 
-    # --- Step 7: pre-compute valid_frac ---
-    valid_frac = np.mean(VALID.astype(np.float32), axis=2)
+    if mask_2d is None:
+        mask_2d = np.ones((ny, nx), dtype=bool)
 
-    # --- Step 8: return dataset ---
+    valid_frac = mask_2d.astype(np.float32)
+
     return {
         "x": x, "y": y,
         "U": U, "V": V, "W": W,
         "vort": VORT,
-        "valid": VALID,
-        "valid_frac": valid_frac,
-        "is_stereo": is_stereo,
-        "has_vort": has_vort,
+        "valid":          mask_2d,
+        "valid_frac":     valid_frac,
+        "MASK":           mask_2d,
+        "MASK_LOADED":    mask_2d.copy(),
+        "mask_active":    True,
+        "is_stereo":      is_stereo,
+        "has_vort":       has_vort,
         "Nt": Nt, "nx": nx, "ny": ny,
-        "files": file_list,
-        "header": header,
+        "files":          file_list,
+        "header":         header,
+        "_memmap_path":   tmp_path,
     }

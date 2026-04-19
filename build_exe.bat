@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  build_exe.bat -- uPrime v0.3.4
+REM  build_exe.bat -- uPrime v0.4.0
 REM  Builds a single-file windowed executable via PyInstaller
 REM  Target: Python 3.11
 REM  Usage:  double-click or run from project root
@@ -12,14 +12,18 @@ REM    numpy       -- collect-all (compiled extensions)
 REM    scipy       -- collect-all (signal, ndimage, interpolate)
 REM    pyfftw      -- collect-all + collect-binaries (FFTW DLLs)
 REM    PIL/Pillow  -- collect-all (image handling)
+REM
+REM  New in v0.4.0:
+REM    assets/     -- logo + manual PDF bundled via --add-data
+REM    scipy.linalg, scipy.sparse -- DMD SVD/eigendecomposition
+REM    PyQt6.QtSvg -- SVG logo support
 REM ============================================================
-
 python -m pip install pyinstaller --quiet
-
 pyinstaller ^
     --onefile ^
     --windowed ^
-    --name uPrime_v0.3.4 ^
+    --name uPrime_v0.4.0 ^
+    --add-data "assets;assets" ^
     --collect-all matplotlib ^
     --hidden-import matplotlib.backends.backend_qtagg ^
     --hidden-import matplotlib.backends.backend_qt ^
@@ -31,8 +35,10 @@ pyinstaller ^
     --hidden-import PyQt6.QtWidgets ^
     --hidden-import PyQt6.QtCore ^
     --hidden-import PyQt6.QtGui ^
+    --hidden-import PyQt6.QtSvg ^
     --hidden-import PyQt6.sip ^
     --collect-all numpy ^
+    --hidden-import numpy.linalg ^
     --collect-all scipy ^
     --hidden-import scipy.signal ^
     --hidden-import scipy.signal.windows ^
@@ -40,6 +46,11 @@ pyinstaller ^
     --hidden-import scipy.ndimage.filters ^
     --hidden-import scipy.interpolate ^
     --hidden-import scipy.interpolate.fitpack2 ^
+    --hidden-import scipy.linalg ^
+    --hidden-import scipy.linalg.blas ^
+    --hidden-import scipy.linalg.lapack ^
+    --hidden-import scipy.sparse ^
+    --hidden-import scipy.sparse.linalg ^
     --hidden-import scipy._lib ^
     --hidden-import scipy._lib.messagestream ^
     --hidden-import scipy.special ^
@@ -59,11 +70,10 @@ pyinstaller ^
     --hidden-import re ^
     --hidden-import traceback ^
     main.py
-
 echo.
 if errorlevel 1 (
     echo BUILD FAILED. Check output above.
 ) else (
-    echo BUILD COMPLETE: dist\uPrime_v0.3.4.exe
+    echo BUILD COMPLETE: dist\uPrime_v0.4.0.exe
 )
 pause

@@ -4,6 +4,7 @@ uPrime - Main Application Window v0.2
 """
 
 import os
+import sys
 import numpy as np
 
 from PyQt6.QtWidgets import (
@@ -12,10 +13,32 @@ from PyQt6.QtWidgets import (
     QProgressBar, QSplitter, QGroupBox, QSizePolicy,
     QMessageBox, QSpinBox, QDoubleSpinBox, QRadioButton,
     QButtonGroup, QScrollArea, QStatusBar, QFrame,
-    QDialog, QDialogButtonBox, QCheckBox, QColorDialog
+    QDialog, QDialogButtonBox, QCheckBox, QColorDialog,
+    QApplication
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPixmap, QIcon, QShortcut, QKeySequence
+
+
+def _asset_path(filename):
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(base, "assets", filename)
+
+
+def _is_dark_mode():
+    palette = QApplication.instance().palette()
+    return palette.window().color().lightness() < 128
+
+
+def _load_logo_pixmap(size=None):
+    name = "logo_dark.png" if _is_dark_mode() else "logo.png"
+    path = _asset_path(name)
+    pm = QPixmap(path)
+    if size is not None:
+        pm = pm.scaled(size[0], size[1],
+                       Qt.AspectRatioMode.KeepAspectRatio,
+                       Qt.TransformationMode.SmoothTransformation)
+    return pm
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -23,7 +46,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
 
-from core.loader import load_dataset
+from core.loader import load_dataset, cleanup_memmap, SIZE_THRESHOLD
 from core.transform import transform_status_string
 from gui.anisotropy_window import AnisotropyWindow
 from gui.reynolds_window import ReynoldsWindow
@@ -33,6 +56,7 @@ from gui.spectra_window import SpectraWindow
 from gui.correlation_window import CorrelationWindow
 from gui.pod_window import PODWindow
 from gui.transform_window import TransformWindow
+from gui.mask_window import MaskWindow
 from gui.arrow_toolbar import PickerMixin, DrawAwareToolbar
 
 
@@ -89,12 +113,16 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("uPrime v0.3.4")
+        self.setWindowTitle("uPrime v0.4.1")
+        self.setWindowIcon(QIcon(_load_logo_pixmap(size=(256, 256))))
         self.setMinimumSize(1100, 650)
-        self.resize(1400, 820)
+        self.resize(1400, 900)
+        screen = QApplication.primaryScreen().availableGeometry()
+        self.move((screen.width() - 1400) // 2, (screen.height() - 900) // 2)
         self.dataset           = None
         self.loader_thread     = None
         self._windows          = []
+        self._dmd_win          = None
         self._full_file_list   = []   # complete original file list from dialog
         self._last_file_list   = []   # actually loaded file list (after subsampling)
         self._subsample_desc   = ""   # description of current subsampling
@@ -132,16 +160,10 @@ class MainWindow(PickerMixin, QMainWindow):
         sl.setSpacing(6)
 
         # -- Logo --
-        logo = QLabel("uPrime")
-        logo.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sl.addWidget(logo)
-
-        sub = QLabel("Because u\u2019 matters")
-        sub.setFont(QFont("Arial", 8))
-        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub.setStyleSheet("color: #888; font-style: italic;")
-        sl.addWidget(sub)
+        logo_lbl = QLabel()
+        logo_lbl.setPixmap(_load_logo_pixmap(size=(120, 120)))
+        logo_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sl.addWidget(logo_lbl)
 
         sl.addWidget(self._separator())
 
@@ -186,50 +208,24 @@ class MainWindow(PickerMixin, QMainWindow):
 
         sl.addWidget(self._separator())
 
-        # -- 2. Acquisition Type --
-        self.acq_group = QGroupBox("2. Acquisition Type")
-        self.acq_group.setVisible(False)
-        acq_lay = QVBoxLayout(self.acq_group)
-        acq_row = QHBoxLayout()
-        self.rb_tr    = QRadioButton("Time-Resolved")
-        self.rb_nontr = QRadioButton("Non-TR")
-        self.rb_nontr.setChecked(True)
-        self._acq_bg  = QButtonGroup()
-        self._acq_bg.addButton(self.rb_tr)
-        self._acq_bg.addButton(self.rb_nontr)
-        self.rb_tr.toggled.connect(self._on_acq_changed)
-        self.rb_tr.toggled.connect(self._update_ribbon)
-        acq_row.addWidget(self.rb_tr)
-        acq_row.addWidget(self.rb_nontr)
-        acq_lay.addLayout(acq_row)
-        fs_row = QHBoxLayout()
-        fs_row.addWidget(QLabel("fs [Hz]:"))
-        self.spin_fs = QDoubleSpinBox()
-        self.spin_fs.setRange(1, 1e6)
-        self.spin_fs.setValue(1000.0)
-        self.spin_fs.setDecimals(1)
-        self.spin_fs.setEnabled(False)
-        self.spin_fs.valueChanged.connect(self._update_ribbon)
-        fs_row.addWidget(self.spin_fs)
-        acq_lay.addLayout(fs_row)
-        sl.addWidget(self.acq_group)
-
-        sl.addWidget(self._separator())
-
-        # -- 3. Align / Transform --
-        self.transform_group = QGroupBox("3. Align / Transform")
+        # -- 2. Preprocess --
+        self.transform_group = QGroupBox("2. Preprocess")
         self.transform_group.setVisible(False)
         tr_lay = QVBoxLayout(self.transform_group)
         self.btn_transform = QPushButton("\u21ba  Transform / Align...")
         self.btn_transform.clicked.connect(self._run_transform)
         self.btn_transform.setStyleSheet("text-align: left; padding: 4px 8px;")
         tr_lay.addWidget(self.btn_transform)
+        self.btn_masking = QPushButton("\u2b21  Mask Editor...")
+        self.btn_masking.clicked.connect(self._run_masking)
+        self.btn_masking.setStyleSheet("text-align: left; padding: 4px 8px;")
+        tr_lay.addWidget(self.btn_masking)
         sl.addWidget(self.transform_group)
 
         sl.addWidget(self._separator())
 
-        # -- 4. Analysis Buttons --
-        self.analysis_group = QGroupBox("4. Analysis")
+        # -- 3. Analysis Buttons --
+        self.analysis_group = QGroupBox("3. Analysis")
         self.analysis_group.setVisible(False)
         an_lay = QVBoxLayout(self.analysis_group)
 
@@ -240,14 +236,20 @@ class MainWindow(PickerMixin, QMainWindow):
             ("△  Anisotropy Invariants",  self._run_anisotropy),
             ("⟺  Correlation Analysis",   self._run_correlation),
             ("◈  POD Analysis",            self._run_pod),
+            ("◈  DMD Analysis",            self._run_dmd),
+            ("⦾  Vortex Identification",  self._run_vortex),
         ]
         self._analysis_btns = []
+        self.btn_dmd = None
         for label, slot in analyses:
             btn = QPushButton(label)
             btn.clicked.connect(slot)
             btn.setStyleSheet("text-align: left; padding: 4px 8px;")
             an_lay.addWidget(btn)
             self._analysis_btns.append(btn)
+            if slot is self._run_dmd:
+                self.btn_dmd = btn
+
 
         sl.addWidget(self.analysis_group)
 
@@ -311,6 +313,13 @@ class MainWindow(PickerMixin, QMainWindow):
         self.chk_hide_colorbar.stateChanged.connect(self._on_field_changed)
         opts.addWidget(self.chk_hide_colorbar)
         opts.addStretch()
+        btn_help = QPushButton("? Manual")
+        btn_help.setFixedHeight(24)
+        btn_help.setFlat(True)
+        btn_help.setToolTip("Open User Manual (F1)")
+        btn_help.setStyleSheet("font-weight: bold; font-size: 12px; padding: 0px 6px;")
+        btn_help.clicked.connect(self._open_manual)
+        opts.addWidget(btn_help)
 
         right_lay.addWidget(self.options_strip)
 
@@ -400,9 +409,40 @@ class MainWindow(PickerMixin, QMainWindow):
         self.info_ribbon.setVisible(False)
         ribbon_lay = QHBoxLayout(self.info_ribbon)
         ribbon_lay.setContentsMargins(4, 2, 4, 2)
+        ribbon_lay.setSpacing(6)
+
         self.lbl_info_ribbon = QLabel("")
         self.lbl_info_ribbon.setStyleSheet("font-size:13px; color:#aaa;")
         ribbon_lay.addWidget(self.lbl_info_ribbon)
+
+        vsep = QFrame()
+        vsep.setFrameShape(QFrame.Shape.VLine)
+        vsep.setStyleSheet("color:#555;")
+        ribbon_lay.addWidget(vsep)
+
+        self.radio_tr    = QRadioButton("TR")
+        self.radio_nontr = QRadioButton("Non-TR")
+        self.radio_nontr.setChecked(True)
+        self._acq_bg = QButtonGroup()
+        self._acq_bg.addButton(self.radio_tr)
+        self._acq_bg.addButton(self.radio_nontr)
+        self.radio_tr.toggled.connect(self._on_tr_changed)
+        self.radio_nontr.toggled.connect(self._on_tr_changed)
+        self.radio_nontr.toggled.connect(self._update_dmd_btn_state)
+        ribbon_lay.addWidget(self.radio_tr)
+        ribbon_lay.addWidget(self.radio_nontr)
+
+        ribbon_lay.addWidget(QLabel("fs [Hz]:"))
+        self.spin_fs = QDoubleSpinBox()
+        self.spin_fs.setRange(0.1, 1_000_000)
+        self.spin_fs.setValue(1000.0)
+        self.spin_fs.setDecimals(1)
+        self.spin_fs.setFixedWidth(80)
+        self.spin_fs.valueChanged.connect(self._on_fs_changed)
+        self.radio_tr.toggled.connect(lambda checked: self.spin_fs.setEnabled(checked))
+        self.spin_fs.setEnabled(self.radio_tr.isChecked())
+        ribbon_lay.addWidget(self.spin_fs)
+
         ribbon_lay.addStretch()
         right_lay.addWidget(self.info_ribbon)
 
@@ -426,6 +466,21 @@ class MainWindow(PickerMixin, QMainWindow):
         right_lay.addWidget(self.transform_strip)
 
         # -- Plot canvas --
+        # Welcome manual bar (only visible on the welcome screen)
+        self._welcome_manual_bar = QWidget()
+        self._welcome_manual_bar.setVisible(False)
+        wm_lay = QHBoxLayout(self._welcome_manual_bar)
+        wm_lay.setContentsMargins(0, 4, 0, 0)
+        btn_manual_welcome = QPushButton("? Manual")
+        btn_manual_welcome.setFlat(True)
+        btn_manual_welcome.setStyleSheet("font-size: 12px; color: #888888;")
+        btn_manual_welcome.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_manual_welcome.clicked.connect(self._open_manual)
+        wm_lay.addStretch()
+        wm_lay.addWidget(btn_manual_welcome)
+        wm_lay.addStretch()
+        right_lay.addWidget(self._welcome_manual_bar)
+
         self.plot_canvas = PlotCanvas()
         right_lay.addWidget(self.plot_canvas)
         self._override_home_button()
@@ -444,6 +499,8 @@ class MainWindow(PickerMixin, QMainWindow):
         credit = QLabel("Jibu Tom Jose  ·  Transient Fluid Mechanics Lab, Technion")
         credit.setStyleSheet("color:#666;font-size:9px;font-style:italic;")
         self.status_bar.addPermanentWidget(credit)
+
+        QShortcut(QKeySequence("F1"), self).activated.connect(self._open_manual)
 
         # Show welcome screen
         self._show_welcome()
@@ -485,6 +542,7 @@ class MainWindow(PickerMixin, QMainWindow):
                 transform=ax.transAxes, ha="center", va="center",
                 fontsize=9, color="#777")
         self.plot_canvas.canvas.draw()
+        self._welcome_manual_bar.setVisible(True)
 
     # ----------------------------------------------------------------------- #
     # Load files
@@ -559,18 +617,38 @@ class MainWindow(PickerMixin, QMainWindow):
         lay.addWidget(lbl_count)
         lay.addWidget(lbl_memory)
 
+        lbl_memmap_warn = QLabel()
+        lbl_memmap_warn.setWordWrap(True)
+        lbl_memmap_warn.setStyleSheet("color: #E8A020; font-size: 10px;")
+        lbl_memmap_warn.setVisible(False)
+        lay.addWidget(lbl_memmap_warn)
+
         def _update():
+            import tempfile
             if rb_all.isChecked():
                 n = n_total
             elif rb_stride.isChecked():
                 n = len(range(0, n_total, spin_stride.value()))
             else:
                 n = min(spin_limit.value(), n_total)
-            mem_mb = ny * nx * n_vel_components * n * 4 / 1e6
+            est_bytes = ny * nx * n_vel_components * n * 4
+            mem_gb    = est_bytes / 1024 ** 3
             lbl_count.setText(f"Snapshots to load:  {n}")
-            lbl_memory.setText(f"Estimated memory:  ~{mem_mb:.0f} MB")
+            lbl_memory.setText(f"Estimated memory:  ~{mem_gb * 1024:.0f} MB")
             spin_stride.setEnabled(rb_stride.isChecked())
             spin_limit.setEnabled(rb_limit.isChecked())
+            if est_bytes > SIZE_THRESHOLD:
+                tmp = tempfile.gettempdir()
+                lbl_memmap_warn.setText(
+                    f"\u26a0 Dataset exceeds 4 GB. Velocity data will be cached "
+                    f"to a temporary file in:\n{tmp}\n"
+                    f"Approx. {mem_gb:.1f} GB of free disk space required. "
+                    f"The file is deleted automatically when uPrime closes. "
+                    f"If uPrime crashes, delete uprime_memmap_*.bin from "
+                    f"that folder manually.")
+                lbl_memmap_warn.setVisible(True)
+            else:
+                lbl_memmap_warn.setVisible(False)
 
         rb_all.toggled.connect(_update)
         rb_stride.toggled.connect(_update)
@@ -636,6 +714,8 @@ class MainWindow(PickerMixin, QMainWindow):
         self._start_load(self._last_file_list)
 
     def _start_load(self, file_list):
+        if self.dataset:
+            cleanup_memmap(self.dataset)
         self.lbl_files.setText(
             f"{len(file_list)} file(s)\n{os.path.basename(file_list[0])} ...")
         self.lbl_status.setText("Loading files...")
@@ -671,10 +751,10 @@ class MainWindow(PickerMixin, QMainWindow):
 
         self._update_ribbon()
         self.info_ribbon.setVisible(True)
-        self.acq_group.setVisible(True)
         self.analysis_group.setVisible(True)
         self.transform_group.setVisible(True)
         self.options_strip.setVisible(True)
+        self._welcome_manual_bar.setVisible(False)
         self._on_overlay_mode_changed()
 
         # Populate field selector
@@ -691,6 +771,39 @@ class MainWindow(PickerMixin, QMainWindow):
         self.spin_skip_x.setValue(5)
         self.spin_skip_y.setValue(5)
 
+        # --- Acquisition type popup ---
+        acq_dlg = QDialog(self)
+        acq_dlg.setWindowTitle("Acquisition Type")
+        acq_dlg.setFixedWidth(280)
+        vl = QVBoxLayout(acq_dlg)
+        vl.addWidget(QLabel("Select acquisition type for this dataset:"))
+        bg = QButtonGroup(acq_dlg)
+        rb_tr  = QRadioButton("Time-Resolved (TR)")
+        rb_ntr = QRadioButton("Non-TR")
+        rb_ntr.setChecked(True)
+        bg.addButton(rb_tr)
+        bg.addButton(rb_ntr)
+        vl.addWidget(rb_tr)
+        vl.addWidget(rb_ntr)
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel("fs [Hz]:"))
+        sp = QDoubleSpinBox()
+        sp.setRange(0.1, 1_000_000)
+        sp.setValue(self.spin_fs.value())
+        sp.setDecimals(1)
+        sp.setEnabled(rb_tr.isChecked())
+        rb_tr.toggled.connect(lambda checked: sp.setEnabled(checked))
+        hl.addWidget(sp)
+        vl.addLayout(hl)
+        btn_ok = QPushButton("OK")
+        btn_ok.clicked.connect(acq_dlg.accept)
+        vl.addWidget(btn_ok)
+        if acq_dlg.exec() == QDialog.DialogCode.Accepted:
+            self.radio_tr.setChecked(rb_tr.isChecked())
+            self.radio_nontr.setChecked(rb_ntr.isChecked())
+            self.spin_fs.setValue(sp.value())
+            self._on_tr_changed()
+
         self._check_convergence(Nt)
         self.lbl_status.setText(f"Loaded {Nt} snapshots.")
         self._plot_field()
@@ -700,8 +813,11 @@ class MainWindow(PickerMixin, QMainWindow):
             self._setup_picker(
                 self.plot_canvas.canvas,
                 self.plot_canvas.figure.axes[0],
-                status_label=self.lbl_status
+                status_label=None
             )
+        if not hasattr(self, '_mouse_move_cid'):
+            self._mouse_move_cid = self.plot_canvas.canvas.mpl_connect(
+                "motion_notify_event", self._on_mouse_move)
         self._x = x
         self._y = y
 
@@ -789,17 +905,16 @@ class MainWindow(PickerMixin, QMainWindow):
             self._full_dataset = copy.deepcopy(self.dataset)
 
         ds = self.dataset
-        ds["U"]     = ds["U"][:, :, indices]
-        ds["V"]     = ds["V"][:, :, indices]
+        ds["U"] = ds["U"][:, :, indices]
+        ds["V"] = ds["V"][:, :, indices]
         if is_stereo:
             ds["W"] = ds["W"][:, :, indices]
-        ds["valid"] = ds["valid"][:, :, indices]
-        ds["Nt"]    = len(indices)
-        ds["valid_frac"] = np.mean(ds["valid"].astype(np.float32), axis=2)
+        # MASK is frame-independent — no subsetting needed
+        ds["Nt"] = len(indices)
 
         stride = spin_stride.value()
         status_msg = f"Subset applied: {len(indices)} of {original_Nt} snapshots"
-        if self.rb_tr.isChecked() and stride > 1:
+        if self.radio_tr.isChecked() and stride > 1:
             if self._original_fs is None:
                 self._original_fs = self.spin_fs.value()
             effective_fs = self._original_fs / stride
@@ -843,7 +958,7 @@ class MainWindow(PickerMixin, QMainWindow):
             f"dx/dy: {dx:.3f} mm",
             f"Snapshots: {Nt}",
         ]
-        if self.rb_tr.isChecked():
+        if self.radio_tr.isChecked():
             dt_ms = 1000.0 / self.spin_fs.value()
             parts.append(f"dt: {dt_ms:.2f} ms")
         parts.append(f"Type: {acq_type}")
@@ -851,7 +966,7 @@ class MainWindow(PickerMixin, QMainWindow):
         self.lbl_info_ribbon.setText(" \u00b7 ".join(parts))
 
     def _check_convergence(self, Nt):
-        if self.rb_tr.isChecked():
+        if self.radio_tr.isChecked():
             fs  = self.spin_fs.value()
             dur = Nt / fs
             if dur < 2.0:
@@ -864,11 +979,14 @@ class MainWindow(PickerMixin, QMainWindow):
                     f"Only {Nt} snapshots (< 2000 recommended).\n"
                     "Results may not be statistically converged.")
 
-    def _on_acq_changed(self):
-        self.spin_fs.setEnabled(self.rb_tr.isChecked())
+    def _on_tr_changed(self):
+        self._update_ribbon()
+
+    def _on_fs_changed(self):
+        self._update_ribbon()
 
     def is_time_resolved(self):
-        return self.rb_tr.isChecked()
+        return self.radio_tr.isChecked()
 
     def get_fs(self):
         return self.spin_fs.value()
@@ -912,17 +1030,17 @@ class MainWindow(PickerMixin, QMainWindow):
 
         ds         = self.dataset
         x, y       = ds["x"], ds["y"]
-        U, V, W    = ds["U"], ds["V"], ds["W"]
+        from core.dataset_utils import get_masked
+        U = get_masked(ds, "U"); V = get_masked(ds, "V"); W = get_masked(ds, "W")
         field_name = self.combo_field.currentText()
         skip_x     = self.spin_skip_x.value()
         skip_y     = self.spin_skip_y.value()
         vec_scale  = self.spin_scale.value()
         arrow_size = self.spin_arrow_size.value()
 
-        mean_u = np.nanmean(U, axis=2)
-        mean_v = np.nanmean(V, axis=2)
-        valid_frac   = np.mean(ds["valid"], axis=2)
-        invalid_mask = valid_frac < 0.5
+        mean_u       = np.nanmean(U, axis=2)
+        mean_v       = np.nanmean(V, axis=2)
+        invalid_mask = ~ds["MASK"]
 
         if field_name == "Mean U":
             field = mean_u.copy(); field[invalid_mask] = np.nan
@@ -1055,8 +1173,31 @@ class MainWindow(PickerMixin, QMainWindow):
         # Update picker
         if self.plot_canvas.figure.axes:
             self._pick_field_ax = self.plot_canvas.figure.axes[0]
+        self._x = x
+        self._y = y
         self._last_field_values = field
         self.lbl_status.setText(f"Displaying: {field_name}")
+
+    def _on_mouse_move(self, event):
+        if not hasattr(self, '_pick_field_ax') or event.inaxes != self._pick_field_ax:
+            return
+        if not hasattr(self, '_last_field_values') or self._last_field_values is None:
+            return
+        x_mouse = event.xdata
+        y_mouse = event.ydata
+        if x_mouse is None or y_mouse is None:
+            return
+
+        col = int(np.argmin(np.abs(self._x[0, :] - x_mouse)))
+        row = int(np.argmin(np.abs(self._y[:, 0] - y_mouse)))
+        col = int(np.clip(col, 0, self._last_field_values.shape[1] - 1))
+        row = int(np.clip(row, 0, self._last_field_values.shape[0] - 1))
+
+        value = self._last_field_values[row, col]
+        self.lbl_status.setText(
+            f"x = {self._x[row, col]:.2f} mm  "
+            f"y = {self._y[row, col]:.2f} mm  "
+            f"value = {value:.4f}")
 
     # ----------------------------------------------------------------------- #
     # Overlay mode helpers
@@ -1227,6 +1368,34 @@ class MainWindow(PickerMixin, QMainWindow):
             fs=self.get_fs(),
         ))
 
+    def _run_dmd(self):
+        if not self._check_data(): return
+        if not self.is_time_resolved():
+            QMessageBox.warning(self, "TR Required",
+                "DMD requires Time-Resolved data.\n"
+                "Please select TR acquisition type.")
+            return
+        from gui.dmd_window import DmdWindow
+        win = DmdWindow(self.dataset, fs=self.get_fs())
+        if not win._valid:
+            return
+        self._dmd_win = win
+        self._open_window(self._dmd_win)
+
+    def _update_dmd_btn_state(self, nontr_checked):
+        if self.btn_dmd is not None and self.dataset is not None:
+            self.btn_dmd.setEnabled(not nontr_checked)
+
+    def _run_vortex(self):
+        if not self._check_data(): return
+        from gui.vortex_window import VortexWindow
+        self._open_window(VortexWindow(self.dataset))
+
+    def _run_masking(self):
+        if not self._check_data(): return
+        win = MaskWindow(self.dataset, main_window=self)
+        self._open_window(win)
+
     def _run_transform(self):
         if not self._check_data(): return
         # Ensure transform_log exists
@@ -1251,6 +1420,9 @@ class MainWindow(PickerMixin, QMainWindow):
     # ----------------------------------------------------------------------- #
 
     def closeEvent(self, event):
+        if self.dataset is None or len(self.dataset.get("files", [])) == 0:
+            event.accept()
+            return
         reply = QMessageBox.question(
             self,
             "Exit uPrime",
@@ -1259,6 +1431,8 @@ class MainWindow(PickerMixin, QMainWindow):
             QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
+            if self.dataset:
+                cleanup_memmap(self.dataset)
             event.accept()
         else:
             event.ignore()
@@ -1267,26 +1441,38 @@ class MainWindow(PickerMixin, QMainWindow):
     # About dialog
     # ----------------------------------------------------------------------- #
 
+    def _open_manual(self):
+        import subprocess
+        path = _asset_path("uPrime_Manual.pdf")
+        if not os.path.exists(path):
+            QMessageBox.warning(self, "Manual not found",
+                "User manual not found in assets folder.\n"
+                "Expected: " + path)
+            return
+        if sys.platform == "win32":
+            os.startfile(path)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
+
     def _on_about(self):
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QLineEdit
         dlg = QDialog(self)
         dlg.setWindowTitle("About uPrime")
-        dlg.setFixedWidth(420)
+        dlg.setFixedWidth(480)
         lay = QVBoxLayout(dlg)
-        lay.setSpacing(8); lay.setContentsMargins(24, 24, 24, 24)
+        lay.setSpacing(6); lay.setContentsMargins(24, 24, 24, 24)
 
-        for text, size, bold, italic, color in [
-            ("uPrime",                          22, True,  False, None),
-            ("Because u\u2019 matters",         10, False, True,  "gray"),
-            ("v0.3.4  \u00b7  Alpha Release",    9,  False, False, "gray"),
-        ]:
-            lbl = QLabel(text)
-            f   = QFont("Arial", size, QFont.Weight.Bold if bold else QFont.Weight.Normal)
-            f.setItalic(italic)
-            lbl.setFont(f)
-            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            if color: lbl.setStyleSheet(f"color:{color};")
-            lay.addWidget(lbl)
+        logo_lbl = QLabel()
+        logo_lbl.setPixmap(_load_logo_pixmap(size=(120, 120)))
+        logo_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(logo_lbl)
+
+        ver_lbl = QLabel("v0.4.1  \u00b7  Alpha Release")
+        ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ver_lbl.setStyleSheet("color:gray;")
+        lay.addWidget(ver_lbl)
 
         lay.addWidget(self._separator_dlg())
 
@@ -1296,7 +1482,6 @@ class MainWindow(PickerMixin, QMainWindow):
         )
         desc.setWordWrap(True)
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        desc.setStyleSheet("font-size:10px;")
         lay.addWidget(desc)
 
         lay.addWidget(self._separator_dlg())
@@ -1308,19 +1493,54 @@ class MainWindow(PickerMixin, QMainWindow):
         )
         credit.setWordWrap(True)
         credit.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        credit.setStyleSheet("font-size:10px;")
         lay.addWidget(credit)
 
-        gh = QLabel(
-            "GitHub: <i>github.com/CmdrRyder/uPrime</i><br>"
-            "DOI: <i>https://doi.org/10.5281/zenodo.19376184</i><br>"
-            "Licensed under GNU GPL v3<br>"
-            "Cite: Jibu Tom Jose, uPrime, Technion (2026)"
+        github_lbl = QLabel('<a href="https://github.com/CmdrRyder/uPrime" style="color: #888888; text-decoration: none;">github.com/CmdrRyder/uPrime</a>')
+        github_lbl.setOpenExternalLinks(True)
+        github_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        github_lbl.setStyleSheet("color:gray;")
+        lay.addWidget(github_lbl)
+
+        license_lbl = QLabel("Licensed under GNU GPL v3")
+        license_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        license_lbl.setStyleSheet("color:gray;")
+        lay.addWidget(license_lbl)
+
+        lay.addSpacing(8)
+
+        citation_lbl = QLabel(
+            "Jibu Tom Jose, & Ram, O. (2026). uPrime: Open-source software for velocity field "
+            "and turbulence analysis from PIV and CFD data. TFML, Technion. Zenodo."
         )
-        gh.setWordWrap(True)
-        gh.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        gh.setStyleSheet("color:gray;font-size:9px;")
-        lay.addWidget(gh)
+        citation_lbl.setFixedWidth(440)
+        citation_lbl.setWordWrap(True)
+        citation_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(citation_lbl)
+
+        doi_inner = QWidget()
+        doi_inner.setMaximumWidth(440)
+        doi_row = QHBoxLayout(doi_inner)
+        doi_row.setContentsMargins(0, 0, 0, 0)
+        doi_row.setSpacing(4)
+        doi_box = QLineEdit("https://doi.org/10.5281/zenodo.19376184")
+        doi_box.setReadOnly(True)
+        doi_box.setMinimumWidth(340)
+        doi_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        doi_box.setStyleSheet("border: none; background: transparent; color: palette(text);")
+        doi_box.home(False)
+        doi_row.addWidget(doi_box)
+        btn_copy = QPushButton("\u2398")
+        btn_copy.setFixedSize(24, 24)
+        btn_copy.setFlat(True)
+        btn_copy.setToolTip("Copy DOI")
+        btn_copy.clicked.connect(lambda: QApplication.clipboard().setText(doi_box.text()))
+        doi_row.addWidget(btn_copy)
+
+        doi_outer = QHBoxLayout()
+        doi_outer.addStretch()
+        doi_outer.addWidget(doi_inner)
+        doi_outer.addStretch()
+        lay.addLayout(doi_outer)
 
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dlg.accept)
