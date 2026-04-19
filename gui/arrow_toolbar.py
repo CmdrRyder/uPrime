@@ -222,8 +222,8 @@ class PickerMixin:
         if not hasattr(self, "_pick_field_ax") or self._pick_field_ax is None:
             return ""
         if hasattr(self, "_x") and hasattr(self, "_y"):
-            dist2 = (self._x - x) ** 2 + (self._y - y) ** 2
-            r, c  = np.unravel_index(np.argmin(dist2), dist2.shape)
+            c = int(np.argmin(np.abs(self._x[0, :] - x)))
+            r = int(np.argmin(np.abs(self._y[:, 0] - y)))
             if hasattr(self, "_last_field_values") and \
                self._last_field_values is not None:
                 v = self._last_field_values[r, c]

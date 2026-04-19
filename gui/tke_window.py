@@ -50,9 +50,11 @@ class TKEWindow(PickerMixin, QWidget):
         self._show_convergence_warning(is_time_resolved, Nt_warn, duration_warn)
 
         # Pre-compute stresses
-        self._stresses, _ = compute_reynolds_stresses(
-            dataset["U"], dataset["V"], dataset["W"]
-        )
+        from core.dataset_utils import get_masked
+        _U = get_masked(dataset, "U")
+        _V = get_masked(dataset, "V")
+        _W = get_masked(dataset, "W")
+        self._stresses, _ = compute_reynolds_stresses(_U, _V, _W)
 
         # Compute TKE variants
         uu = self._stresses["uu"]
@@ -61,8 +63,8 @@ class TKEWindow(PickerMixin, QWidget):
 
         self._k2d = 0.5 * (uu + vv)
         self._k3d = 0.5 * (uu + vv + ww) if ww is not None else None
-        self._k2d_std = compute_tke_std(dataset["U"], dataset["V"], dataset["W"], mode="2d")
-        self._k3d_std = compute_tke_std(dataset["U"], dataset["V"], dataset["W"], mode="3d") if ww is not None else None
+        self._k2d_std = compute_tke_std(_U, _V, _W, mode="2d")
+        self._k3d_std = compute_tke_std(_U, _V, _W, mode="3d") if ww is not None else None
 
         self._build_ui()
         self._draw_field()
@@ -213,10 +215,10 @@ class TKEWindow(PickerMixin, QWidget):
     def _draw_field(self):
         ds    = self.dataset
         x, y  = ds["x"], ds["y"]
-        speed = np.sqrt(np.nanmean(ds["U"], axis=2)**2 +
-                        np.nanmean(ds["V"], axis=2)**2)
-        valid_frac = np.mean(ds["valid"], axis=2)
-        speed[valid_frac < 0.5] = np.nan
+        from core.dataset_utils import get_masked
+        speed = np.sqrt(np.nanmean(get_masked(ds, "U"), axis=2)**2 +
+                        np.nanmean(get_masked(ds, "V"), axis=2)**2)
+        speed[~ds["MASK"]] = np.nan
 
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
@@ -342,8 +344,7 @@ class TKEWindow(PickerMixin, QWidget):
     def _plot_contour(self):
         k, label = self._get_tke_field()
 
-        valid_frac = np.mean(self.dataset["valid"], axis=2)
-        k[valid_frac < 0.5] = np.nan
+        k[~self.dataset["MASK"]] = np.nan
 
         cmap = self.combo_cmap.currentText()
 
@@ -443,8 +444,7 @@ class TKEWindow(PickerMixin, QWidget):
             if not path:
                 return
             field = self._last_contour_k.copy()
-            valid_frac = np.mean(self.dataset["valid"], axis=2)
-            field[valid_frac < 0.5] = np.nan
+            field[~self.dataset["MASK"]] = np.nan
             export_2d_tecplot(path, self._x, self._y, [field], [label], settings)
 
         self.lbl_status.setText(f"Exported to {path}")

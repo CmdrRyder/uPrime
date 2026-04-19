@@ -215,9 +215,10 @@ class SpectralWindow(PickerMixin, QWidget):
         ds = self.dataset
         x  = ds["x"]
         y  = ds["y"]
-        U  = ds["U"]
-        V  = ds["V"]
-        W  = ds["W"]
+        from core.dataset_utils import get_masked
+        U = get_masked(ds, "U")
+        V = get_masked(ds, "V")
+        W = get_masked(ds, "W")
 
         mean_u = np.nanmean(U, axis=2)
         mean_v = np.nanmean(V, axis=2)
@@ -227,8 +228,7 @@ class SpectralWindow(PickerMixin, QWidget):
         else:
             speed  = np.sqrt(mean_u**2 + mean_v**2)
 
-        valid_frac = np.mean(ds["valid"], axis=2)
-        speed[valid_frac < 0.5] = np.nan
+        speed[~ds["MASK"]] = np.nan
 
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
@@ -361,9 +361,11 @@ class SpectralWindow(PickerMixin, QWidget):
         try:
             sel = self._selection
 
+            from core.dataset_utils import get_masked
+            _U = get_masked(ds, "U"); _V = get_masked(ds, "V"); _W = get_masked(ds, "W")
             if sel["type"] == "point":
                 freq, psd = psd_at_point(
-                    ds["U"], ds["V"], ds["W"],
+                    _U, _V, _W,
                     sel["row"], sel["col"],
                     fs, nperseg, noverlap
                 )
@@ -373,7 +375,7 @@ class SpectralWindow(PickerMixin, QWidget):
 
             else:
                 freq, psd, n_pts = psd_in_region(
-                    ds["U"], ds["V"], ds["W"],
+                    _U, _V, _W,
                     self._x, self._y,
                     sel["x0"], sel["x1"], sel["y0"], sel["y1"],
                     fs, nperseg, noverlap

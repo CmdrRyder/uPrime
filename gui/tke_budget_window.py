@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
     QPushButton, QRadioButton, QCheckBox, QSizePolicy,
     QMessageBox, QSplitter, QSpinBox, QComboBox,
-    QDoubleSpinBox, QButtonGroup, QFileDialog, QApplication
+    QDoubleSpinBox, QButtonGroup, QFileDialog, QProgressBar
 )
 from PyQt6.QtCore import Qt
 import matplotlib
@@ -32,7 +32,6 @@ matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-from core.tke_budget import compute_tke_budget
 from core.reynolds_stress import extract_line_profile
 from core.export import export_2d_tecplot, export_line_csv
 from gui.line_selector import LineSelectorWidget, compute_snapped_line
@@ -217,6 +216,12 @@ class TKEBudgetWindow(PickerMixin, QWidget):
         self.btn_compute.clicked.connect(self._on_compute)
         ll.addWidget(self.btn_compute)
 
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setVisible(False)
+        ll.addWidget(self.progress_bar)
+
         self.btn_plot = QPushButton("Plot")
         self.btn_plot.setEnabled(False)
         self.btn_plot.clicked.connect(self._on_plot)
@@ -265,10 +270,10 @@ class TKEBudgetWindow(PickerMixin, QWidget):
     def _draw_field(self):
         ds   = self.dataset
         x, y = ds["x"], ds["y"]
-        speed = np.sqrt(np.nanmean(ds["U"], axis=2)**2 +
-                        np.nanmean(ds["V"], axis=2)**2)
-        vf = np.mean(ds["valid"], axis=2)
-        speed[vf < 0.5] = np.nan
+        from core.dataset_utils import get_masked
+        speed = np.sqrt(np.nanmean(get_masked(ds, "U"), axis=2)**2 +
+                        np.nanmean(get_masked(ds, "V"), axis=2)**2)
+        speed[~ds["MASK"]] = np.nan
 
         # Fix canvas height to match data aspect ratio.
         # This makes set_aspect("equal") fill the widget with no white margins,
@@ -411,60 +416,84 @@ class TKEBudgetWindow(PickerMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _on_compute(self):
+        from core.dataset_utils import get_masked
+        from core.workers import TKEBudgetWorker
+
+        if hasattr(self, '_worker') and self._worker.isRunning():
+            self._worker.terminate()
+            self._worker.wait()
+
         ds     = self.dataset
         kernel = self.spin_kernel.value() if self.chk_smooth.isChecked() else 1
         dkdt   = self.chk_dkdt.isChecked() if self.chk_dkdt else False
 
+        U = get_masked(ds, "U")
+        V = get_masked(ds, "V")
+        W = get_masked(ds, "W")
+
         self.lbl_status.setText("Busy: computing TKE budget...")
         self.btn_compute.setEnabled(False)
-        QApplication.processEvents()
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setVisible(True)
 
-        try:
-            self._budget = compute_tke_budget(
-                ds["U"], ds["V"], ds["W"], self._x, self._y,
-                smooth_kernel=kernel, compute_dkdt=dkdt)
+        self._dkdt_requested = dkdt
+        self._worker = TKEBudgetWorker(
+            U, V, W, self._x, self._y,
+            mask=ds.get("MASK"),
+            smooth_kernel=kernel,
+            compute_dkdt=dkdt,
+        )
+        self._worker.finished.connect(self._on_budget_result)
+        self._worker.error.connect(self._on_budget_error)
+        self._worker.finished.connect(lambda _: self._reset_compute_ui())
+        self._worker.error.connect(lambda _: self._reset_compute_ui())
+        self._worker.start()
 
-            vf   = np.mean(ds["valid"], axis=2)
-            mask = vf < 0.5
-            for key in self._budget:
-                if self._budget[key] is not None:
-                    self._budget[key][mask] = np.nan
+    def _reset_compute_ui(self):
+        self.btn_compute.setEnabled(True)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setVisible(False)
 
-            self.btn_plot.setEnabled(True)
-            if self._mode == "line":
-                if self._selection is not None:
-                    self.lbl_status.setText("Budget computed. Click Plot.")
-                else:
-                    self.lbl_status.setText(
-                        "Budget computed. Draw a line, then click Plot.")
-                self.lbl_hint.setText(
-                    "Left-click+drag to draw a line, then click Plot.")
-            else:
+    def _on_budget_result(self, budget):
+        self._budget = budget
+        self.btn_plot.setEnabled(True)
+        if self._mode == "line":
+            if self._selection is not None:
                 self.lbl_status.setText("Budget computed. Click Plot.")
+            else:
+                self.lbl_status.setText(
+                    "Budget computed. Draw a line, then click Plot.")
+            self.lbl_hint.setText(
+                "Left-click+drag to draw a line, then click Plot.")
+        else:
+            self.lbl_status.setText("Budget computed. Click Plot.")
 
-            if dkdt and self._budget.get("dkdt") is not None:
-                if self.combo_term.findData("dkdt") == -1:
-                    self.combo_term.addItem(TERMS["dkdt"]["label"], "dkdt")
+        if self._dkdt_requested and budget.get("dkdt") is not None:
+            if self.combo_term.findData("dkdt") == -1:
+                self.combo_term.addItem(TERMS["dkdt"]["label"], "dkdt")
 
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-            self.lbl_status.setText(f"Error: {e}")
-        finally:
-            self.btn_compute.setEnabled(True)
+    def _on_budget_error(self, tb_str):
+        QMessageBox.critical(self, "TKE Budget Error", tb_str)
+        self.lbl_status.setText("Error — see dialog.")
 
     # ----------------------------------------------------------------------- #
     # Normalization
     # ----------------------------------------------------------------------- #
 
-    def _scale(self):
+    def _scale_for(self, key):
+        """Return (scale, unit_label) for the given term key."""
         if self.chk_norm.isChecked():
             um  = self.spin_um.value()
-            L   = self.spin_L.value() / 1000.0
-            s   = 1.0 / (um ** 3 / L)
-            lbl = f"Um\u00b3/L  (Um={um:.2f} m/s, L={self.spin_L.value():.1f} mm)"
+            L_m = self.spin_L.value() / 1000.0
+            if key == "k":
+                s   = 1.0 / (um ** 2)
+                lbl = f"k/Um\u00b2  (Um={um:.2f} m/s)"
+            else:
+                s   = L_m / (um ** 3)
+                lbl = f"Um\u00b3/L  (Um={um:.2f} m/s, L={self.spin_L.value():.1f} mm)"
         else:
             s   = 1.0
-            lbl = "[m\u00b2/s\u00b3]"
+            lbl = "[m\u00b2/s\u00b2]" if key == "k" else "[m\u00b2/s\u00b3]"
         return s, lbl
 
     # ----------------------------------------------------------------------- #
@@ -493,13 +522,21 @@ class TKEBudgetWindow(PickerMixin, QWidget):
                 f"Term '{key}' is not available.")
             return
 
-        scale, unit_str = self._scale()
+        scale, unit_str = self._scale_for(key)
         cmap = self.combo_cmap.currentText()
         data = field * scale
 
+        if key == "k":
+            vmin = 0
+            vmax = np.nanmax(data)
+        else:
+            vmax = np.nanmax(np.abs(data))
+            vmin = -vmax
+
         self.result_fig.clear()
         ax = self.result_fig.add_subplot(111)
-        cf = ax.contourf(self._x, self._y, data, levels=50, cmap=cmap)
+        cf = ax.contourf(self._x, self._y, data, levels=50, cmap=cmap,
+                         vmin=vmin, vmax=vmax)
         cb = self.result_fig.colorbar(cf, ax=ax,
                                       label=f"{TERMS[key]['label']} {unit_str}",
                                       shrink=0.8)
@@ -523,7 +560,7 @@ class TKEBudgetWindow(PickerMixin, QWidget):
 
     def _plot_line(self):
         sel      = self._selection
-        scale, unit_str = self._scale()
+        _, unit_str = self._scale_for("P")  # budget unit label for y-axis
         lmode    = self.line_sel.get_mode()
         avg_band = self.line_sel.get_avg_band()
 
@@ -539,6 +576,7 @@ class TKEBudgetWindow(PickerMixin, QWidget):
         ordered_keys = other_keys + (["k"] if self._budget.get("k") is not None else [])
 
         for key in ordered_keys:
+            scale, _ = self._scale_for(key)
             field = self._budget[key] * scale
             vals, dist, xpts, ypts = extract_line_profile(
                 field, self._x, self._y,
@@ -595,7 +633,7 @@ class TKEBudgetWindow(PickerMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _on_export(self):
-        scale, unit_str = self._scale()
+        _, unit_str = self._scale_for("P")
         settings = {
             "Analysis"     : "TKE Budget",
             "Snapshots"    : self.dataset["Nt"],
@@ -614,7 +652,8 @@ class TKEBudgetWindow(PickerMixin, QWidget):
             fields, labels = [], []
             for key in TERMS:
                 if self._budget.get(key) is not None:
-                    fields.append(self._budget[key] * scale)
+                    s, _ = self._scale_for(key)
+                    fields.append(self._budget[key] * s)
                     labels.append(TERMS[key]["label"])
             settings["Analysis"] = "TKE Budget - All Terms"
             export_2d_tecplot(path, self._x, self._y, fields, labels, settings)

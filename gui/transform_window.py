@@ -423,9 +423,9 @@ class TransformWindow(PickerMixin, QWidget):
     def _draw_preview(self):
         ds = self.dataset
         x, y = ds["x"], ds["y"]
-        U_mean = np.nanmean(ds["U"], axis=2)
-        vf     = np.mean(ds["valid"], axis=2)
-        U_mean[vf < 0.5] = np.nan
+        from core.dataset_utils import get_masked
+        U_mean = np.nanmean(get_masked(ds, "U"), axis=2)
+        U_mean[~ds["MASK"]] = np.nan
 
         # Constrained height for aspect ratio (same strategy as tke_budget)
         x_ext = float(np.nanmax(x) - np.nanmin(x))

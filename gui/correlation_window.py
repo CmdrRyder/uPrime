@@ -26,10 +26,10 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
     QPushButton, QComboBox, QSpinBox, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QTabWidget,
-    QGridLayout, QApplication, QRadioButton, QButtonGroup,
-    QFileDialog, QFrame, QDialog
+    QGridLayout, QRadioButton, QButtonGroup,
+    QFileDialog, QFrame, QDialog, QProgressBar
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 import matplotlib
@@ -126,9 +126,10 @@ class CorrelationWindow(PickerMixin, QWidget):
 
         self._x        = dataset["x"]
         self._y        = dataset["y"]
-        self.U         = dataset["U"]
-        self.V         = dataset["V"]
-        self.W         = dataset["W"]
+        from core.dataset_utils import get_masked
+        self.U = get_masked(dataset, "U")
+        self.V = get_masked(dataset, "V")
+        self.W = get_masked(dataset, "W")
         self.is_stereo = dataset["is_stereo"]
 
         # Reference state
@@ -322,6 +323,12 @@ class CorrelationWindow(PickerMixin, QWidget):
         btn_row.addWidget(self.btn_export_s1d)
         vl.addLayout(btn_row)
 
+        self.progress_bar_s = QProgressBar()
+        self.progress_bar_s.setFixedHeight(6)
+        self.progress_bar_s.setTextVisible(False)
+        self.progress_bar_s.setVisible(False)
+        vl.addWidget(self.progress_bar_s)
+
         scale_row = QHBoxLayout()
         scale_row.addWidget(QLabel("Scale method:"))
         self.combo_scale_method = QComboBox()
@@ -407,6 +414,12 @@ class CorrelationWindow(PickerMixin, QWidget):
         btn_row.addWidget(self.btn_export_tau)
         vl.addLayout(btn_row)
 
+        self.progress_bar_t = QProgressBar()
+        self.progress_bar_t.setFixedHeight(6)
+        self.progress_bar_t.setTextVisible(False)
+        self.progress_bar_t.setVisible(False)
+        vl.addWidget(self.progress_bar_t)
+
         # Length scale method for temporal
         tm_row = QHBoxLayout()
         tm_row.addWidget(QLabel("Scale method:"))
@@ -467,9 +480,8 @@ class CorrelationWindow(PickerMixin, QWidget):
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
 
-        U_mean     = np.nanmean(self.U, axis=2)
-        valid_frac = np.mean(self.dataset["valid"], axis=2)
-        U_mean[valid_frac < 0.5] = np.nan
+        U_mean = np.nanmean(self.U, axis=2)
+        U_mean[~self.dataset["MASK"]] = np.nan
 
         self.field_ax.contourf(
             self._x, self._y, U_mean, levels=50,
@@ -615,103 +627,56 @@ class CorrelationWindow(PickerMixin, QWidget):
     # -----------------------------------------------------------------------
 
     def _run_spatial(self):
+        if self._pick_mode == "point" and self._ref_row is None:
+            return
+        if self._pick_mode == "roi" and self._roi_coords is None:
+            QMessageBox.warning(self, "No ROI",
+                "Please draw an ROI first (left-click drag in ROI mode).")
+            return
+
+        from core.workers import CorrelationWorker
+
+        if hasattr(self, '_worker') and self._worker.isRunning():
+            self._worker.terminate()
+            self._worker.wait()
+
         comp = self._component_key()
         self.lbl_status.setText("Busy: computing spatial correlation...")
         self.btn_spatial.setEnabled(False)
         self.spatial_scales.reset()
-        QApplication.processEvents()
+        self.progress_bar_s.setRange(0, 0)
+        self.progress_bar_s.setVisible(True)
 
-        try:
-            if self._pick_mode == "point":
-                self._use_kernel = self.chk_kernel.isChecked()
-                R_norm, R_x, R_y = compute_spatial_correlation_point(
-                    self.U, self.V, self.W,
-                    self._ref_row, self._ref_col,
-                    component=comp,
-                    use_kernel=self._use_kernel)
+        if self._pick_mode == "point":
+            self._use_kernel = self.chk_kernel.isChecked()
+            mode = "spatial_point"
+            roi_coords = None
+        else:
+            mode = "spatial_roi"
+            roi_coords = self._roi_coords
 
-                method = self.combo_scale_method.currentData()
-                Lx, Ly, ex, ey = compute_spatial_scales_point(
-                    R_norm, self._ref_row, self._ref_col,
-                    self._x, self._y, method=method)
-                self._last_extras_x = ex
-                self._last_extras_y = ey
+        self._worker = CorrelationWorker(
+            self.U, self.V, self.W,
+            self._x, self._y,
+            mode=mode,
+            ref_row=self._ref_row if self._ref_row is not None else 0,
+            ref_col=self._ref_col if self._ref_col is not None else 0,
+            component=comp,
+            use_kernel=self._use_kernel,
+            max_lag_frac=self.spin_max_lag.value() / 100.0,
+            dt=self.dt,
+            roi_coords=roi_coords,
+        )
+        self._worker.finished.connect(self._on_corr_result)
+        self._worker.error.connect(self._on_corr_error)
+        self._worker.finished.connect(lambda _: self._reset_spatial_ui())
+        self._worker.error.connect(lambda _: self._reset_spatial_ui())
+        self._worker.start()
 
-                self._last_R_norm = R_norm
-                dx_vals = self._x[self._ref_row, self._ref_col:]
-                dy_vals = self._y[self._ref_row:, self._ref_col]
-                # Full x/y arrays for 1D slice plots
-                self._last_R_x  = R_x
-                self._last_R_y  = R_y
-                self._last_dx   = self._x[self._ref_row, :]
-                self._last_dy   = self._y[:, self._ref_col]
-
-                self._plot_spatial_2d(R_norm)
-                self._plot_spatial_1d(
-                    self._x[self._ref_row, :], R_x,
-                    xlabel="x [mm]", ref_val=self._x[self._ref_row, self._ref_col],
-                    extras=ex, L=Lx, direction='x', color="tab:blue")
-                self._plot_spatial_1d(
-                    self._y[:, self._ref_col], R_y,
-                    xlabel="y [mm]", ref_val=self._y[self._ref_row, self._ref_col],
-                    extras=ey, L=Ly, direction='y', color="tab:red")
-
-                self.sp2d_wrap.setVisible(True)
-                self.btn_export_s2d.setEnabled(True)
-
-            else:
-                if self._roi_coords is None:
-                    QMessageBox.warning(self, "No ROI",
-                        "Please draw an ROI first (left-click drag in ROI mode).")
-                    return
-                x0, x1, y0, y1 = self._roi_coords
-                dx_arr, R_x, dy_arr, R_y, Lx_roi, Ly_roi = \
-                    compute_spatial_correlation_roi(
-                        self.U, self.V, self.W,
-                        self._x, self._y,
-                        x0, x1, y0, y1,
-                        component=comp)
-                method = self.combo_scale_method.currentData()
-                dx_sp = dx_arr[1] - dx_arr[0] if len(dx_arr) > 1 else 1.0
-                dy_sp = dy_arr[1] - dy_arr[0] if len(dy_arr) > 1 else 1.0
-                Lx, ex = compute_length_scale(R_x, dx_sp, method)
-                Ly, ey = compute_length_scale(R_y, dy_sp, method)
-                self._last_extras_x = ex
-                self._last_extras_y = ey
-
-                self._last_R_norm = None
-                self._last_R_x    = R_x
-                self._last_R_y    = R_y
-                self._last_dx     = dx_arr
-                self._last_dy     = dy_arr
-
-                self.sp2d_wrap.setVisible(False)
-                self._plot_spatial_1d(
-                    dx_arr, R_x, xlabel="\u0394x [mm]", ref_val=0,
-                    extras=ex, L=Lx, direction='x', color="tab:blue")
-                self._plot_spatial_1d(
-                    dy_arr, R_y, xlabel="\u0394y [mm]", ref_val=0,
-                    extras=ey, L=Ly, direction='y', color="tab:red")
-                self.btn_export_s2d.setEnabled(False)
-
-            self.btn_export_s1d.setEnabled(True)
-            self.btn_show_diagnostic.setEnabled(True)
-
-            # Update scale readout
-            lx_str = f"{Lx:.2f}" if not np.isnan(Lx) else "--"
-            ly_str = f"{Ly:.2f}" if not np.isnan(Ly) else "--"
-            self.spatial_scales.set("Lx (mm)", lx_str)
-            self.spatial_scales.set("Ly (mm)", ly_str)
-
-            self.lbl_status.setText(
-                f"Done. Spatial ({self.combo_comp.currentText()})  "
-                f"Lx = {lx_str} mm  Ly = {ly_str} mm")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-            self.lbl_status.setText(f"Error: {e}")
-        finally:
-            self.btn_spatial.setEnabled(True)
+    def _reset_spatial_ui(self):
+        self.btn_spatial.setEnabled(True)
+        self.progress_bar_s.setRange(0, 100)
+        self.progress_bar_s.setVisible(False)
 
     def _plot_spatial_2d(self, R_norm):
         self.spatial_2d_fig.clear()
@@ -806,13 +771,30 @@ class CorrelationWindow(PickerMixin, QWidget):
             ax.axhline(0, color="k", linewidth=0.8, linestyle=":",
                        label="R = 0")
 
-        # Integral scale vline — always red dashed when L is valid
-        if not np.isnan(L):
-            lbl = f"L{direction} = {L_str} mm"
-            if method == "domain":
-                lbl += " (domain)"
+        # Integral scale vline — red dashed when L is valid
+        if method == "one_over_e":
+            marker_x = extras.get("marker_x", np.nan)
+            if marker_x is not None and not np.isnan(marker_x):
+                ax.axvline(marker_x, color="red", linewidth=1.2,
+                           linestyle="--", alpha=0.9,
+                           label=f"L{direction} = {marker_x:.2f} mm")
+        elif method in ("zero_crossing", "domain"):
+            # Line at the actual crossing lag; L (the integral) shown in label
+            cross_lag = extras.get("crossing_lag")
+            if cross_lag is None:
+                # domain method uses cutoff_idx when there is no crossing
+                ci = extras.get("cutoff_idx")
+                if ci is not None:
+                    cross_lag = ci * (extras["r_axis"][1] - extras["r_axis"][0]) if len(extras["r_axis"]) > 1 else np.nan
+            if cross_lag is not None and not np.isnan(cross_lag) and not np.isnan(L):
+                suffix = " (domain)" if method == "domain" else ""
+                ax.axvline(cross_lag, color="red", linewidth=1.2,
+                           linestyle="--", alpha=0.9,
+                           label=f"L{direction} = {L_str} mm{suffix}")
+        elif not np.isnan(L):
             ax.axvline(L, color="red", linewidth=1.2,
-                       linestyle="--", alpha=0.9, label=lbl)
+                       linestyle="--", alpha=0.9,
+                       label=f"L{direction} = {L_str} mm")
 
         ax.legend(fontsize=_FONT_LEG, loc="upper right")
         if self.chk_hide_axes.isChecked():
@@ -875,6 +857,111 @@ class CorrelationWindow(PickerMixin, QWidget):
 
 
 
+    def _on_corr_result(self, result):
+        comp = self.combo_comp.currentText()
+        mode = result['mode']
+
+        if mode == 'spatial_point':
+            R_norm = result['R_norm']
+            R_x    = result['R_x']
+            R_y    = result['R_y']
+
+            method = self.combo_scale_method.currentData()
+            Lx, Ly, ex, ey = compute_spatial_scales_point(
+                R_norm, self._ref_row, self._ref_col,
+                self._x, self._y, method=method)
+            self._last_extras_x = ex
+            self._last_extras_y = ey
+            self._last_R_norm   = R_norm
+            self._last_R_x      = R_x
+            self._last_R_y      = R_y
+            self._last_dx       = self._x[self._ref_row, :]
+            self._last_dy       = self._y[:, self._ref_col]
+
+            self._plot_spatial_2d(R_norm)
+            self._plot_spatial_1d(
+                self._x[self._ref_row, :], R_x,
+                xlabel="x [mm]",
+                ref_val=self._x[self._ref_row, self._ref_col],
+                extras=ex, L=Lx, direction='x', color="tab:blue")
+            self._plot_spatial_1d(
+                self._y[:, self._ref_col], R_y,
+                xlabel="y [mm]",
+                ref_val=self._y[self._ref_row, self._ref_col],
+                extras=ey, L=Ly, direction='y', color="tab:red")
+
+            self.sp2d_wrap.setVisible(True)
+            self.btn_export_s2d.setEnabled(True)
+            self.btn_export_s1d.setEnabled(True)
+            self.btn_show_diagnostic.setEnabled(True)
+
+            lx_str = f"{Lx:.2f}" if not np.isnan(Lx) else "--"
+            ly_str = f"{Ly:.2f}" if not np.isnan(Ly) else "--"
+            self.spatial_scales.set("Lx (mm)", lx_str)
+            self.spatial_scales.set("Ly (mm)", ly_str)
+            self.lbl_status.setText(
+                f"Done. Spatial ({comp})  Lx = {lx_str} mm  Ly = {ly_str} mm")
+
+        elif mode == 'spatial_roi':
+            dx_arr = result['dx_arr']
+            R_x    = result['R_x']
+            dy_arr = result['dy_arr']
+            R_y    = result['R_y']
+
+            method = self.combo_scale_method.currentData()
+            dx_sp = dx_arr[1] - dx_arr[0] if len(dx_arr) > 1 else 1.0
+            dy_sp = dy_arr[1] - dy_arr[0] if len(dy_arr) > 1 else 1.0
+            Lx, ex = compute_length_scale(R_x, dx_sp, method)
+            Ly, ey = compute_length_scale(R_y, dy_sp, method)
+            self._last_extras_x = ex
+            self._last_extras_y = ey
+            self._last_R_norm    = None
+            self._last_R_x       = R_x
+            self._last_R_y       = R_y
+            self._last_dx        = dx_arr
+            self._last_dy        = dy_arr
+
+            self.sp2d_wrap.setVisible(False)
+            self._plot_spatial_1d(
+                dx_arr, R_x, xlabel="\u0394x [mm]", ref_val=0,
+                extras=ex, L=Lx, direction='x', color="tab:blue")
+            self._plot_spatial_1d(
+                dy_arr, R_y, xlabel="\u0394y [mm]", ref_val=0,
+                extras=ey, L=Ly, direction='y', color="tab:red")
+            self.btn_export_s2d.setEnabled(False)
+            self.btn_export_s1d.setEnabled(True)
+            self.btn_show_diagnostic.setEnabled(True)
+
+            lx_str = f"{Lx:.2f}" if not np.isnan(Lx) else "--"
+            ly_str = f"{Ly:.2f}" if not np.isnan(Ly) else "--"
+            self.spatial_scales.set("Lx (mm)", lx_str)
+            self.spatial_scales.set("Ly (mm)", ly_str)
+            self.lbl_status.setText(
+                f"Done. Spatial ({comp})  Lx = {lx_str} mm  Ly = {ly_str} mm")
+
+        else:  # temporal
+            R_tau = result['R_tau']
+            lags  = result['lags']
+            tau_sec = lags * self.dt
+            T, lambda_t, t_extras = compute_time_scales(R_tau, lags, self.dt)
+
+            self._last_R_tau   = R_tau
+            self._last_tau_sec = tau_sec
+
+            T_str  = f"{T*1e3:.3f}"        if not np.isnan(T)        else "--"
+            lt_str = f"{lambda_t*1e3:.3f}" if not np.isnan(lambda_t) else "--"
+            self.temporal_scales.set("T (ms)",          T_str)
+            self.temporal_scales.set("\u03bb_t (ms)",  lt_str)
+
+            self._plot_temporal(R_tau, tau_sec, T, lambda_t, t_extras)
+            self.btn_export_tau.setEnabled(True)
+            self.lbl_status.setText(
+                f"Done. Temporal ({comp})  T = {T_str} ms   \u03bb_t = {lt_str} ms")
+
+    def _on_corr_error(self, tb_str):
+        QMessageBox.critical(self, "Correlation Error", tb_str)
+        self.lbl_status.setText("Error — see dialog.")
+
     # -----------------------------------------------------------------------
     # Temporal
     # -----------------------------------------------------------------------
@@ -882,56 +969,56 @@ class CorrelationWindow(PickerMixin, QWidget):
     def _run_temporal(self):
         if not self.is_time_resolved:
             return
+        if self._pick_mode == "point" and self._ref_row is None:
+            return
+
+        from core.workers import CorrelationWorker
+
+        if hasattr(self, '_worker') and self._worker.isRunning():
+            self._worker.terminate()
+            self._worker.wait()
+
         comp         = self._component_key()
         max_lag_frac = self.spin_max_lag.value() / 100.0
+
+        if self._pick_mode == "roi" and self._roi_coords is not None:
+            roi_coords = self._roi_coords
+            ref_row    = ref_col = 0
+            use_k      = False
+        else:
+            roi_coords = None
+            ref_row    = self._ref_row if self._ref_row is not None else 0
+            ref_col    = self._ref_col if self._ref_col is not None else 0
+            use_k      = self.chk_kernel.isChecked()
 
         self.lbl_status.setText("Busy: computing temporal autocorrelation...")
         self.btn_temporal.setEnabled(False)
         self.temporal_scales.reset()
-        QApplication.processEvents()
+        self.progress_bar_t.setRange(0, 0)
+        self.progress_bar_t.setVisible(True)
 
-        try:
-            if self._pick_mode == "roi" and self._roi_coords is not None:
-                roi_kw = dict(roi_coords=self._roi_coords,
-                              x=self._x, y=self._y)
-                ref_row = ref_col = 0
-                use_k = False
-            else:
-                roi_kw  = {}
-                ref_row = self._ref_row
-                ref_col = self._ref_col
-                use_k   = self.chk_kernel.isChecked()
+        self._worker = CorrelationWorker(
+            self.U, self.V, self.W,
+            self._x, self._y,
+            mode='temporal',
+            ref_row=ref_row,
+            ref_col=ref_col,
+            component=comp,
+            use_kernel=use_k,
+            max_lag_frac=max_lag_frac,
+            dt=self.dt,
+            roi_coords=roi_coords,
+        )
+        self._worker.finished.connect(self._on_corr_result)
+        self._worker.error.connect(self._on_corr_error)
+        self._worker.finished.connect(lambda _: self._reset_temporal_ui())
+        self._worker.error.connect(lambda _: self._reset_temporal_ui())
+        self._worker.start()
 
-            R_tau, lags = compute_temporal_correlation(
-                self.U, self.V, self.W,
-                ref_row, ref_col,
-                component=comp,
-                use_kernel=use_k,
-                max_lag_fraction=max_lag_frac,
-                **roi_kw)
-
-            tau_sec = lags * self.dt
-            T, lambda_t, t_extras = compute_time_scales(R_tau, lags, self.dt)
-
-            self._last_R_tau   = R_tau
-            self._last_tau_sec = tau_sec
-
-            T_str  = f"{T*1e3:.3f}"      if not np.isnan(T)        else "--"
-            lt_str = f"{lambda_t*1e3:.3f}" if not np.isnan(lambda_t) else "--"
-            self.temporal_scales.set("T (ms)",     T_str)
-            self.temporal_scales.set("\u03bb_t (ms)", lt_str)
-
-            self._plot_temporal(R_tau, tau_sec, T, lambda_t, t_extras)
-            self.btn_export_tau.setEnabled(True)
-            self.lbl_status.setText(
-                f"Done. Temporal ({self.combo_comp.currentText()})  "
-                f"T = {T_str} ms   \u03bb_t = {lt_str} ms")
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-            self.lbl_status.setText(f"Error: {e}")
-        finally:
-            self.btn_temporal.setEnabled(True)
+    def _reset_temporal_ui(self):
+        self.btn_temporal.setEnabled(True)
+        self.progress_bar_t.setRange(0, 100)
+        self.progress_bar_t.setVisible(False)
 
     def _plot_temporal(self, R_tau, tau_sec, T, lambda_t, extras):
         """Plot temporal autocorrelation with fit and cumulative inset."""
@@ -958,9 +1045,29 @@ class CorrelationWindow(PickerMixin, QWidget):
 
         # Mark T
         T_ms = T * 1e3 if not np.isnan(T) else np.nan
-        if not np.isnan(T_ms):
+        T_str_ms = f"{T_ms:.2f} ms" if not np.isnan(T_ms) else "--"
+        if method == "one_over_e":
+            marker_x = extras.get("marker_x", np.nan)
+            if marker_x is not None and not np.isnan(marker_x):
+                marker_ms = marker_x * 1e3
+                ax1.axvline(marker_ms, color="red", linewidth=1.2,
+                            linestyle="--", alpha=0.9,
+                            label=f"T = {marker_ms:.2f} ms")
+        elif method in ("zero_crossing", "domain"):
+            # Line at the crossing lag; T (the integral) shown in label
+            cross_lag = extras.get("crossing_lag")
+            if cross_lag is None:
+                ci = extras.get("cutoff_idx")
+                if ci is not None and len(extras.get("r_axis", [])) > 1:
+                    cross_lag = ci * (extras["r_axis"][1] - extras["r_axis"][0])
+            if cross_lag is not None and not np.isnan(T_ms):
+                cross_ms = cross_lag * 1e3
+                suffix = " (domain)" if method == "domain" else ""
+                ax1.axvline(cross_ms, color="tab:orange", linewidth=1.2,
+                            linestyle="-", label=f"T = {T_str_ms}{suffix}")
+        elif not np.isnan(T_ms):
             ax1.axvline(T_ms, color="tab:orange", linewidth=1.2,
-                        linestyle="-", label=f"T = {T_ms:.2f} ms")
+                        linestyle="-", label=f"T = {T_str_ms}")
 
         # Mark lambda_t
         if not np.isnan(lambda_t):

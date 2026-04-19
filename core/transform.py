@@ -240,10 +240,13 @@ def apply_mirror_x(dataset):
     dataset["U"] *= np.float32(-1)
 
     # Restore ascending column order after negation
-    for key in ("x", "y", "U", "V", "valid"):
+    for key in ("x", "y", "U", "V"):
         dataset[key] = np.ascontiguousarray(np.flip(dataset[key], axis=1))
     if dataset.get("W") is not None:
         dataset["W"] = np.ascontiguousarray(np.flip(dataset["W"], axis=1))
+    dataset["MASK"]        = np.ascontiguousarray(np.flip(dataset["MASK"],        axis=1))
+    dataset["MASK_LOADED"] = np.ascontiguousarray(np.flip(dataset["MASK_LOADED"], axis=1))
+    dataset["valid"]       = dataset["MASK"]   # keep 2D alias in sync
 
     dataset.setdefault("transform_log", [])
     dataset["transform_log"].append({"type": "mirror_x"})
@@ -262,10 +265,13 @@ def apply_mirror_y(dataset):
     dataset["V"] *= np.float32(-1)
 
     # Restore ascending row order after negation
-    for key in ("x", "y", "U", "V", "valid"):
+    for key in ("x", "y", "U", "V"):
         dataset[key] = np.ascontiguousarray(np.flip(dataset[key], axis=0))
     if dataset.get("W") is not None:
         dataset["W"] = np.ascontiguousarray(np.flip(dataset["W"], axis=0))
+    dataset["MASK"]        = np.ascontiguousarray(np.flip(dataset["MASK"],        axis=0))
+    dataset["MASK_LOADED"] = np.ascontiguousarray(np.flip(dataset["MASK_LOADED"], axis=0))
+    dataset["valid"]       = dataset["MASK"]   # keep 2D alias in sync
 
     dataset.setdefault("transform_log", [])
     dataset["transform_log"].append({"type": "mirror_y"})

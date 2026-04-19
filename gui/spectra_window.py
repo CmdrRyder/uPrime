@@ -17,8 +17,8 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
     QPushButton, QRadioButton, QCheckBox, QSizePolicy,
     QMessageBox, QSplitter, QSpinBox, QButtonGroup,
-    QFileDialog, QApplication, QTabWidget, QDoubleSpinBox,
-    QComboBox
+    QFileDialog, QTabWidget, QDoubleSpinBox,
+    QComboBox, QProgressBar
 )
 from PyQt6.QtCore import Qt
 import matplotlib
@@ -138,6 +138,12 @@ class SpectraWindow(PickerMixin, QWidget):
         self.btn_compute.setEnabled(False)
         self.btn_compute.clicked.connect(self._on_compute)
         ll.addWidget(self.btn_compute, stretch=0)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setVisible(False)
+        ll.addWidget(self.progress_bar, stretch=0)
 
         self.btn_export = QPushButton("Export Data...")
         self.btn_export.setEnabled(False)
@@ -394,8 +400,10 @@ class SpectraWindow(PickerMixin, QWidget):
 
     def _draw_field(self):
         ds = self.dataset; x, y = ds["x"], ds["y"]
-        speed = np.sqrt(np.nanmean(ds["U"],axis=2)**2 + np.nanmean(ds["V"],axis=2)**2)
-        vf = np.mean(ds["valid"],axis=2); speed[vf<0.5] = np.nan
+        from core.dataset_utils import get_masked
+        speed = np.sqrt(np.nanmean(get_masked(ds,"U"),axis=2)**2 +
+                        np.nanmean(get_masked(ds,"V"),axis=2)**2)
+        speed[~ds["MASK"]] = np.nan
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
         self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
@@ -582,146 +590,133 @@ class SpectraWindow(PickerMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _on_compute(self):
-        if self._selection is None and self._current_tab() != 1:  # Only 3D tab requires selection
+        tab = self._current_tab()
+        if self._selection is None and tab != 1:
             return
-        self.result_fig.clear(); self.result_canvas.draw()
-        self.lbl_status.setText("⏳ Busy: computing...")
-        self.btn_compute.setEnabled(False)
-        QApplication.processEvents()
+
+        from core.dataset_utils import get_masked
+        from core.workers import SpectraWorker
+
+        if hasattr(self, '_worker') and self._worker.isRunning():
+            self._worker.terminate()
+            self._worker.wait()
+
         try:
-            tab = self._current_tab()
-            if tab == 0:   self._compute_spatial()
-            elif tab == 1: self._compute_3d_spatial()
-            elif tab == 2: self._compute_temporal()
-            else:          self._compute_st()
-            self.btn_export.setEnabled(True)
-            self.lbl_status.setText("✓ Done. Draw new selection to recompute.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e) + "\nTraceback:\n" + traceback.format_exc())
-            self.lbl_status.setText(f"Error: {e}")
-        finally:
-            self.btn_compute.setEnabled(True)
+            kwargs = self._build_compute_kwargs(tab, get_masked)
+        except ValueError as e:
+            QMessageBox.critical(self, "Error", str(e))
+            return
 
-    # ---- Spatial ----
-    def _compute_spatial(self):
-        ds=self.dataset; sel=self._selection
-        nperseg=self.spin_nperseg.value(); noverlap=self.spin_overlap.value()
-        subtract=self.chk_subtract.isChecked(); avg_band=self.spin_avg.value()
-        if noverlap>=nperseg: raise ValueError("Overlap must be less than segment length.")
-        direction="x" if sel["type"]=="horizontal" else "y"
-        k,psds=spatial_psd_line(
-            ds["U"],ds["V"],ds["W"],self._x,self._y,
-            sel["x0"],sel["y0"],sel["x1"],sel["y1"],
-            direction,avg_band,nperseg,noverlap,subtract)
-        self._last_result={"tab":"spatial","type":"line","direction":direction,"k":k,"psds":psds}
-        self._plot_spatial_line(k,psds,direction)
+        self.result_fig.clear()
+        self.result_canvas.draw()
+        self.lbl_status.setText("Busy: computing...")
+        self.btn_compute.setEnabled(False)
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setVisible(True)
 
-    # ---- 3D Spatial ----
-    def _compute_3d_spatial(self):
-        if not PYFFTW_AVAILABLE:
-            raise ValueError("pyFFTW is not installed. Run: pip install pyfftw")
-        ds=self.dataset
-        sel=self._selection
-        Lz=1.0  # fixed; kz is not plotted or exported for 2D PIV
+        self._worker = SpectraWorker(**kwargs)
+        self._worker.finished.connect(self._on_spectra_result)
+        self._worker.error.connect(self._on_spectra_error)
+        self._worker.finished.connect(lambda _: self._reset_compute_ui())
+        self._worker.error.connect(lambda _: self._reset_compute_ui())
+        self._worker.start()
 
-        if sel is None or sel["type"] != "rect":
-            raise ValueError("Please draw a rectangle ROI for 3D spectral analysis.")
-        
-        # Get ROI coordinates and compute domain sizes
-        x0, x1 = min(sel["x0"], sel["x1"]), max(sel["x0"], sel["x1"])
-        y0, y1 = min(sel["y0"], sel["y1"]), max(sel["y0"], sel["y1"])
-        
-        # Get the actual grid points within the ROI
-        cols = np.where((self._x[0, :] >= x0) & (self._x[0, :] <= x1))[0]
-        rows = np.where((self._y[:, 0] >= y0) & (self._y[:, 0] <= y1))[0]
-        
-        if len(cols) == 0 or len(rows) == 0:
-            raise ValueError("ROI is too small or outside the field.")
-        
-        # Compute domain sizes from ROI
-        Lx = abs(x1 - x0) / 1000.0  # Convert mm to m
-        Ly = abs(y1 - y0) / 1000.0  # Convert mm to m
-        
-        # Extract velocity data within ROI
-        U_roi = ds["U"][rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :].copy()
-        V_roi = ds["V"][rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :].copy()
+    def _reset_compute_ui(self):
+        self.btn_compute.setEnabled(True)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setVisible(False)
 
-        # Handle W component if available
-        if ds["W"] is not None:
-            W_roi = ds["W"][rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :].copy()
+    def _build_compute_kwargs(self, tab, get_masked):
+        ds  = self.dataset
+        sel = self._selection
+        U   = get_masked(ds, "U")
+        V   = get_masked(ds, "V")
+        W   = get_masked(ds, "W")
+
+        if tab == 0:  # spatial line
+            nperseg  = self.spin_nperseg.value()
+            noverlap = self.spin_overlap.value()
+            if noverlap >= nperseg:
+                raise ValueError("Overlap must be less than segment length.")
+            direction = "x" if sel["type"] == "horizontal" else "y"
+            return dict(tab='spatial', U=U, V=V, W=W, x=self._x, y=self._y,
+                        x0=sel["x0"], y0=sel["y0"], x1=sel["x1"], y1=sel["y1"],
+                        direction=direction, avg_band=self.spin_avg.value(),
+                        nperseg=nperseg, noverlap=noverlap,
+                        subtract=self.chk_subtract.isChecked())
+
+        elif tab == 1:  # 3D spatial FFT
+            if not PYFFTW_AVAILABLE:
+                raise ValueError("pyFFTW is not installed. Run: pip install pyfftw")
+            if sel is None or sel["type"] != "rect":
+                raise ValueError("Please draw a rectangle ROI for 3D spectral analysis.")
+            x0, x1 = min(sel["x0"], sel["x1"]), max(sel["x0"], sel["x1"])
+            y0, y1 = min(sel["y0"], sel["y1"]), max(sel["y0"], sel["y1"])
+            cols = np.where((self._x[0, :] >= x0) & (self._x[0, :] <= x1))[0]
+            rows = np.where((self._y[:, 0] >= y0) & (self._y[:, 0] <= y1))[0]
+            if len(cols) == 0 or len(rows) == 0:
+                raise ValueError("ROI is too small or outside the field.")
+            Lx = abs(x1 - x0) / 1000.0
+            Ly = abs(y1 - y0) / 1000.0
+            U_roi = U[rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :].copy()
+            V_roi = V[rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :].copy()
+            W_roi = W[rows[0]:rows[-1]+1, cols[0]:cols[-1]+1, :].copy() if W is not None else None
+            return dict(tab='3d_spatial',
+                        U_roi=U_roi, V_roi=V_roi, W_roi=W_roi,
+                        Lx=Lx, Ly=Ly,
+                        roi={"x0": x0, "x1": x1, "y0": y0, "y1": y1})
+
+        elif tab == 2:  # temporal
+            nperseg  = self.spin_temp_nperseg.value()
+            noverlap = self.spin_temp_overlap.value()
+            if noverlap >= nperseg:
+                raise ValueError("Overlap must be less than segment length.")
+            fs = self.spin_temp_fs.value()
+            if sel["type"] == "temp_point":
+                return dict(tab='temporal', U=U, V=V, W=W,
+                            sel_type='temp_point',
+                            row=sel["row"], col=sel["col"],
+                            fs=fs, nperseg=nperseg, noverlap=noverlap,
+                            title=f"Point ({sel['xd']:.1f}, {sel['yd']:.1f}) mm",
+                            x=self._x, y=self._y,
+                            x0=None, x1=None, y0=None, y1=None)
+            else:
+                return dict(tab='temporal', U=U, V=V, W=W,
+                            sel_type='temp_rect',
+                            row=0, col=0,
+                            x=self._x, y=self._y,
+                            x0=sel["x0"], x1=sel["x1"],
+                            y0=sel["y0"], y1=sel["y1"],
+                            fs=fs, nperseg=nperseg, noverlap=noverlap,
+                            title="")
+
+        else:  # st
+            direction = "x" if self._mode == "st_horiz" else "y"
+            return dict(tab='st', U=U, V=V, W=W,
+                        x=self._x, y=self._y,
+                        x0=sel["x0"], y0=sel["y0"], x1=sel["x1"], y1=sel["y1"],
+                        direction=direction, avg=self.spin_st_avg.value(),
+                        fs=self.spin_st_fs.value())
+
+    def _on_spectra_result(self, result):
+        self._last_result = result   # set BEFORE any plot call
+        tab = result["tab"]
+        self.btn_export.setEnabled(True)
+        self.lbl_status.setText("Done. Draw new selection to recompute.")
+
+        if tab == "spatial":
+            self._plot_spatial_line(result["k"], result["psds"], result["direction"])
+        elif tab == "3d_spatial":
+            self._plot_spatial_fft(result["result"], mask_pct=result.get("mask_pct", 0.0))
+        elif tab == "temporal":
+            title = result.get("title", "")
+            self._plot_temporal(result["freq"], result["psds"], title)
         else:
-            W_roi = np.zeros_like(U_roi)
+            self._plot_st(result["k"], result["f"], result["psds"], result["direction"])
 
-        # Diagnostic: count NaN / masked points
-        ny_roi, nx_roi, nt = U_roi.shape
-        nan_mask = np.isnan(U_roi) | np.isnan(V_roi)
-        if ds["W"] is not None:
-            nan_mask |= np.isnan(W_roi)
-        total_pts = ny_roi * nx_roi * nt
-        n_nan    = int(np.sum(nan_mask))
-        n_valid  = total_pts - n_nan
-        mask_pct = 100.0 * n_nan / total_pts
-        print(f"[FFT Spectra] ROI: x=[{x0:.1f}, {x1:.1f}] mm  y=[{y0:.1f}, {y1:.1f}] mm")
-        print(f"[FFT Spectra] Grid: {ny_roi}×{nx_roi} × {nt} snapshots = {total_pts} pts")
-        print(f"[FFT Spectra] Valid: {n_valid}/{total_pts}  ({100-mask_pct:.1f}% valid, {mask_pct:.1f}% masked)")
-
-        if n_valid < total_pts * 0.5:
-            raise ValueError(
-                f"{mask_pct:.1f}% of ROI points are masked/NaN — too few valid vectors. "
-                "Select a region with more valid data."
-            )
-
-        # Fill NaNs with zero so FFT can proceed; warn in the plot
-        if n_nan > 0:
-            U_roi[nan_mask] = 0.0
-            V_roi[nan_mask] = 0.0
-            W_roi[nan_mask] = 0.0
-        U_4d = U_roi.reshape(1, ny_roi, nx_roi, nt)
-        V_4d = V_roi.reshape(1, ny_roi, nx_roi, nt)
-        W_4d = W_roi.reshape(1, ny_roi, nx_roi, nt)
-        
-        # Subtract temporal mean to get fluctuations
-        U_fluct, V_fluct, W_fluct = subtract_temporal_mean(U_4d, V_4d, W_4d)
-        
-        # Compute spectra using FFT
-        result = compute_spectra_from_fluctuations(U_fluct, V_fluct, W_fluct, Lx, Ly, Lz)
-        
-        self._last_result={"tab":"3d_spatial","result":result,
-                           "roi": {"x0":x0,"x1":x1,"y0":y0,"y1":y1},
-                           "mask_pct": mask_pct}
-        self._plot_spatial_fft(result, mask_pct=mask_pct)
-
-    # ---- Temporal ----
-    def _compute_temporal(self):
-        ds=self.dataset; sel=self._selection
-        fs=self.spin_temp_fs.value()
-        nperseg=self.spin_temp_nperseg.value(); noverlap=self.spin_temp_overlap.value()
-        if noverlap>=nperseg: raise ValueError("Overlap must be less than segment length.")
-        W=ds["W"]
-        if sel["type"]=="temp_point":
-            freq,psds=psd_at_point(ds["U"],ds["V"],W,
-                                   sel["row"],sel["col"],fs,nperseg,noverlap)
-            self._last_result={"tab":"temporal","type":"point","freq":freq,"psds":psds}
-            self._plot_temporal(freq,psds,f"Point ({sel['xd']:.1f}, {sel['yd']:.1f}) mm")
-        else:  # rect
-            freq,psds,npts=psd_in_region(ds["U"],ds["V"],W,
-                                          self._x,self._y,
-                                          sel["x0"],sel["x1"],sel["y0"],sel["y1"],
-                                          fs,nperseg,noverlap)
-            self._last_result={"tab":"temporal","type":"rect","freq":freq,"psds":psds}
-            self._plot_temporal(freq,psds,f"Rectangle avg ({npts} pts)")
-
-    # ---- Spatiotemporal ----
-    def _compute_st(self):
-        ds=self.dataset; sel=self._selection
-        fs=self.spin_st_fs.value(); avg=self.spin_st_avg.value()
-        direction="x" if self._mode=="st_horiz" else "y"
-        k,f,psds=compute_st_spectra(
-            ds["U"],ds["V"],ds["W"],self._x,self._y,
-            sel["x0"],sel["y0"],sel["x1"],sel["y1"],
-            direction,avg,fs)
-        self._last_result={"tab":"st","direction":direction,"k":k,"f":f,"psds":psds}
-        self._plot_st(k,f,psds,direction)
+    def _on_spectra_error(self, tb_str):
+        QMessageBox.critical(self, "Spectra Error", tb_str)
+        self.lbl_status.setText("Error — see dialog.")
 
     # ----------------------------------------------------------------------- #
     # Plot helpers

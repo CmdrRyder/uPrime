@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QGroupBox, QPushButton, QRadioButton, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QComboBox,
-    QDoubleSpinBox, QButtonGroup, QFileDialog, QApplication
+    QDoubleSpinBox, QButtonGroup, QFileDialog, QProgressBar
 )
 from PyQt6.QtCore import Qt
 
@@ -29,8 +29,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle as MplRect
 
 from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from core.reynolds_stress import (compute_reynolds_stresses, extract_line_profile,
-                                   compute_reynolds_stress_std)
+from core.reynolds_stress import extract_line_profile
 from core.export import export_2d_tecplot, export_line_csv
 from gui.line_selector import LineSelectorWidget, compute_snapped_line
 
@@ -70,11 +69,12 @@ class ReynoldsWindow(PickerMixin, QWidget):
 
         self._show_convergence_warning(is_time_resolved, Nt_warn, duration_warn)
 
-        self._stresses, self._k = compute_reynolds_stresses(
-            dataset["U"], dataset["V"], dataset["W"])
-        self._std = compute_reynolds_stress_std(
-            dataset["U"], dataset["V"], dataset["W"])
-        self._available = [k for k, v in self._stresses.items() if v is not None]
+        self._stresses  = None
+        self._k         = None
+        self._std       = None
+        self._available = (["uu", "vv", "ww", "uv", "uw", "vw"]
+                           if dataset.get("is_stereo", False)
+                           else ["uu", "vv", "uv"])
 
         self._build_ui()
         self._draw_field()
@@ -84,6 +84,8 @@ class ReynoldsWindow(PickerMixin, QWidget):
                            result_canvas=self.result_canvas,
                            result_ax=None,
                            status_label=self.lbl_status)
+
+        self._start_stress_computation()
 
     # ----------------------------------------------------------------------- #
 
@@ -98,6 +100,36 @@ class ReynoldsWindow(PickerMixin, QWidget):
                 QMessageBox.warning(self, "Convergence Warning",
                     f"Only {Nt} snapshots (< 2000 recommended).\n"
                     "Reynolds stress statistics may not be converged.")
+
+    # ----------------------------------------------------------------------- #
+    # Background stress computation
+    # ----------------------------------------------------------------------- #
+
+    def _start_stress_computation(self):
+        from core.workers import ReynoldsWorker
+        from core.dataset_utils import get_masked
+        U = get_masked(self.dataset, "U")
+        V = get_masked(self.dataset, "V")
+        W = get_masked(self.dataset, "W")
+        self._worker = ReynoldsWorker(U, V, W)
+        self._worker.finished.connect(self._on_stress_result)
+        self._worker.error.connect(self._on_stress_error)
+        self._worker.start()
+
+    def _on_stress_result(self, result):
+        self._stresses = result['stresses']
+        self._k        = result['k']
+        self._std      = result['std']
+        self.btn_plot.setEnabled(True)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setVisible(False)
+        self.lbl_status.setText("Ready.")
+
+    def _on_stress_error(self, tb_str):
+        QMessageBox.critical(self, "Reynolds Stress Error", tb_str)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setVisible(False)
+        self.lbl_status.setText("Error computing stresses — see dialog.")
 
     # ----------------------------------------------------------------------- #
     # PickerMixin override: suppress red-cross when we are drawing
@@ -199,7 +231,15 @@ class ReynoldsWindow(PickerMixin, QWidget):
 
         self.btn_plot = QPushButton("Plot Contour")
         self.btn_plot.clicked.connect(self._on_plot)
+        self.btn_plot.setEnabled(False)
         ll.addWidget(self.btn_plot)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setVisible(True)
+        ll.addWidget(self.progress_bar)
 
         self.chk_std_band = QCheckBox("Show \u00b11\u03c3 band on line plot")
         self.chk_std_band.setChecked(True)
@@ -246,12 +286,12 @@ class ReynoldsWindow(PickerMixin, QWidget):
     def _draw_field(self):
         ds = self.dataset
         x, y = ds["x"], ds["y"]
-        speed = np.sqrt(np.nanmean(ds["U"], axis=2)**2 +
-                        np.nanmean(ds["V"], axis=2)**2)
-        if ds["W"] is not None:
-            speed = np.sqrt(speed**2 + np.nanmean(ds["W"], axis=2)**2)
-        vf = np.mean(ds["valid"], axis=2)
-        speed[vf < 0.5] = np.nan
+        from core.dataset_utils import get_masked
+        _U = get_masked(ds, "U"); _V = get_masked(ds, "V"); _W = get_masked(ds, "W")
+        speed = np.sqrt(np.nanmean(_U, axis=2)**2 + np.nanmean(_V, axis=2)**2)
+        if _W is not None:
+            speed = np.sqrt(speed**2 + np.nanmean(_W, axis=2)**2)
+        speed[~ds["MASK"]] = np.nan
 
         # Fix canvas height to match data aspect ratio so set_aspect("equal")
         # fills the widget without white margins (same pattern as tke_budget_window).
@@ -440,6 +480,8 @@ class ReynoldsWindow(PickerMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _on_plot(self):
+        if self._stresses is None:
+            return
         if self._mode == "contour":
             self._plot_contour()
         else:
@@ -454,8 +496,7 @@ class ReynoldsWindow(PickerMixin, QWidget):
         field = self._stresses[comp].copy()
         scale, unit_str = self._scale_factor()
         field *= scale
-        vf = np.mean(self.dataset["valid"], axis=2)
-        field[vf < 0.5] = np.nan
+        field[~self.dataset["MASK"]] = np.nan
         cmap  = self.combo_cmap.currentText()
 
         self.result_fig.clear()
@@ -593,11 +634,10 @@ class ReynoldsWindow(PickerMixin, QWidget):
                 "Tecplot DAT (*.dat);;CSV Files (*.csv)")
             if not path:
                 return
-            vf = np.mean(self.dataset["valid"], axis=2)
             fields, labels = [], []
             for comp in self._available:
                 f = self._stresses[comp].copy() * scale
-                f[vf < 0.5] = np.nan
+                f[~self.dataset["MASK"]] = np.nan
                 fields.append(f)
                 labels.append(f"{COMP_LABELS.get(comp, comp)} {unit_str}")
             settings = {

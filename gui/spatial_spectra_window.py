@@ -269,10 +269,10 @@ class SpatialSpectraWindow(PickerMixin, QWidget):
     def _draw_field(self):
         ds   = self.dataset
         x, y = ds["x"], ds["y"]
-        speed = np.sqrt(np.nanmean(ds["U"], axis=2)**2 +
-                        np.nanmean(ds["V"], axis=2)**2)
-        vf = np.mean(ds["valid"], axis=2)
-        speed[vf < 0.5] = np.nan
+        from core.dataset_utils import get_masked
+        speed = np.sqrt(np.nanmean(get_masked(ds, "U"), axis=2)**2 +
+                        np.nanmean(get_masked(ds, "V"), axis=2)**2)
+        speed[~ds["MASK"]] = np.nan
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
         self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
@@ -443,9 +443,11 @@ class SpatialSpectraWindow(PickerMixin, QWidget):
         if noverlap >= nperseg:
             raise ValueError("Overlap must be less than segment length.")
 
+        from core.dataset_utils import get_masked
+        _U = get_masked(ds, "U"); _V = get_masked(ds, "V"); _W = get_masked(ds, "W")
         if sel["type"] == "roi":
             results, n_lines = spatial_psd_roi(
-                ds["U"],ds["V"],ds["W"],self._x,self._y,
+                _U, _V, _W, self._x, self._y,
                 sel["x0"],sel["x1"],sel["y0"],sel["y1"],
                 nperseg,noverlap,subtract)
             self._last_result = {"tab":"spatial","type":"roi",
@@ -454,7 +456,7 @@ class SpatialSpectraWindow(PickerMixin, QWidget):
         else:
             direction = "x" if sel["type"]=="horizontal" else "y"
             k, psds = spatial_psd_line(
-                ds["U"],ds["V"],ds["W"],self._x,self._y,
+                _U, _V, _W, self._x, self._y,
                 sel["x0"],sel["y0"],sel["x1"],sel["y1"],
                 direction,avg_band,nperseg,noverlap,subtract)
             self._last_result = {"tab":"spatial","type":"line",
@@ -468,8 +470,10 @@ class SpatialSpectraWindow(PickerMixin, QWidget):
         avg  = self.spin_st_avg.value()
         direction = "x" if self._mode == "st_horizontal" else "y"
 
+        from core.dataset_utils import get_masked
         k, f, psds = compute_st_spectra(
-            ds["U"],ds["V"],ds["W"],self._x,self._y,
+            get_masked(ds, "U"), get_masked(ds, "V"), get_masked(ds, "W"),
+            self._x, self._y,
             sel["x0"],sel["y0"],sel["x1"],sel["y1"],
             direction,avg,fs)
         self._last_result = {"tab":"st","direction":direction,

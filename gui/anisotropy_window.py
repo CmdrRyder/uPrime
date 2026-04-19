@@ -80,7 +80,9 @@ class AnisotropyWindow(PickerMixin, QWidget):
 
     def _precompute(self):
         ds = self.dataset
-        self._R, self._k = compute_reynolds_tensor(ds["U"], ds["V"], ds["W"])
+        from core.dataset_utils import get_masked
+        self._R, self._k = compute_reynolds_tensor(
+            get_masked(ds, "U"), get_masked(ds, "V"), get_masked(ds, "W"))
         self._b           = compute_anisotropy_tensor(self._R, self._k)
         self._neg_II, self._III = compute_invariants_fast(self._b)
 
@@ -209,13 +211,13 @@ class AnisotropyWindow(PickerMixin, QWidget):
         x  = ds["x"]
         y  = ds["y"]
 
+        from core.dataset_utils import get_masked
         speed = np.sqrt(
-            np.nanmean(ds["U"], axis=2)**2 +
-            np.nanmean(ds["V"], axis=2)**2 +
-            np.nanmean(ds["W"], axis=2)**2
+            np.nanmean(get_masked(ds, "U"), axis=2)**2 +
+            np.nanmean(get_masked(ds, "V"), axis=2)**2 +
+            np.nanmean(get_masked(ds, "W"), axis=2)**2
         )
-        valid_frac = np.mean(ds["valid"], axis=2)
-        speed[valid_frac < 0.5] = np.nan
+        speed[~ds["MASK"]] = np.nan
 
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
@@ -550,13 +552,14 @@ class AnisotropyWindow(PickerMixin, QWidget):
         RGB[~mask_sub] = 1.0
 
         # Also show mean speed as background context
+        from core.dataset_utils import get_masked
+        _ds = self.dataset
         speed = np.sqrt(
-            np.nanmean(self.dataset["U"], axis=2)**2 +
-            np.nanmean(self.dataset["V"], axis=2)**2 +
-            np.nanmean(self.dataset["W"], axis=2)**2
+            np.nanmean(get_masked(_ds, "U"), axis=2)**2 +
+            np.nanmean(get_masked(_ds, "V"), axis=2)**2 +
+            np.nanmean(get_masked(_ds, "W"), axis=2)**2
         )
-        valid_frac = np.mean(self.dataset["valid"], axis=2)
-        speed[valid_frac < 0.5] = np.nan
+        speed[~_ds["MASK"]] = np.nan
 
         self.bary_fig.clear()
         ax = self.bary_fig.add_subplot(111)

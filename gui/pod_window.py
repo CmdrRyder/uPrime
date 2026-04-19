@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
     QPushButton, QComboBox, QSpinBox, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QTabWidget,
-    QApplication, QFileDialog, QFrame, QSlider,
+    QApplication, QFileDialog, QFrame, QSlider, QProgressBar,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -107,9 +107,10 @@ class PODWindow(QWidget):
 
         self._x        = dataset["x"]
         self._y        = dataset["y"]
-        self.U         = dataset["U"]
-        self.V         = dataset["V"]
-        self.W         = dataset["W"]
+        from core.dataset_utils import get_masked
+        self.U = get_masked(dataset, "U")
+        self.V = get_masked(dataset, "V")
+        self.W = get_masked(dataset, "W")
         self.is_stereo = dataset["is_stereo"]
 
         self._pod_result = None   # filled after compute
@@ -150,6 +151,12 @@ class PODWindow(QWidget):
         self.btn_compute = QPushButton("Compute POD")
         self.btn_compute.clicked.connect(self._run_pod)
         cmp_lay.addWidget(self.btn_compute)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setVisible(False)
+        cmp_lay.addWidget(self.progress_bar)
 
         self.lbl_status = QLabel("Ready.")
         self.lbl_status.setStyleSheet("color: gray; font-size: 11px;")
@@ -394,49 +401,61 @@ class PODWindow(QWidget):
     # -----------------------------------------------------------------------
 
     def _run_pod(self):
+        if hasattr(self, '_worker') and self._worker.isRunning():
+            self._worker.terminate()
+            self._worker.wait()
+
+        from core.workers import PODWorker
         n_modes = self.spin_n_modes.value()
+        W = self.W if self.is_stereo else None
+
         self.lbl_status.setText("Busy: computing POD…")
         self.btn_compute.setEnabled(False)
-        QApplication.processEvents()
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setVisible(True)
 
-        try:
-            W = self.W if self.is_stereo else None
-            self._pod_result = compute_pod(self.U, self.V, W, n_modes=n_modes)
+        worker = PODWorker(self.U, self.V, W, n_modes)
+        worker.finished.connect(self._on_pod_result)
+        worker.error.connect(self._on_pod_error)
+        worker.finished.connect(lambda _: self.btn_compute.setEnabled(True))
+        worker.finished.connect(lambda _: self.progress_bar.setVisible(False))
+        worker.error.connect(lambda _: self.btn_compute.setEnabled(True))
+        worker.error.connect(lambda _: self.progress_bar.setVisible(False))
+        self._worker = worker
+        worker.start()
 
-            n = self._pod_result["n_modes"]
+    def _on_pod_result(self, result):
+        self._pod_result = result
+        n = result["n_modes"]
 
-            # Update display controls
-            self.spin_mode_idx.setRange(1, n)
-            self.spin_mode_idx.setValue(1)
-            self.spin_mode_idx.setEnabled(True)
-            self.combo_component.setEnabled(True)
-            self.btn_prev.setEnabled(True)
-            self.btn_next.setEnabled(True)
-            self.spin_n_recon.setRange(1, n)
-            self.spin_n_recon.setValue(min(10, n))
-            self.spin_n_recon.setEnabled(True)
-            self.btn_reconstruct.setEnabled(True)
-            self.btn_export.setEnabled(True)
+        self.spin_mode_idx.setRange(1, n)
+        self.spin_mode_idx.setValue(1)
+        self.spin_mode_idx.setEnabled(True)
+        self.combo_component.setEnabled(True)
+        self.btn_prev.setEnabled(True)
+        self.btn_next.setEnabled(True)
+        self.spin_n_recon.setRange(1, n)
+        self.spin_n_recon.setValue(min(10, n))
+        self.spin_n_recon.setEnabled(True)
+        self.btn_reconstruct.setEnabled(True)
+        self.btn_export.setEnabled(True)
 
-            # Enable tabs
-            if self.is_time_resolved:
-                self.tabs.setTabEnabled(2, True)
-            self.tabs.setTabEnabled(3, True)
+        if self.is_time_resolved:
+            self.tabs.setTabEnabled(2, True)
+        self.tabs.setTabEnabled(3, True)
 
-            self._plot_energy()
-            self._plot_mode()
-            if self.is_time_resolved:
-                self._plot_temporal_coeffs()
+        self._plot_energy()
+        self._plot_mode()
+        if self.is_time_resolved:
+            self._plot_temporal_coeffs()
 
-            self.lbl_status.setText(
-                f"Done. {n} modes computed  "
-                f"({self._pod_result['cumul_energy'][min(9, n-1)]*100:.1f}% energy in first {min(10, n)})")
+        self.lbl_status.setText(
+            f"Done. {n} modes computed  "
+            f"({result['cumul_energy'][min(9, n-1)]*100:.1f}% energy in first {min(10, n)})")
 
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-            self.lbl_status.setText(f"Error: {e}")
-        finally:
-            self.btn_compute.setEnabled(True)
+    def _on_pod_error(self, tb_str):
+        QMessageBox.critical(self, "POD Error", tb_str)
+        self.lbl_status.setText("Error — see dialog.")
 
     # -----------------------------------------------------------------------
     # Plot: energy spectrum
