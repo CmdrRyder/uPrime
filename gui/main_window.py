@@ -56,7 +56,6 @@ from gui.spectra_window import SpectraWindow
 from gui.correlation_window import CorrelationWindow
 from gui.pod_window import PODWindow
 from gui.transform_window import TransformWindow
-from gui.mask_window import MaskWindow
 from gui.arrow_toolbar import PickerMixin, DrawAwareToolbar
 
 
@@ -1393,8 +1392,8 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def _run_masking(self):
         if not self._check_data(): return
-        win = MaskWindow(self.dataset, main_window=self)
-        self._open_window(win)
+        # win = MaskWindow(self.dataset, main_window=self)
+        # self._open_window(win)
 
     def _run_transform(self):
         if not self._check_data(): return
