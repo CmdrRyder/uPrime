@@ -14,10 +14,10 @@ from PyQt6.QtWidgets import (
     QMessageBox, QSpinBox, QDoubleSpinBox, QRadioButton,
     QButtonGroup, QScrollArea, QStatusBar, QFrame,
     QDialog, QDialogButtonBox, QCheckBox, QColorDialog,
-    QApplication
+    QApplication, QInputDialog
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QPixmap, QIcon, QShortcut, QKeySequence
+from PyQt6.QtGui import QFont, QPixmap, QIcon, QShortcut, QKeySequence, QAction
 
 
 def _asset_path(filename):
@@ -57,6 +57,17 @@ from gui.correlation_window import CorrelationWindow
 from gui.pod_window import PODWindow
 from gui.transform_window import TransformWindow
 from gui.arrow_toolbar import PickerMixin, DrawAwareToolbar
+from core.export_tecplot import write_tecplot_mean
+from gui.mean_convergence_tab import MeanConvergenceWindow
+
+
+def get_session_case_name():
+    """Return the active session case name, falling back to 'Data_1'."""
+    try:
+        name = QApplication.instance()._session_case_name
+        return name if name else "Data_1"
+    except AttributeError:
+        return "Data_1"
 
 
 # ----------------------------------------------------------------------- #
@@ -79,6 +90,44 @@ class LoaderThread(QThread):
             self.finished.emit(dataset)
         except Exception as e:
             self.error.emit(str(e))
+
+
+class MatLoaderThread(QThread):
+    """Background loader for MATLAB .mat datasets."""
+    progress = pyqtSignal(int)
+    status   = pyqtSignal(str)
+    finished = pyqtSignal(dict)
+    error    = pyqtSignal(str)
+
+    def __init__(self, filepath, mapping, snap_start=0, snap_end=None, snap_step=1,
+                 dtype=np.float32, mask_convention="valid"):
+        super().__init__()
+        self.file_list        = [filepath]   # used by _on_load_finished
+        self._filepath        = filepath
+        self._mapping         = mapping
+        self._snap_start      = snap_start
+        self._snap_end        = snap_end
+        self._snap_step       = snap_step
+        self._dtype           = dtype
+        self._mask_convention = mask_convention
+
+    def run(self):
+        try:
+            from core.mat_loader import load_mat_dataset
+            dataset, _ = load_mat_dataset(
+                self._filepath, self._mapping,
+                progress_callback=self.progress.emit,
+                status_callback=self.status.emit,
+                snap_start=self._snap_start,
+                snap_end=self._snap_end,
+                snap_step=self._snap_step,
+                dtype=self._dtype,
+                mask_convention=self._mask_convention,
+            )
+            self.finished.emit(dataset)
+        except Exception as e:
+            import traceback
+            self.error.emit(f"{e}\n\n{traceback.format_exc()}")
 
 
 # ----------------------------------------------------------------------- #
@@ -112,7 +161,7 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("uPrime v0.4.1")
+        self.setWindowTitle("uPrime v0.6.1")
         self.setWindowIcon(QIcon(_load_logo_pixmap(size=(256, 256))))
         self.setMinimumSize(1100, 650)
         self.resize(1400, 900)
@@ -131,6 +180,9 @@ class MainWindow(PickerMixin, QMainWindow):
         self._sl_color         = "#ffffff"  # streamline color
         self._full_dataset     = None # copy before subset is applied
         self._original_fs      = None # fs before any stride-based subset
+        self._session_case_name  = None
+        self._load_count         = 0
+        self._last_loaded_paths  = set()
         self._build_ui()
 
     # ----------------------------------------------------------------------- #
@@ -149,7 +201,7 @@ class MainWindow(PickerMixin, QMainWindow):
         # ================================================================
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setFixedWidth(240)
+        scroll.setFixedWidth(270)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         sidebar = QWidget()
@@ -169,7 +221,8 @@ class MainWindow(PickerMixin, QMainWindow):
         # -- 1. Load Data --
         load_grp = QGroupBox("1. Load Data")
         load_lay = QVBoxLayout(load_grp)
-        self.btn_load = QPushButton("📂  Select .dat Files...")
+        self.btn_load = QPushButton("📂 Select .dat / .mat Files...")
+        self.btn_load.setMinimumHeight(32)
         self.btn_load.clicked.connect(self._on_load_files)
         load_lay.addWidget(self.btn_load)
         self.btn_reload = QPushButton("\u21ba  Reload Last Dataset")
@@ -198,6 +251,8 @@ class MainWindow(PickerMixin, QMainWindow):
         load_lay.addWidget(self.btn_restore_full)
         self.lbl_files = QLabel("No files loaded")
         self.lbl_files.setWordWrap(True)
+        self.lbl_files.setMinimumWidth(0)
+        self.lbl_files.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
         self.lbl_files.setStyleSheet("color:#888;font-size:10px;")
         load_lay.addWidget(self.lbl_files)
         self.progress_bar = QProgressBar()
@@ -229,6 +284,7 @@ class MainWindow(PickerMixin, QMainWindow):
         an_lay = QVBoxLayout(self.analysis_group)
 
         analyses = [
+            ("📈  Mean && Convergence",    self._run_mean_convergence),
             ("📊  Reynolds Stresses",      self._run_reynolds),
             ("⚡  TKE Budget",             self._run_tke_budget),
             ("〜  Space-Time Spectra",     self._run_spectra),
@@ -484,6 +540,18 @@ class MainWindow(PickerMixin, QMainWindow):
         right_lay.addWidget(self.plot_canvas)
         self._override_home_button()
 
+        self.plot_canvas.toolbar.addSeparator()
+        self._btn_set_case = QPushButton("Set Case Name")
+        self._btn_set_case.setToolTip("Set dataset name used in filenames and legends")
+        self._btn_set_case.clicked.connect(self._on_set_case_name)
+        self._act_set_case = self.plot_canvas.toolbar.addWidget(self._btn_set_case)
+        self._act_set_case.setVisible(False)
+        self._btn_export_dat = QPushButton("Export Mean")
+        self._btn_export_dat.setToolTip("Export mean fields as Tecplot .dat")
+        self._btn_export_dat.clicked.connect(self._on_export_mean)
+        self._act_export_dat = self.plot_canvas.toolbar.addWidget(self._btn_export_dat)
+        self._act_export_dat.setVisible(False)
+
         root.addWidget(right_widget)
 
         # ================================================================
@@ -681,12 +749,160 @@ class MainWindow(PickerMixin, QMainWindow):
 
         return indices, desc
 
+    def _on_load_mat(self, filepath):
+        """
+        Multi-step .mat load flow — all pre-commit state lives in local variables.
+        _mat_mapping / _mat_use_h5py are updated ONLY at the very bottom, after
+        every check passes, so a rejected load never corrupts the reload state
+        that _on_reload_files uses for the previous successful dataset.
+
+          1. Read metadata (no array data) — h5py handle closed before step 2.
+          2. Auto-detect u-candidate and check snapshot count.
+          3. Auto-detect all roles.
+          4. Show confirmation dialog (always; auto-detected names pre-filled).
+          5. Post-dialog snapshot count check on user's manual choice.
+          6. Commit state and start background loader.
+        """
+        from core.mat_loader import detect_variables, detect_u_candidate, auto_detect_mapping
+
+        # Step 1 — metadata only; detect_variables closes the h5py handle before
+        # returning, so no file-ID reuse can bleed into the snapshot check below.
+        try:
+            var_info, use_h5py = detect_variables(filepath)
+        except Exception as exc:
+            QMessageBox.critical(self, "Load Error",
+                                 f"Failed to read .mat file:\n{exc}")
+            return   # _mat_mapping / _mat_use_h5py unchanged
+
+        # Step 2 — snapshot count check
+        u_name, u_shape = detect_u_candidate(var_info)
+        if u_name is not None:
+            if not self._check_snapshot_count(u_shape, u_name):
+                return   # _mat_mapping / _mat_use_h5py unchanged
+
+        # Step 3 — full auto-detect
+        mapping, _ = auto_detect_mapping(var_info)
+
+        # Step 4 — confirmation dialog (includes snapshot subset controls)
+        from gui.mat_var_dialog import MatVarMappingDialog
+        dlg = MatVarMappingDialog(filepath, var_info, mapping,
+                                  u_shape=u_shape, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return   # _mat_mapping / _mat_use_h5py unchanged
+        mapping = dlg.get_mapping()
+        snap_start, snap_end, snap_step = dlg.get_subset()
+        mat_dtype = dlg.get_dtype()
+        mat_mask_convention = dlg.get_mask_convention()
+
+        # Step 5 — post-dialog snapshot check for manually chosen u variable
+        if u_name is None and mapping.get("u"):
+            user_u_shape = var_info.get(mapping["u"])
+            if user_u_shape is not None:
+                if not self._check_snapshot_count(user_u_shape, mapping["u"]):
+                    return   # _mat_mapping / _mat_use_h5py unchanged
+
+        # Step 6 — commit and start loader (all checks passed)
+        u_var    = mapping.get("u")
+        N_total  = (var_info[u_var][2] if u_var and u_var in var_info
+                    else (u_shape[2] if u_shape and len(u_shape) >= 3 else None))
+        n_loaded = len(range(snap_start, snap_end + 1, snap_step))
+        if N_total is not None and (snap_start != 0 or snap_end != N_total - 1
+                                    or snap_step != 1):
+            step_s = f" step {snap_step}" if snap_step != 1 else ""
+            self._subsample_desc = (f"Snapshots {snap_start}–{snap_end}{step_s}"
+                                    f" ({n_loaded:,} of {N_total:,})")
+        else:
+            self._subsample_desc = "All snapshots"
+        self._mat_mapping    = mapping
+        self._mat_use_h5py   = use_h5py
+        self._mat_snap_start      = snap_start
+        self._mat_snap_end        = snap_end
+        self._mat_snap_step       = snap_step
+        self._mat_dtype           = mat_dtype
+        self._mat_mask_convention = mat_mask_convention
+        self._full_file_list = [filepath]
+        self._last_file_list = [filepath]
+        self._start_mat_loader(filepath, mapping, use_h5py,
+                               snap_start, snap_end, snap_step,
+                               mat_dtype, mat_mask_convention)
+
+    def _check_snapshot_count(self, shape, var_name):
+        """
+        Return True if shape represents a valid multi-snapshot array.
+        Show an error dialog and return False if only one (or zero) snapshots found.
+        """
+        ndim   = len(shape)
+        n_snap = shape[2] if ndim >= 3 else 0
+        if ndim < 3 or n_snap <= 1:
+            QMessageBox.critical(
+                self, "Insufficient Snapshots",
+                "Only one snapshot detected in the selected file.\n\n"
+                "uPrime requires multiple snapshots to compute turbulence statistics. "
+                "Most modules (Reynolds stress, TKE budget, spectral analysis, "
+                "convergence, etc.) will not function with a single snapshot.\n\n"
+                "Please select a dataset containing multiple snapshots."
+            )
+            return False
+        return True
+
+    def _start_mat_loader(self, filepath, mapping, use_h5py=False,
+                          snap_start=0, snap_end=None, snap_step=1,
+                          dtype=np.float32, mask_convention="valid"):
+        """Spawn a MatLoaderThread for the given .mat file, mapping, and snapshot subset."""
+        if self.dataset:
+            cleanup_memmap(self.dataset)
+        self.lbl_files.setText(f"1 file\n{os.path.basename(filepath)}")
+        self.btn_load.setEnabled(False)
+        self.btn_reload.setEnabled(False)
+        self.progress_bar.setVisible(True)
+
+        if use_h5py:
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(0)
+            self.lbl_status.setText("Loading .mat file…")
+        else:
+            self.progress_bar.setRange(0, 0)
+            size_gb = os.path.getsize(filepath) / 1024 ** 3
+            size_str = f"{size_gb:.2f} GB" if size_gb >= 0.1 else f"{size_gb * 1024:.0f} MB"
+            self.lbl_status.setText(
+                f"Reading {os.path.basename(filepath)} ({size_str}). "
+                "This may take several minutes for large files…"
+            )
+
+        self.loader_thread = MatLoaderThread(filepath, mapping,
+                                             snap_start, snap_end, snap_step,
+                                             dtype=dtype,
+                                             mask_convention=mask_convention)
+        self.loader_thread.progress.connect(self.progress_bar.setValue)
+        self.loader_thread.status.connect(self.lbl_status.setText)
+        self.loader_thread.finished.connect(self._on_mat_load_finished)
+        self.loader_thread.error.connect(self._on_load_error)
+        self.loader_thread.start()
+
+    def _on_mat_load_finished(self, dataset):
+        """Restore progress bar to determinate mode, then hand off to shared handler."""
+        self.progress_bar.setRange(0, 100)
+        self._on_load_finished(dataset)
+
     def _on_load_files(self):
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Select DaVis .dat files", "",
-            "DaVis Data Files (*.dat);;All Files (*)"
+            self, "Select PIV dataset files", "",
+            "PIV datasets (*.dat *.mat);;DaVis Data Files (*.dat);;"
+            "MATLAB Files (*.mat);;All Files (*)"
         )
         if not paths:
+            return
+
+        # Branch on file type
+        ext = os.path.splitext(paths[0])[1].lower()
+        if ext == ".mat":
+            if len(paths) > 1:
+                QMessageBox.warning(
+                    self, "Multiple .mat files",
+                    "A .mat dataset is a single file containing the full time "
+                    "series.\nOnly the first selected file will be loaded."
+                )
+            self._on_load_mat(paths[0])
             return
 
         self._full_file_list = list(paths)
@@ -707,6 +923,18 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def _on_reload_files(self):
         if not self._last_file_list:
+            return
+        filepath = self._last_file_list[0]
+        if os.path.splitext(filepath)[1].lower() == ".mat":
+            self._start_mat_loader(
+                filepath, self._mat_mapping,
+                getattr(self, "_mat_use_h5py",         False),
+                getattr(self, "_mat_snap_start",       0),
+                getattr(self, "_mat_snap_end",         None),
+                getattr(self, "_mat_snap_step",        1),
+                getattr(self, "_mat_dtype",            np.float32),
+                getattr(self, "_mat_mask_convention",  "valid"),
+            )
             return
         n = len(self._last_file_list)
         self.lbl_status.setText(f"Reloading {n} files from last session...")
@@ -803,9 +1031,31 @@ class MainWindow(PickerMixin, QMainWindow):
             self.spin_fs.setValue(sp.value())
             self._on_tr_changed()
 
-        self._check_convergence(Nt)
-        self.lbl_status.setText(f"Loaded {Nt} snapshots.")
+        mat_status = dataset.pop("_mat_status", None)
+        if mat_status:
+            self.lbl_status.setText(mat_status)
+        else:
+            self.lbl_status.setText(f"Loaded {Nt} snapshots.")
         self._plot_field()
+
+        # Auto-increment case name on new load (different file set)
+        new_paths = set(self.loader_thread.file_list)
+        if new_paths != self._last_loaded_paths:
+            self._load_count += 1
+            self._last_loaded_paths = new_paths
+            self.session_case_name = f"Data_{self._load_count}"
+        self._btn_set_case.setToolTip(
+            f"Current name: {self._session_case_name}\n"
+            "Click to rename.")
+        print("Data loaded, showing export buttons")
+        self._act_set_case.setVisible(True)
+        self._act_export_dat.setVisible(True)
+        self._btn_set_case.setVisible(True)
+        self._btn_set_case.setEnabled(True)
+        self._btn_export_dat.setVisible(True)
+        self._btn_export_dat.setEnabled(True)
+        self.plot_canvas.toolbar.update()
+        self.plot_canvas.toolbar.repaint()
 
         # Setup picker on main plot
         if self.plot_canvas.figure.axes:
@@ -949,7 +1199,11 @@ class MainWindow(PickerMixin, QMainWindow):
         ny     = ds["ny"]
         stereo = ds["is_stereo"]
         x      = ds["x"]
-        dx     = abs(x[0, 1] - x[0, 0])
+        if "dx" in ds:
+            dx = ds["dx"]
+        else:
+            x_1d = x[0, :]
+            dx = float(np.abs(x_1d[1] - x_1d[0])) if x_1d.size > 1 else 0.0
         mem_mb = (3 if stereo else 2) * ny * nx * Nt * 4 / 1e6
         acq_type = "2D3C" if stereo else "2D2C"
         parts = [
@@ -964,20 +1218,6 @@ class MainWindow(PickerMixin, QMainWindow):
         parts.append(f"Memory: ~{mem_mb:.0f} MB")
         self.lbl_info_ribbon.setText(" \u00b7 ".join(parts))
 
-    def _check_convergence(self, Nt):
-        if self.radio_tr.isChecked():
-            fs  = self.spin_fs.value()
-            dur = Nt / fs
-            if dur < 2.0:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"{Nt} snapshots @ {fs:.0f} Hz = {dur:.2f} s.\n"
-                    "Less than 2 s -- statistics may not be converged.")
-        else:
-            if Nt < 2000:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"Only {Nt} snapshots (< 2000 recommended).\n"
-                    "Results may not be statistically converged.")
-
     def _on_tr_changed(self):
         self._update_ribbon()
 
@@ -989,6 +1229,18 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def get_fs(self):
         return self.spin_fs.value()
+
+    @property
+    def session_case_name(self):
+        return self._session_case_name
+
+    @session_case_name.setter
+    def session_case_name(self, value):
+        self._session_case_name = value
+        try:
+            QApplication.instance()._session_case_name = value
+        except Exception:
+            pass
 
     # ----------------------------------------------------------------------- #
     # Plot field
@@ -1079,7 +1331,10 @@ class MainWindow(PickerMixin, QMainWindow):
         draw_contour = self.chk_draw_on_contour.isChecked()
 
         if draw_contour:
-            cf = ax.contourf(x, y, field, levels=50, cmap="RdBu_r")
+            vmin, vmax = float(np.nanmin(field)), float(np.nanmax(field))
+            if not (np.isfinite(vmin) and np.isfinite(vmax)) or vmin == vmax:
+                vmin, vmax = (vmin - 1, vmax + 1) if np.isfinite(vmin) else (-1.0, 1.0)
+            cf = ax.contourf(x, y, np.ma.masked_invalid(field), levels=50, cmap="RdBu_r", vmin=vmin, vmax=vmax)
             if hide_cb:
                 cb = self.plot_canvas.figure.colorbar(cf, ax=ax,
                                                       label=cbar, shrink=0.8)
@@ -1110,6 +1365,9 @@ class MainWindow(PickerMixin, QMainWindow):
 
             x_range   = float(np.nanmax(xs) - np.nanmin(xs))
             arrow_len = (x_range / xs.shape[1]) * vec_scale * 2.5
+            if not np.isfinite(arrow_len) or arrow_len <= 0:
+                arrow_len = 1.0
+                self.lbl_status.setText("Warning: degenerate x-range — vector scale set to 1.0")
 
             ax.quiver(xs, ys, u_scaled, v_scaled,
                       color='k',
@@ -1314,6 +1572,10 @@ class MainWindow(PickerMixin, QMainWindow):
         self._windows.append(win)
         win.show(); win.raise_(); win.activateWindow()
 
+    def _run_mean_convergence(self):
+        if not self._check_data(): return
+        self._open_window(MeanConvergenceWindow(self.dataset))
+
     def _run_reynolds(self):
         if not self._check_data(): return
         Nt = self.dataset["Nt"]; fs = self.get_fs()
@@ -1415,6 +1677,45 @@ class MainWindow(PickerMixin, QMainWindow):
         self._plot_field()
 
     # ----------------------------------------------------------------------- #
+    # Export
+    # ----------------------------------------------------------------------- #
+
+    def _on_set_case_name(self):
+        current = self._session_case_name or ""
+        name, ok = QInputDialog.getText(
+            self, "Set Case Name",
+            "Set dataset name (used in filenames and legends):",
+            text=current)
+        if ok and name.strip():
+            self.session_case_name = name.strip()  # use property setter to sync QApplication
+            self._btn_set_case.setToolTip(
+                f"Current name: {self._session_case_name}\n"
+                "Click to rename.")
+
+    def _on_export_mean(self):
+        if self.dataset is None:
+            QMessageBox.warning(self, "No Data", "Please load data first.")
+            return
+        # Defer one event-loop tick so the toolbar click event fully drains
+        # before opening a modal dialog (prevents immediate auto-dismiss).
+        QTimer.singleShot(0, self._do_export_mean)
+
+    def _do_export_mean(self):
+        case_name = self._session_case_name or "Data_1"
+        filepath, _ = QFileDialog.getSaveFileName(
+            self, "Export Mean Fields",
+            f"{case_name}_mean_fields.dat",
+            "Tecplot DAT (*.dat)")
+        if not filepath:
+            return
+        try:
+            write_tecplot_mean(self.dataset, filepath)
+            QMessageBox.information(self, "Export Complete",
+                f"Mean fields exported to:\n{filepath}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Failed", str(e))
+
+    # ----------------------------------------------------------------------- #
     # Close event
     # ----------------------------------------------------------------------- #
 
@@ -1468,7 +1769,7 @@ class MainWindow(PickerMixin, QMainWindow):
         logo_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(logo_lbl)
 
-        ver_lbl = QLabel("v0.4.1  \u00b7  Alpha Release")
+        ver_lbl = QLabel("v0.6.1  \u00b7  Alpha Release")
         ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         ver_lbl.setStyleSheet("color:gray;")
         lay.addWidget(ver_lbl)

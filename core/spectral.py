@@ -61,7 +61,11 @@ def psd_at_point(U, V, W, row, col, fs, nperseg=None, noverlap=None):
             psd[label] = None
             continue
 
-        signal = arr[row, col, :].astype(np.float64)
+        signal = arr[row, col, :]
+        # Upcast float16 to float32 before welch (float16 not supported by FFT).
+        if signal.dtype == np.float16:
+            signal = signal.astype(np.float32, copy=False)
+        signal = signal.astype(np.float64)
 
         # Skip if mostly NaN
         n_valid = np.sum(np.isfinite(signal))

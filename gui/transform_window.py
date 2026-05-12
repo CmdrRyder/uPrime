@@ -434,7 +434,7 @@ class TransformWindow(PickerMixin, QWidget):
 
         self.preview_fig.clear()
         self.preview_ax = self.preview_fig.add_subplot(111)
-        self.preview_ax.contourf(x, y, U_mean, levels=50,
+        self.preview_ax.contourf(x, y, np.ma.masked_invalid(U_mean), levels=50,
                                  cmap="RdBu_r", extend="neither")
         self.preview_ax.set_xlabel("x [mm]", fontsize=9)
         self.preview_ax.set_ylabel("y [mm]", fontsize=9)

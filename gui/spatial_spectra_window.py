@@ -37,10 +37,6 @@ class SpatialSpectraWindow(PickerMixin, QWidget):
             QMessageBox.critical(self, "Insufficient Data",
                 "Spatial spectra require multiple snapshots.")
             return
-        if Nt < 1000:
-            QMessageBox.warning(self, "Convergence Warning",
-                f"Only {Nt} snapshots -- results may not be converged.")
-
         self._build_ui()
         self._draw_field()
         self._connect_mouse()
@@ -275,7 +271,7 @@ class SpatialSpectraWindow(PickerMixin, QWidget):
         speed[~ds["MASK"]] = np.nan
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
-        self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
+        self.field_ax.contourf(x, y, np.ma.masked_invalid(speed), levels=40, cmap="RdBu_r")
         self.field_ax.set_xlabel("x [mm]", fontsize=9)
         self.field_ax.set_ylabel("y [mm]", fontsize=9)
         self.field_ax.set_aspect("equal")

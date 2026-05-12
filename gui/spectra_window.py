@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QRadioButton, QCheckBox, QSizePolicy,
     QMessageBox, QSplitter, QSpinBox, QButtonGroup,
     QFileDialog, QTabWidget, QDoubleSpinBox,
-    QComboBox, QProgressBar
+    QComboBox, QProgressBar, QApplication,
 )
 from PyQt6.QtCore import Qt
 import matplotlib
@@ -39,9 +39,14 @@ from core.spectral import psd_at_point, psd_in_region, nearest_grid_point
 from core.export import export_spectra_csv
 from gui.line_selector import compute_snapped_line
 from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from gui.comparison_mixin import ComparisonMixin
 
 
-class SpectraWindow(PickerMixin, QWidget):
+class SpectraWindow(PickerMixin, ComparisonMixin, QWidget):
+
+    _module_name      = "Space-Time Spectra"
+    _expected_columns = ["frequency_Hz", "PSD_u_m2s2_per_Hz", "PSD_v_m2s2_per_Hz"]
+    _axis_columns     = ["frequency_Hz"]
 
     def __init__(self, dataset, is_time_resolved=False, fs=1000.0, parent=None):
         super().__init__(parent)
@@ -56,18 +61,6 @@ class SpectraWindow(PickerMixin, QWidget):
             QMessageBox.critical(self, "Insufficient Data",
                 "Spectral analysis requires multiple snapshots.")
             return
-
-        # Convergence warnings
-        if is_time_resolved:
-            dur = Nt / fs
-            if dur < 2.0:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"{Nt} snapshots @ {fs:.0f} Hz = {dur:.2f} s.\n"
-                    "Less than 2 s -- spectra may not be converged.")
-        else:
-            if Nt < 1000:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"Only {Nt} snapshots -- spatial spectra may not be converged.")
 
         # State
         self._mode        = "horizontal"
@@ -91,7 +84,25 @@ class SpectraWindow(PickerMixin, QWidget):
         return True
 
     def _build_ui(self):
-        root = QHBoxLayout(self)
+        from core.constants import CONVERGENCE_WARNING_N
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        Nt = self.dataset["Nt"]
+        if Nt < CONVERGENCE_WARNING_N:
+            lbl_warn = QLabel(
+                f"⚠ Only N={Nt} snapshots loaded. "
+                "Statistics may not be converged. "
+                "Use the Mean & Convergence module to verify."
+            )
+            lbl_warn.setStyleSheet(
+                "background:#FFF3CD; color:#856404; "
+                "font-weight:bold; padding:4px 8px;"
+            )
+            lbl_warn.setWordWrap(True)
+            outer.addWidget(lbl_warn)
+        content = QWidget()
+        root = QHBoxLayout(content)
         root.setContentsMargins(4, 4, 4, 4)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         root.addWidget(splitter)
@@ -155,6 +166,8 @@ class SpectraWindow(PickerMixin, QWidget):
         self.lbl_status.setWordWrap(True)
         ll.addWidget(self.lbl_status, stretch=0)
 
+        self._init_comparison_toolbar(ll)
+
         # ---- RIGHT: result canvas -- centered, max 65% of panel width ----
         right = QWidget()
         rl = QVBoxLayout(right)
@@ -199,6 +212,7 @@ class SpectraWindow(PickerMixin, QWidget):
         splitter.addWidget(left)
         splitter.addWidget(right)
         splitter.setSizes([920, 780])
+        outer.addWidget(content, stretch=1)
 
     # ----------------------------------------------------------------------- #
     # Tab builders
@@ -406,7 +420,7 @@ class SpectraWindow(PickerMixin, QWidget):
         speed[~ds["MASK"]] = np.nan
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
-        self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
+        self.field_ax.contourf(x, y, np.ma.masked_invalid(speed), levels=40, cmap="RdBu_r")
         self.field_ax.set_xlabel("x [mm]", fontsize=9)
         self.field_ax.set_ylabel("y [mm]", fontsize=9)
         # No set_aspect("equal") on field canvas -- see tke_budget_window comment
@@ -985,14 +999,18 @@ class SpectraWindow(PickerMixin, QWidget):
     def _on_export(self):
         if self._last_result is None: return
         res=self._last_result
+        try:
+            _cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            _cn = "Data_1"
         if res["tab"]=="spatial":
-            default="spatial_spectra_all.csv"
+            default=f"{_cn}_spectra_spatial.csv"
         elif res["tab"]=="3d_spatial":
-            default="3d_spatial_spectra.csv"
+            default=f"{_cn}_spectra_spatial.csv"
         elif res["tab"]=="temporal":
-            default="temporal_spectra_all.csv"
+            default=f"{_cn}_spectra_temporal.csv"
         else:
-            default="spatiotemporal_spectra_all.csv"
+            default=f"{_cn}_spectra_spatiotemporal.csv"
         path,_=QFileDialog.getSaveFileName(self,"Export",default,"CSV (*.csv)")
         if not path: return
         settings={"Analysis":"Spectral","Snapshots":self.dataset["Nt"]}
@@ -1056,3 +1074,93 @@ class SpectraWindow(PickerMixin, QWidget):
                         rows.append(f"{kv:.6e},{fv:.6e},{vals}")
                 open(path,"w").write("\n".join(rows))
                 self.lbl_status.setText(f"✓ Exported {len(combined_st)} component spatiotemporal spectra to {os.path.basename(path)}")
+
+    # ----------------------------------------------------------------------- #
+    # ComparisonMixin interface
+    # ----------------------------------------------------------------------- #
+
+    _PSD_COLS = {"PSD_u_m2s2_per_Hz", "PSD_v_m2s2_per_Hz", "PSD_w_m2s2_per_Hz"}
+
+    def _validate_csv(self, df):
+        tab = self._current_tab()
+        if tab == 3:
+            QMessageBox.warning(self, "Not Supported",
+                "Comparison is not supported for the spatiotemporal tab.")
+            return False
+        cols = set(df.columns)
+        return "frequency_Hz" in cols and bool(cols & self._PSD_COLS)
+
+    def _plot_comparison(self, selected_quantities, layout_mode):
+        if self._current_tab() == 3:
+            return
+
+        x_col   = "frequency_Hz"
+        x_label = "Frequency [Hz]"
+
+        cases = [c for c in self._cases if c["data"] is not None]
+        if not cases:
+            QMessageBox.information(self, "No Cases", "No cases to compare.")
+            return
+
+        quantities = [q for q in selected_quantities
+                      if any(q in c["data"].columns for c in cases)]
+        if not quantities:
+            QMessageBox.warning(self, "No Data",
+                "None of the selected quantities were found in any case.")
+            return
+
+        _qty_colors = ["tab:blue", "tab:orange", "tab:green",
+                       "tab:red", "tab:purple", "tab:brown"]
+
+        self.result_fig.clear()
+
+        if layout_mode == "overlay":
+            for i, qty in enumerate(quantities):
+                ax = self.result_fig.add_subplot(1, len(quantities), i + 1)
+                for case in cases:
+                    df = case["data"]
+                    if x_col not in df.columns or qty not in df.columns:
+                        continue
+                    x = df[x_col].values
+                    y = df[qty].values
+                    mask = (x > 0) & np.isfinite(y) & (y > 0)
+                    if not np.any(mask):
+                        continue
+                    ax.loglog(x[mask], y[mask],
+                              color=case["color"],
+                              linestyle=case["linestyle"],
+                              linewidth=1.2,
+                              label=case["name"])
+                ax.set_xlabel(x_label, fontsize=8)
+                ax.set_ylabel(qty, fontsize=8)
+                ax.set_title(qty, fontsize=9)
+                ax.legend(fontsize=7)
+                ax.grid(True, which="both", alpha=0.3)
+                ax.tick_params(labelsize=7)
+                ax.set_aspect("auto")
+
+        else:  # sidebyside
+            for i, case in enumerate(cases):
+                ax = self.result_fig.add_subplot(1, len(cases), i + 1)
+                df = case["data"]
+                for j, qty in enumerate(quantities):
+                    if x_col not in df.columns or qty not in df.columns:
+                        continue
+                    x = df[x_col].values
+                    y = df[qty].values
+                    mask = (x > 0) & np.isfinite(y) & (y > 0)
+                    if not np.any(mask):
+                        continue
+                    ax.loglog(x[mask], y[mask],
+                              color=_qty_colors[j % len(_qty_colors)],
+                              linewidth=1.2,
+                              label=qty)
+                ax.set_xlabel(x_label, fontsize=8)
+                ax.set_title(case["name"], fontsize=9)
+                ax.legend(fontsize=7)
+                ax.grid(True, which="both", alpha=0.3)
+                ax.tick_params(labelsize=7)
+                ax.set_aspect("auto")
+
+        self.result_fig.tight_layout(pad=1.2)
+        self.result_canvas.draw()

@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QGroupBox, QPushButton, QRadioButton,
     QSizePolicy, QMessageBox, QSplitter, QTabWidget,
-    QSpinBox, QCheckBox, QFileDialog
+    QSpinBox, QCheckBox, QFileDialog, QApplication,
 )
 from PyQt6.QtCore import Qt
 
@@ -58,17 +58,6 @@ class AnisotropyWindow(PickerMixin, QWidget):
         self._precompute()
         self._build_ui()
 
-        # Warn if snapshot count is low
-        Nt = dataset["Nt"]
-        if Nt < 2000:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(
-                self, "Convergence Warning",
-                f"Only {Nt} snapshots loaded.\n\n"
-                "Reynolds stress statistics (and therefore anisotropy invariants) "
-                "are typically not well-converged with fewer than ~2000 snapshots.\n\n"
-                "Results should be interpreted with caution."
-            )
         self._draw_field()
         self._connect_mouse()
         self._setup_picker(self.field_canvas, self.field_ax,
@@ -221,7 +210,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
 
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
-        cf = self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
+        cf = self.field_ax.contourf(x, y, np.ma.masked_invalid(speed), levels=40, cmap="RdBu_r")
         self.field_fig.colorbar(cf, ax=self.field_ax,
                                 label="Mean |V| [m/s]", shrink=0.8)
         self.field_ax.set_xlabel("x [mm]")
@@ -565,7 +554,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
         ax = self.bary_fig.add_subplot(111)
 
         # Full domain speed as grey background
-        ax.contourf(x, y, speed, levels=40, cmap="Greys", alpha=0.35)
+        ax.contourf(x, y, np.ma.masked_invalid(speed), levels=40, cmap="Greys", alpha=0.35)
 
         # Barycentric RGB overlay on sub-region
         # pcolormesh needs RGB as [ny, nx, 3] with values in [0,1]
@@ -636,9 +625,14 @@ class AnisotropyWindow(PickerMixin, QWidget):
             return
         res = self._last_result
 
+        try:
+            _cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            _cn = "Data_1"
+
         if res["type"] == "line":
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export Anisotropy Line Data", "anisotropy_line_all.csv",
+                self, "Export Anisotropy Line Data", f"{_cn}_anisotropy.csv",
                 "CSV Files (*.csv)"
             )
             if not path:
@@ -677,7 +671,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
 
         else:
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export Barycentric Map", "barycentric.dat",
+                self, "Export Barycentric Map", f"{_cn}_anisotropy_barycentric.dat",
                 "Tecplot DAT (*.dat)"
             )
             if not path:
@@ -709,3 +703,4 @@ class AnisotropyWindow(PickerMixin, QWidget):
                 settings
             )
             self.lbl_status.setText(f"Exported to {path}")
+

@@ -47,8 +47,6 @@ class TKEWindow(PickerMixin, QWidget):
         self._line_artist = None
         self._selection   = None
 
-        self._show_convergence_warning(is_time_resolved, Nt_warn, duration_warn)
-
         # Pre-compute stresses
         from core.dataset_utils import get_masked
         _U = get_masked(dataset, "U")
@@ -73,22 +71,6 @@ class TKEWindow(PickerMixin, QWidget):
                            status_label=self.lbl_status)
 
     # ----------------------------------------------------------------------- #
-
-    def _show_convergence_warning(self, is_tr, Nt, duration):
-        if is_tr:
-            if duration < 2.0:
-                QMessageBox.warning(
-                    self, "Convergence Warning",
-                    f"Dataset is {duration:.2f} s (< 2 s).\n"
-                    "TKE statistics may not be converged."
-                )
-        else:
-            if Nt < 2000:
-                QMessageBox.warning(
-                    self, "Convergence Warning",
-                    f"Only {Nt} snapshots (< 2000 recommended).\n"
-                    "TKE statistics may not be converged."
-                )
 
     # ----------------------------------------------------------------------- #
     # UI
@@ -222,7 +204,7 @@ class TKEWindow(PickerMixin, QWidget):
 
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
-        cf = self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
+        cf = self.field_ax.contourf(x, y, np.ma.masked_invalid(speed), levels=40, cmap="RdBu_r")
         self.field_fig.colorbar(cf, ax=self.field_ax, label="Mean |V| [m/s]", shrink=0.8)
         self.field_ax.set_xlabel("x [mm]")
         self.field_ax.set_ylabel("y [mm]")
@@ -350,7 +332,7 @@ class TKEWindow(PickerMixin, QWidget):
 
         self.result_fig.clear()
         ax = self.result_fig.add_subplot(111)
-        cf = ax.contourf(self._x, self._y, k, levels=50, cmap=cmap)
+        cf = ax.contourf(self._x, self._y, np.ma.masked_invalid(k), levels=50, cmap=cmap)
         self.result_fig.colorbar(cf, ax=ax, label=label, shrink=0.8)
         ax.set_xlabel("x [mm]")
         ax.set_ylabel("y [mm]")

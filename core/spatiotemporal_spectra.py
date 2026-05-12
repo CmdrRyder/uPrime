@@ -40,6 +40,10 @@ def _st_psd_1line(signal_xt, dx_m, fs):
     """
     nx, Nt = signal_xt.shape
 
+    # Upcast float16 to float32 before fft2 (float16 not supported by numpy FFT).
+    if signal_xt.dtype == np.float16:
+        signal_xt = signal_xt.astype(np.float32, copy=False)
+
     # Replace NaN with zero (already fluctuations)
     sig = np.where(np.isfinite(signal_xt), signal_xt, 0.0)
 

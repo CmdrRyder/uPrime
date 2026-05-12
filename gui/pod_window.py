@@ -535,7 +535,7 @@ class PODWindow(QWidget):
         vmax = vmax if vmax > 0 else 1.0
         levels = np.linspace(-vmax, vmax, 41)
 
-        cf = ax.contourf(self._x, self._y, phi,
+        cf = ax.contourf(self._x, self._y, np.ma.masked_invalid(phi),
                          levels=levels, cmap=_CMAP_DIV, extend="neither")
         cb = self.mode_fig.colorbar(cf, ax=ax, label="φ [ ]", shrink=0.8)
         if self.chk_hide_colorbar.isChecked():
@@ -659,7 +659,7 @@ class PODWindow(QWidget):
                 fmin = float(np.nanmin(field))
                 fmax = float(np.nanmax(field))
                 levels = np.linspace(fmin, fmax, 41)
-            cf = ax.contourf(self._x, self._y, field,
+            cf = ax.contourf(self._x, self._y, np.ma.masked_invalid(field),
                              levels=levels, cmap=_CMAP_DIV, extend="neither")
             cb = fig.colorbar(cf, ax=ax, label=label, shrink=0.8)
             if self.chk_hide_colorbar.isChecked():
@@ -704,9 +704,13 @@ class PODWindow(QWidget):
             return
 
         # -- Export modes as Tecplot --
+        try:
+            _cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            _cn = "Data_1"
         path_dat, _ = QFileDialog.getSaveFileName(
             self, "Export Spatial Modes (Tecplot)",
-            "pod_modes.dat", "Tecplot DAT (*.dat);;All Files (*)")
+            f"{_cn}_pod_modes.dat", "Tecplot DAT (*.dat);;All Files (*)")
         if not path_dat:
             return
 

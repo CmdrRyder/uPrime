@@ -67,15 +67,6 @@ class DmdWindow(PickerMixin, QWidget):
                 f"DMD requires at least 50 snapshots. This dataset has {Nt}.")
             return
 
-        if Nt < 200:
-            freq_res = fs / Nt
-            QMessageBox.warning(self, "Low Snapshot Count",
-                f"Only {Nt} snapshots available. DMD results may be unreliable.\n"
-                f"Recommended: 200+ snapshots.\n"
-                f"At fs={fs:.0f} Hz, this covers only {Nt/fs*1000:.1f} ms\n"
-                f"({freq_res:.1f} Hz frequency resolution).\n"
-                f"Recommended duration: {200/fs*1000:.1f} ms (200 snapshots).")
-
         self._build_ui()
 
         # Set spin maxima / defaults now that Nt and fs are known

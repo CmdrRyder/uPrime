@@ -232,7 +232,7 @@ class SpectralWindow(PickerMixin, QWidget):
 
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
-        cf = self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
+        cf = self.field_ax.contourf(x, y, np.ma.masked_invalid(speed), levels=40, cmap="RdBu_r")
         self.field_fig.colorbar(cf, ax=self.field_ax, label="Mean |V| [m/s]", shrink=0.8)
         self.field_ax.set_xlabel("x [mm]")
         self.field_ax.set_ylabel("y [mm]")

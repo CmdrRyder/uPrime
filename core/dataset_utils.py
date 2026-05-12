@@ -12,6 +12,9 @@ def get_masked(dataset, key):
     Return dataset[key] with invalid points set to NaN if mask is active.
     Returns a copy; never modifies the original array.
 
+    The output dtype matches the stored array (float16, float32, or float64).
+    All floating-point dtypes — including float16 — support IEEE 754 NaN.
+
     Parameters
     ----------
     dataset : dict   -- the dataset dict returned by load_dataset
@@ -19,14 +22,14 @@ def get_masked(dataset, key):
 
     Returns
     -------
-    out : ndarray [ny, nx, Nt] float64, or None if dataset[key] is None
+    out : ndarray [ny, nx, Nt], same dtype as dataset[key], or None
     """
     field = dataset[key]
     if field is None:
         return None
     if dataset.get("mask_active", True):
         mask = dataset["MASK"]          # [ny, nx], True = valid
-        out  = field.astype(float, copy=True)
+        out  = field.copy()
         out[~mask, :] = np.nan          # broadcast across all Nt frames
         return out
-    return field.astype(float, copy=True)
+    return field.copy()

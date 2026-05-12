@@ -24,7 +24,8 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
     QPushButton, QRadioButton, QCheckBox, QSizePolicy,
     QMessageBox, QSplitter, QSpinBox, QComboBox,
-    QDoubleSpinBox, QButtonGroup, QFileDialog, QProgressBar
+    QDoubleSpinBox, QButtonGroup, QFileDialog, QProgressBar,
+    QApplication,
 )
 from PyQt6.QtCore import Qt
 import matplotlib
@@ -36,6 +37,7 @@ from core.reynolds_stress import extract_line_profile
 from core.export import export_2d_tecplot, export_line_csv
 from gui.line_selector import LineSelectorWidget, compute_snapped_line
 from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from gui.comparison_mixin import ComparisonMixin
 
 TERMS = {
     "k"    : {"label": "TKE  k",                "color": "tab:blue"},
@@ -51,7 +53,11 @@ _FONT_TICK = 8
 _FONT_LEG  = 8
 
 
-class TKEBudgetWindow(PickerMixin, QWidget):
+class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
+
+    _module_name      = "TKE Budget"
+    _expected_columns = ["mean_P", "mean_C", "mean_D", "mean_R"]
+    _axis_columns     = ["dist_mm", "x_mm", "y_mm"]
 
     def __init__(self, dataset, is_time_resolved=False,
                  Nt_warn=2000, duration_warn=9999, parent=None):
@@ -68,7 +74,6 @@ class TKEBudgetWindow(PickerMixin, QWidget):
         self._budget      = None
         self._last_line   = None
 
-        self._show_warnings(is_time_resolved, Nt_warn, duration_warn)
         self._build_ui()
         self._draw_field()
         self._connect_mouse()
@@ -76,18 +81,6 @@ class TKEBudgetWindow(PickerMixin, QWidget):
                            status_label=self.lbl_status)
 
     # ----------------------------------------------------------------------- #
-
-    def _show_warnings(self, is_tr, Nt, duration):
-        if is_tr:
-            if duration < 2.0:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"Dataset is {duration:.2f} s (< 2 s).\n"
-                    "TKE budget terms may not be converged.")
-        else:
-            if Nt < 2000:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"Only {Nt} snapshots (< 2000 recommended).\n"
-                    "Triple correlations (diffusion) are especially sensitive.")
 
     def _drawing_active(self):
         return self._mode == "line"
@@ -97,7 +90,25 @@ class TKEBudgetWindow(PickerMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _build_ui(self):
-        root = QHBoxLayout(self)
+        from core.constants import CONVERGENCE_WARNING_N
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        Nt = self.dataset["Nt"]
+        if Nt < CONVERGENCE_WARNING_N:
+            lbl_warn = QLabel(
+                f"⚠ Only N={Nt} snapshots loaded. "
+                "Statistics may not be converged. "
+                "Use the Mean & Convergence module to verify."
+            )
+            lbl_warn.setStyleSheet(
+                "background:#FFF3CD; color:#856404; "
+                "font-weight:bold; padding:4px 8px;"
+            )
+            lbl_warn.setWordWrap(True)
+            outer.addWidget(lbl_warn)
+        content = QWidget()
+        root = QHBoxLayout(content)
         root.setContentsMargins(4, 4, 4, 4)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         root.addWidget(splitter)
@@ -222,6 +233,20 @@ class TKEBudgetWindow(PickerMixin, QWidget):
         self.progress_bar.setVisible(False)
         ll.addWidget(self.progress_bar)
 
+        self.term_grp = QGroupBox("Terms to plot")
+        tg_lay = QHBoxLayout(self.term_grp)
+        tg_lay.setContentsMargins(4, 2, 4, 2)
+        self.term_chks = {}
+        _filter_keys = ["P", "C", "D", "R"] + (["dkdt"] if self._is_tr else [])
+        for _key in _filter_keys:
+            _chk = QCheckBox(TERMS[_key]["label"])
+            _chk.setChecked(True)
+            _chk.toggled.connect(self._on_term_filter_changed)
+            self.term_chks[_key] = _chk
+            tg_lay.addWidget(_chk)
+        self.term_grp.setVisible(False)
+        ll.addWidget(self.term_grp)
+
         self.btn_plot = QPushButton("Plot")
         self.btn_plot.setEnabled(False)
         self.btn_plot.clicked.connect(self._on_plot)
@@ -236,6 +261,9 @@ class TKEBudgetWindow(PickerMixin, QWidget):
         self.lbl_status.setStyleSheet("color:gray;font-size:11px;")
         self.lbl_status.setWordWrap(True)
         ll.addWidget(self.lbl_status)
+
+        self._init_comparison_toolbar(ll)
+
         ll.addStretch(1)
 
         # ---- RIGHT ----
@@ -248,6 +276,7 @@ class TKEBudgetWindow(PickerMixin, QWidget):
                                          QSizePolicy.Policy.Expanding)
         self.result_toolbar = DrawAwareToolbar(self.result_canvas, self)
         rl.addWidget(self.result_toolbar)
+
         chk_row = QHBoxLayout()
         chk_row.addStretch()
         self.chk_hide_axes = QCheckBox("Hide axes")
@@ -262,6 +291,7 @@ class TKEBudgetWindow(PickerMixin, QWidget):
         splitter.addWidget(left)
         splitter.addWidget(right)
         splitter.setSizes([750, 950])   # ~45 / 55
+        outer.addWidget(content, stretch=1)
 
     # ----------------------------------------------------------------------- #
     # Field plot
@@ -288,7 +318,7 @@ class TKEBudgetWindow(PickerMixin, QWidget):
 
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
-        self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
+        self.field_ax.contourf(x, y, np.ma.masked_invalid(speed), levels=40, cmap="RdBu_r")
         self.field_ax.set_xlabel("x [mm]", fontsize=_FONT_AX)
         self.field_ax.set_ylabel("y [mm]", fontsize=_FONT_AX)
         self.field_ax.set_title(
@@ -313,11 +343,13 @@ class TKEBudgetWindow(PickerMixin, QWidget):
             self._mode = "contour"
             self.contour_grp.setVisible(True)
             self.line_sel.setVisible(False)
+            self.term_grp.setVisible(False)
             self.lbl_hint.setText("Select term and click 'Plot'.")
         else:
             self._mode = "line"
             self.contour_grp.setVisible(False)
             self.line_sel.setVisible(True)
+            self.term_grp.setVisible(True)
             if self._budget is not None:
                 self.lbl_hint.setText(
                     "Left-click+drag to draw a line, then click Plot.")
@@ -514,6 +546,12 @@ class TKEBudgetWindow(PickerMixin, QWidget):
                 return
             self._plot_line()
 
+    def _on_term_filter_changed(self):
+        if (self._mode == "line"
+                and self._budget is not None
+                and self._selection is not None):
+            self._plot_line()
+
     def _plot_contour(self):
         key   = self.combo_term.currentData()
         field = self._budget.get(key)
@@ -535,7 +573,7 @@ class TKEBudgetWindow(PickerMixin, QWidget):
 
         self.result_fig.clear()
         ax = self.result_fig.add_subplot(111)
-        cf = ax.contourf(self._x, self._y, data, levels=50, cmap=cmap,
+        cf = ax.contourf(self._x, self._y, np.ma.masked_invalid(data), levels=50, cmap=cmap,
                          vmin=vmin, vmax=vmax)
         cb = self.result_fig.colorbar(cf, ax=ax,
                                       label=f"{TERMS[key]['label']} {unit_str}",
@@ -559,69 +597,97 @@ class TKEBudgetWindow(PickerMixin, QWidget):
         self.lbl_status.setText(f"Contour: {TERMS[key]['label']}")
 
     def _plot_line(self):
-        sel      = self._selection
-        _, unit_str = self._scale_for("P")  # budget unit label for y-axis
-        lmode    = self.line_sel.get_mode()
-        avg_band = self.line_sel.get_avg_band()
+        sel          = self._selection
+        _, unit_str  = self._scale_for("P")
+        _, k_unit    = self._scale_for("k")
+        lmode        = self.line_sel.get_mode()
+        avg_band     = self.line_sel.get_avg_band()
+        xlabel       = {"horizontal": "x [mm]",
+                        "vertical":   "y [mm]"}.get(lmode, "Distance from origin [mm]")
 
         self.result_fig.clear()
-        ax = self.result_fig.add_subplot(111)
+        ax_k, ax_bud = self.result_fig.subplots(
+            2, 1, sharex=True, gridspec_kw={"height_ratios": [1, 2]})
 
         self._last_line = {"dist": None, "xpts": None, "ypts": None,
                            "means": {}, "unit_str": unit_str}
-        plotted = False
 
-        # Plot budget terms (all except k) first, then k on top
-        other_keys = [k for k in TERMS if k != "k" and self._budget.get(k) is not None]
-        ordered_keys = other_keys + (["k"] if self._budget.get("k") is not None else [])
-
-        for key in ordered_keys:
-            scale, _ = self._scale_for(key)
-            field = self._budget[key] * scale
-            vals, dist, xpts, ypts = extract_line_profile(
-                field, self._x, self._y,
+        # ---- top panel: TKE k ----
+        plotted_k = False
+        if self._budget.get("k") is not None:
+            scale_k, _ = self._scale_for("k")
+            vals_k, dist_k, xpts_k, ypts_k = extract_line_profile(
+                self._budget["k"] * scale_k, self._x, self._y,
                 sel["x0"], sel["y0"], sel["x1"], sel["y1"],
                 mode=lmode, avg_band=avg_band)
+            valid_k = np.isfinite(vals_k)
+            if np.any(valid_k):
+                ax_k.plot(dist_k[valid_k], vals_k[valid_k],
+                          color=TERMS["k"]["color"],
+                          label=TERMS["k"]["label"],
+                          linewidth=1.5)
+                plotted_k = True
+                self._last_line["dist"]      = dist_k
+                self._last_line["xpts"]      = xpts_k
+                self._last_line["ypts"]      = ypts_k
+                self._last_line["means"]["k"] = vals_k
 
+        if plotted_k:
+            ax_k.set_ylabel(f"TKE k {k_unit}", fontsize=_FONT_AX)
+            ax_k.legend(fontsize=_FONT_LEG)
+            ax_k.grid(True, alpha=0.3)
+            ax_k.tick_params(labelsize=_FONT_TICK)
+        else:
+            ax_k.text(0.5, 0.5, "k not available",
+                      transform=ax_k.transAxes, ha="center", va="center",
+                      fontsize=10, color="gray")
+            ax_k.set_ylabel(f"TKE k {k_unit}", fontsize=_FONT_AX)
+            ax_k.tick_params(labelsize=_FONT_TICK)
+        ax_k.set_title("TKE Budget Profile", fontsize=_FONT_AX)
+
+        # ---- bottom panel: P, C, D, R (dkdt) ----
+        budget_keys = [key for key in ["P", "C", "D", "R", "dkdt"]
+                       if self._budget.get(key) is not None]
+        plotted_bud = False
+        for key in budget_keys:
+            if key in self.term_chks and not self.term_chks[key].isChecked():
+                continue
+            scale, _ = self._scale_for(key)
+            vals, dist, xpts, ypts = extract_line_profile(
+                self._budget[key] * scale, self._x, self._y,
+                sel["x0"], sel["y0"], sel["x1"], sel["y1"],
+                mode=lmode, avg_band=avg_band)
             valid = np.isfinite(vals)
             if not np.any(valid):
                 continue
-
-            if key == "k":
-                ax.plot(dist[valid], vals[valid],
-                        color=TERMS[key]["color"],
-                        label=TERMS[key]["label"],
-                        linewidth=2.0,
-                        linestyle="--",
-                        zorder=10)
-            else:
-                ax.plot(dist[valid], vals[valid],
+            ax_bud.plot(dist[valid], vals[valid],
                         color=TERMS[key]["color"],
                         label=TERMS[key]["label"],
                         linewidth=1.2)
-            plotted = True
-            self._last_line["dist"] = dist
-            self._last_line["xpts"] = xpts
-            self._last_line["ypts"] = ypts
+            plotted_bud = True
+            if self._last_line["dist"] is None:
+                self._last_line["dist"] = dist
+                self._last_line["xpts"] = xpts
+                self._last_line["ypts"] = ypts
             self._last_line["means"][key] = vals
 
-        if not plotted:
-            ax.text(0.5, 0.5, "No valid data along line",
-                    transform=ax.transAxes, ha="center", va="center",
-                    fontsize=11, color="gray")
+        if plotted_bud:
+            ax_bud.axhline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
+            ax_bud.set_ylabel(f"TKE Budget {unit_str}", fontsize=_FONT_AX)
+            ax_bud.legend(fontsize=_FONT_LEG)
+            ax_bud.grid(True, alpha=0.3)
+            ax_bud.tick_params(labelsize=_FONT_TICK)
         else:
-            ax.axhline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
-            xlabel = {"horizontal": "x [mm]",
-                      "vertical":   "y [mm]"}.get(lmode, "Distance from origin [mm]")
-            ax.set_xlabel(xlabel, fontsize=_FONT_AX)
-            ax.set_ylabel(f"TKE Budget {unit_str}", fontsize=_FONT_AX)
-            ax.set_title("TKE Budget Profile", fontsize=_FONT_AX)
-            ax.legend(fontsize=_FONT_LEG)
-            ax.grid(True, alpha=0.3)
-            ax.tick_params(labelsize=_FONT_TICK)
+            ax_bud.text(0.5, 0.5, "No valid data along line",
+                        transform=ax_bud.transAxes, ha="center", va="center",
+                        fontsize=11, color="gray")
+            ax_bud.set_ylabel(f"TKE Budget {unit_str}", fontsize=_FONT_AX)
+            ax_bud.tick_params(labelsize=_FONT_TICK)
+        ax_bud.set_xlabel(xlabel, fontsize=_FONT_AX)
 
         if self.chk_hide_axes.isChecked():
-            ax.axis('off')
+            ax_k.axis('off')
+            ax_bud.axis('off')
         self.result_fig.tight_layout(pad=0.5)
         self.result_canvas.draw()
         self.result_toolbar.set_home_limits()
@@ -663,8 +729,12 @@ class TKEBudgetWindow(PickerMixin, QWidget):
 
         elif self._mode == "line" and self._last_line and \
              self._last_line["dist"] is not None:
+            try:
+                _cn = QApplication.instance()._session_case_name or "Data_1"
+            except AttributeError:
+                _cn = "Data_1"
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export Line Profile", "tke_budget_line.csv",
+                self, "Export Line Profile", f"{_cn}_tke_budget_line.csv",
                 "CSV (*.csv)")
             if not path:
                 return
@@ -677,3 +747,140 @@ class TKEBudgetWindow(PickerMixin, QWidget):
                             {}, settings)
             self.lbl_status.setText(
                 f"Exported {n} budget terms to {os.path.basename(path)}")
+
+    # ----------------------------------------------------------------------- #
+    # ComparisonMixin interface
+    # ----------------------------------------------------------------------- #
+
+    _TERM_COLS = {"mean_P", "mean_C", "mean_D", "mean_R", "mean_k"}
+
+    def _validate_csv(self, df):
+        cols = set(df.columns)
+        return "dist_mm" in cols and bool(cols & self._TERM_COLS)
+
+    def _plot_comparison(self, selected_quantities, layout_mode):
+        cases = [c for c in self._cases if c["data"] is not None]
+        if not cases:
+            QMessageBox.information(self, "No Cases", "No cases to compare.")
+            return
+
+        quantities = [q for q in selected_quantities
+                      if any(q in c["data"].columns for c in cases)]
+        if not quantities:
+            QMessageBox.warning(self, "No Data",
+                "None of the selected terms were found in any case.")
+            return
+
+        k_qty       = "mean_k" if "mean_k" in quantities else None
+        budget_qtys = [q for q in quantities if q != "mean_k" and q in {
+            "mean_P", "mean_C", "mean_D", "mean_R", "mean_dkdt"}]
+
+        self.result_fig.clear()
+
+        def _safe_xy(df, x_col, y_col):
+            try:
+                x = np.asarray(df[x_col].values, dtype=float)
+                y = np.asarray(df[y_col].values, dtype=float)
+            except (ValueError, TypeError):
+                return None, None
+            mask = np.isfinite(x) & np.isfinite(y)
+            return (x[mask], y[mask]) if np.any(mask) else (None, None)
+
+        if layout_mode == "overlay":
+            ax_k, ax_bud = self.result_fig.subplots(
+                2, 1, sharex=True, gridspec_kw={"height_ratios": [1, 2]})
+
+            # Top: k from all cases, distinguished by case color/linestyle
+            for case in cases:
+                df = case["data"]
+                if k_qty is None or k_qty not in df.columns or "dist_mm" not in df.columns:
+                    continue
+                xv, yv = _safe_xy(df, "dist_mm", k_qty)
+                if xv is None:
+                    continue
+                ax_k.plot(xv, yv,
+                          color=case["color"], linestyle=case["linestyle"],
+                          linewidth=1.5, label=case["name"])
+            ax_k.set_ylabel("TKE k", fontsize=_FONT_AX)
+            ax_k.set_title("TKE Budget Comparison", fontsize=_FONT_AX)
+            ax_k.legend(fontsize=_FONT_LEG)
+            ax_k.grid(True, alpha=0.3)
+            ax_k.tick_params(labelsize=_FONT_TICK)
+
+            # Bottom: budget terms — term color, case linestyle
+            multi_case = len(cases) > 1
+            for qty in budget_qtys:
+                term_key   = qty.replace("mean_", "")
+                term_label = TERMS.get(term_key, {}).get("label", qty)
+                term_color = TERMS.get(term_key, {}).get("color")
+                for case in cases:
+                    df = case["data"]
+                    if qty not in df.columns or "dist_mm" not in df.columns:
+                        continue
+                    xv, yv = _safe_xy(df, "dist_mm", qty)
+                    if xv is None:
+                        continue
+                    lbl = f"{term_label} ({case['name']})" if multi_case else term_label
+                    ax_bud.plot(xv, yv,
+                                color=term_color, linestyle=case["linestyle"],
+                                linewidth=1.5, label=lbl)
+            ax_bud.axhline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
+            ax_bud.set_xlabel("dist [mm]", fontsize=_FONT_AX)
+            ax_bud.set_ylabel("TKE Budget", fontsize=_FONT_AX)
+            ax_bud.legend(fontsize=_FONT_LEG)
+            ax_bud.grid(True, alpha=0.3)
+            ax_bud.tick_params(labelsize=_FONT_TICK)
+
+        else:  # sidebyside — 2 rows × N cases
+            n      = len(cases)
+            ax_arr = self.result_fig.subplots(
+                2, n, sharex="col", sharey="row",
+                gridspec_kw={"height_ratios": [1, 2]},
+                squeeze=False)
+
+            for i, case in enumerate(cases):
+                ax_k   = ax_arr[0][i]
+                ax_bud = ax_arr[1][i]
+                df     = case["data"]
+
+                if "dist_mm" not in df.columns:
+                    continue
+
+                # Top: k
+                if k_qty and k_qty in df.columns:
+                    xv, yv = _safe_xy(df, "dist_mm", k_qty)
+                    if xv is not None:
+                        ax_k.plot(xv, yv,
+                                  color=TERMS["k"]["color"],
+                                  linewidth=1.5,
+                                  label=TERMS["k"]["label"])
+                ax_k.set_title(case["name"], fontsize=_FONT_AX)
+                if i == 0:
+                    ax_k.set_ylabel("TKE k", fontsize=_FONT_AX)
+                ax_k.legend(fontsize=_FONT_LEG)
+                ax_k.grid(True, alpha=0.3)
+                ax_k.tick_params(labelsize=_FONT_TICK)
+
+                # Bottom: budget terms
+                for qty in budget_qtys:
+                    if qty not in df.columns:
+                        continue
+                    term_key = qty.replace("mean_", "")
+                    xv, yv   = _safe_xy(df, "dist_mm", qty)
+                    if xv is None:
+                        continue
+                    ax_bud.plot(xv, yv,
+                                color=TERMS.get(term_key, {}).get("color"),
+                                linewidth=1.5,
+                                label=TERMS.get(term_key, {}).get("label", qty))
+                ax_bud.axhline(0, color="gray", linewidth=0.8,
+                               linestyle="--", alpha=0.5)
+                ax_bud.set_xlabel("dist [mm]", fontsize=_FONT_AX)
+                if i == 0:
+                    ax_bud.set_ylabel("TKE Budget", fontsize=_FONT_AX)
+                ax_bud.legend(fontsize=_FONT_LEG)
+                ax_bud.grid(True, alpha=0.3)
+                ax_bud.tick_params(labelsize=_FONT_TICK)
+
+        self.result_fig.tight_layout(pad=1.0)
+        self.result_canvas.draw()

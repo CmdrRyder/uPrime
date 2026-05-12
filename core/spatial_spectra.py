@@ -95,6 +95,11 @@ def _accumulate_psds(arrays, time_means, signals_fn, dx_m,
         for t in range(Nt):
             pairs = signals_fn(arr, mean_arr, t)
             for (sig_inst, sig_mean) in pairs:
+                # Upcast float16 to float32 before mean subtraction and welch
+                # (numpy FFT routines do not support float16).
+                if sig_inst.dtype == np.float16:
+                    sig_inst = sig_inst.astype(np.float32, copy=False)
+                    sig_mean = sig_mean.astype(np.float32, copy=False)
                 # Step 1: subtract temporal mean -> fluctuation u'(x,t)
                 fluct = sig_inst.astype(np.float64) - sig_mean.astype(np.float64)
 

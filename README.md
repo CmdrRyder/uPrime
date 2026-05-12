@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/1197739784.svg)](https://doi.org/10.5281/zenodo.19376184)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
-![Version](https://img.shields.io/badge/version-0.4.1%20alpha-blue)
+![Version](https://img.shields.io/badge/version-0.6.1%20alpha-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
 ### *Because u′ matters*
@@ -162,6 +162,18 @@ ZONE T="Frame 0", I=NX, J=NY, F=POINT
 > This is the default DaVis export format. If absent, all vectors are treated as valid
 > and a warning is shown.
 
+### MATLAB `.mat` files
+
+uPrime also loads MATLAB `.mat` files (classic v5/v7 and HDF5-based v7.3):
+
+- **Multiple snapshots required.** Single-snapshot files are detected from metadata and rejected with a clear error before any data is loaded.
+- **Variable confirmation dialog** is shown on every `.mat` load. Auto-detected variable names are pre-filled; adjust any dropdown if needed and click **Load** to confirm.
+- **Coordinate arrays** may be 1D vectors `(Nx,)` / `(Ny,)` or 2D meshgrid arrays in either `(Ny, Nx)` or `(Nx, Ny)` orientation. Transposed arrays are auto-corrected; square grids use a variance heuristic to determine orientation. A status-bar note is shown when a transpose is applied.
+- **Large file performance:** The variable dialog appears immediately (metadata only). For v7.3 (HDF5) files the progress bar advances snapshot-by-snapshot. For classic `.mat` files a busy indicator is shown with the file size, since the read is a single blocking call.
+- Velocity arrays must have MATLAB shape `(Ny, Nx, N_snap)`. Stereo `w` and `isValid` are optional.
+- **Storage precision:** By default uPrime loads `.mat` files as float32 (single precision), matching the `.dat` loader. For files larger than 5 GB the variable confirmation dialog offers a float16 (half precision) option that halves memory usage, allowing files that would otherwise not fit in RAM to load. Float16 has only ~3 decimal digits of precision, and all subsequent computations (Reynolds stresses, TKE budget, POD, DMD, FFT) run at this reduced precision. Fluctuation-based statistics are particularly vulnerable to catastrophic cancellation. Use float16 only for preliminary inspection or mean-field viewing. For final results, reload with the default float32 mode.
+- **Mask convention:** uPrime expects `isValid` to follow the "1 = valid, 0 = invalid" convention. If your `.mat` file uses the opposite convention (e.g. a variable named `Mask` where 1 means "mask this out"), select **"1 = invalid (mask out)"** in the **Mask convention** dropdown next to the isValid selector in the variable confirmation dialog. The loader applies the chosen convention with no auto-detection. After loading, the status bar warns if the resulting masked fraction looks extreme (< 5 % or > 95 %); if this fires unexpectedly, reload with the other convention.
+
 ---
 
 ## 🧪 Sample Dataset
@@ -207,7 +219,7 @@ Tests run headlessly (Agg backend + offscreen Qt) with no real `.dat` files requ
 
 ## 🧠 Development Status
 
-uPrime is under active development (**v0.4.1 alpha**).
+uPrime is under active development (**v0.6.1 alpha**).
 Core analysis modules are stable. Performance and usability improvements ongoing.
 
 ---
@@ -229,7 +241,7 @@ Core analysis modules are stable. Performance and usability improvements ongoing
 
 If uPrime contributes to your research, please cite:
 
-> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.4.1-alpha). Zenodo.
+> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.6.1-alpha). Zenodo.
 > https://doi.org/10.5281/zenodo.19376184
 
 ---

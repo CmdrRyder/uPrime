@@ -18,7 +18,8 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QGroupBox, QPushButton, QRadioButton, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QComboBox,
-    QDoubleSpinBox, QButtonGroup, QFileDialog, QProgressBar
+    QDoubleSpinBox, QButtonGroup, QFileDialog, QProgressBar,
+    QApplication,
 )
 from PyQt6.QtCore import Qt
 
@@ -29,6 +30,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle as MplRect
 
 from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from gui.comparison_mixin import ComparisonMixin
 from core.reynolds_stress import extract_line_profile
 from core.export import export_2d_tecplot, export_line_csv
 from gui.line_selector import LineSelectorWidget, compute_snapped_line
@@ -52,7 +54,11 @@ _FONT_TICK = 8
 _FONT_LEG  = 8
 
 
-class ReynoldsWindow(PickerMixin, QWidget):
+class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
+
+    _module_name      = "Reynolds Stresses"
+    _expected_columns = ["dist_mm", "mean_uu", "mean_vv", "mean_uv"]
+    _axis_columns     = ["dist_mm", "x_mm", "y_mm"]
 
     def __init__(self, dataset, is_time_resolved=False, Nt_warn=2000,
                  duration_warn=2.0, parent=None):
@@ -66,8 +72,6 @@ class ReynoldsWindow(PickerMixin, QWidget):
         self._line_artist  = None
         self._roi_artist   = None
         self._selection    = None
-
-        self._show_convergence_warning(is_time_resolved, Nt_warn, duration_warn)
 
         self._stresses  = None
         self._k         = None
@@ -86,20 +90,6 @@ class ReynoldsWindow(PickerMixin, QWidget):
                            status_label=self.lbl_status)
 
         self._start_stress_computation()
-
-    # ----------------------------------------------------------------------- #
-
-    def _show_convergence_warning(self, is_tr, Nt, duration):
-        if is_tr:
-            if duration < 2.0:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"Dataset is {duration:.2f} s (< 2 s).\n"
-                    "Reynolds stress statistics may not be converged.")
-        else:
-            if Nt < 2000:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"Only {Nt} snapshots (< 2000 recommended).\n"
-                    "Reynolds stress statistics may not be converged.")
 
     # ----------------------------------------------------------------------- #
     # Background stress computation
@@ -143,7 +133,25 @@ class ReynoldsWindow(PickerMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _build_ui(self):
-        root = QHBoxLayout(self)
+        from core.constants import CONVERGENCE_WARNING_N
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        Nt = self.dataset["Nt"]
+        if Nt < CONVERGENCE_WARNING_N:
+            lbl_warn = QLabel(
+                f"⚠ Only N={Nt} snapshots loaded. "
+                "Statistics may not be converged. "
+                "Use the Mean & Convergence module to verify."
+            )
+            lbl_warn.setStyleSheet(
+                "background:#FFF3CD; color:#856404; "
+                "font-weight:bold; padding:4px 8px;"
+            )
+            lbl_warn.setWordWrap(True)
+            outer.addWidget(lbl_warn)
+        content = QWidget()
+        root = QHBoxLayout(content)
         root.setContentsMargins(6, 6, 6, 6)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -164,6 +172,17 @@ class ReynoldsWindow(PickerMixin, QWidget):
         self.field_toolbar = DrawAwareToolbar(self.field_canvas, self)
         ll.addWidget(self.field_toolbar)
         ll.addWidget(self.field_canvas)
+
+        self.line_comp_grp = QGroupBox("Components to overlay (line mode)")
+        self.line_comp_grp.setVisible(False)
+        lc_lay = QHBoxLayout(self.line_comp_grp)
+        self.comp_chks = {}
+        for c in self._available:
+            chk = QCheckBox(COMP_LABELS.get(c, c))
+            chk.setChecked(True)
+            self.comp_chks[c] = chk
+            lc_lay.addWidget(chk)
+        ll.addWidget(self.line_comp_grp)
 
         mode_grp = QGroupBox("Plot Mode")
         mode_lay = QHBoxLayout(mode_grp)
@@ -218,17 +237,6 @@ class ReynoldsWindow(PickerMixin, QWidget):
 
         ll.addWidget(opt_grp)
 
-        self.line_comp_grp = QGroupBox("Components to overlay (line mode)")
-        self.line_comp_grp.setVisible(False)
-        lc_lay = QHBoxLayout(self.line_comp_grp)
-        self.comp_chks = {}
-        for c in self._available:
-            chk = QCheckBox(COMP_LABELS.get(c, c))
-            chk.setChecked(True)
-            self.comp_chks[c] = chk
-            lc_lay.addWidget(chk)
-        ll.addWidget(self.line_comp_grp)
-
         self.btn_plot = QPushButton("Plot Contour")
         self.btn_plot.clicked.connect(self._on_plot)
         self.btn_plot.setEnabled(False)
@@ -242,7 +250,7 @@ class ReynoldsWindow(PickerMixin, QWidget):
         ll.addWidget(self.progress_bar)
 
         self.chk_std_band = QCheckBox("Show \u00b11\u03c3 band on line plot")
-        self.chk_std_band.setChecked(True)
+        self.chk_std_band.setChecked(False)
         ll.addWidget(self.chk_std_band)
 
         self.btn_export = QPushButton("Export Data...")
@@ -254,6 +262,8 @@ class ReynoldsWindow(PickerMixin, QWidget):
         self.lbl_status.setStyleSheet("color: gray; font-size: 11px;")
         self.lbl_status.setWordWrap(True)
         ll.addWidget(self.lbl_status)
+
+        self._init_comparison_toolbar(ll)
 
         # ---- Right ----
         right = QWidget()
@@ -280,6 +290,7 @@ class ReynoldsWindow(PickerMixin, QWidget):
         splitter.addWidget(left)
         splitter.addWidget(right)
         splitter.setSizes([500, 1200])
+        outer.addWidget(content, stretch=1)
 
     # ----------------------------------------------------------------------- #
 
@@ -304,7 +315,7 @@ class ReynoldsWindow(PickerMixin, QWidget):
 
         self.field_fig.clear()
         self.field_ax = self.field_fig.add_subplot(111)
-        self.field_ax.contourf(x, y, speed, levels=40, cmap="RdBu_r")
+        self.field_ax.contourf(x, y, np.ma.masked_invalid(speed), levels=40, cmap="RdBu_r")
         self.field_ax.set_xlabel("x [mm]", fontsize=_FONT_AX)
         self.field_ax.set_ylabel("y [mm]", fontsize=_FONT_AX)
         self.field_ax.set_title("Left-click+drag: line    Right-click+drag: ROI",
@@ -501,7 +512,7 @@ class ReynoldsWindow(PickerMixin, QWidget):
 
         self.result_fig.clear()
         ax = self.result_fig.add_subplot(111)
-        cf = ax.contourf(self._x, self._y, field, levels=50, cmap=cmap)
+        cf = ax.contourf(self._x, self._y, np.ma.masked_invalid(field), levels=50, cmap=cmap)
         cb = self.result_fig.colorbar(cf, ax=ax,
                                       label=f"{COMP_LABELS.get(comp, comp)} {unit_str}",
                                       shrink=0.8)
@@ -613,8 +624,12 @@ class ReynoldsWindow(PickerMixin, QWidget):
         is_line = self._mode == "line"
 
         if is_line:
+            try:
+                _cn = QApplication.instance()._session_case_name or "Data_1"
+            except AttributeError:
+                _cn = "Data_1"
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export Line Profile", "reynolds_line.csv",
+                self, "Export Line Profile", f"{_cn}_reynolds_line.csv",
                 "CSV Files (*.csv)")
             if not path:
                 return
@@ -649,3 +664,92 @@ class ReynoldsWindow(PickerMixin, QWidget):
             export_2d_tecplot(path, self._x, self._y, fields, labels, settings)
             self.lbl_status.setText(
                 f"Exported {len(fields)} stress components to {os.path.basename(path)}")
+
+    # ----------------------------------------------------------------------- #
+    # ComparisonMixin interface
+    # ----------------------------------------------------------------------- #
+
+    _STRESS_COLS = {"mean_uu", "mean_vv", "mean_uv",
+                    "mean_ww", "mean_uw", "mean_vw"}
+
+    def _validate_csv(self, df):
+        # Actual Reynolds CSV columns (written by export_line_csv):
+        #   axis   : dist_mm, x_mm, y_mm
+        #   2D PIV : mean_uu, std_uu, mean_vv, std_vv, mean_uv, std_uv
+        #   stereo : mean_ww, std_ww, mean_uw, std_uw, mean_vw, std_vw
+        cols = set(df.columns)
+        return "dist_mm" in cols and bool(cols & self._STRESS_COLS)
+
+    def _plot_comparison(self, selected_quantities, layout_mode):
+        cases = [c for c in self._cases if c["data"] is not None]
+        if not cases:
+            return
+
+        quantities = [q for q in selected_quantities
+                      if any(q in c["data"].columns for c in cases)]
+        if not quantities:
+            QMessageBox.warning(self, "No Data",
+                "None of the selected quantities were found in any case.")
+            return
+
+        self.result_fig.clear()
+
+        if layout_mode == "overlay":
+            for i, qty in enumerate(quantities):
+                ax = self.result_fig.add_subplot(1, len(quantities), i + 1)
+                for case in cases:
+                    df = case["data"]
+                    if "dist_mm" not in df.columns or qty not in df.columns:
+                        continue
+                    x = df["dist_mm"].values
+                    y = df[qty].values
+                    mask = np.isfinite(x) & np.isfinite(y)
+                    if not np.any(mask):
+                        continue
+                    ax.plot(x[mask], y[mask],
+                            color=case["color"],
+                            linestyle=case["linestyle"],
+                            linewidth=1.5,
+                            label=case["name"])
+                ax.axhline(0, color="gray", linewidth=0.8,
+                           linestyle="--", alpha=0.5)
+                comp_key = qty.replace("mean_", "").replace("std_", "")
+                title = COMP_LABELS.get(comp_key, qty)
+                ax.set_xlabel("dist [mm]", fontsize=_FONT_AX)
+                ax.set_ylabel(title, fontsize=_FONT_AX)
+                ax.set_title(title, fontsize=_FONT_AX)
+                ax.legend(fontsize=_FONT_LEG)
+                ax.grid(True, alpha=0.3)
+                ax.tick_params(labelsize=_FONT_TICK)
+
+        else:  # sidebyside
+            _fallback = list(COMP_COLORS.values())
+            for i, case in enumerate(cases):
+                ax = self.result_fig.add_subplot(1, len(cases), i + 1)
+                df = case["data"]
+                for j, qty in enumerate(quantities):
+                    if "dist_mm" not in df.columns or qty not in df.columns:
+                        continue
+                    x = df["dist_mm"].values
+                    y = df[qty].values
+                    mask = np.isfinite(x) & np.isfinite(y)
+                    if not np.any(mask):
+                        continue
+                    comp_key = qty.replace("mean_", "").replace("std_", "")
+                    color = COMP_COLORS.get(comp_key,
+                                            _fallback[j % len(_fallback)])
+                    ax.plot(x[mask], y[mask],
+                            color=color,
+                            linewidth=1.5,
+                            label=COMP_LABELS.get(comp_key, qty))
+                ax.axhline(0, color="gray", linewidth=0.8,
+                           linestyle="--", alpha=0.5)
+                ax.set_xlabel("dist [mm]", fontsize=_FONT_AX)
+                ax.set_title(case["name"], fontsize=_FONT_AX)
+                ax.legend(fontsize=_FONT_LEG)
+                ax.grid(True, alpha=0.3)
+                ax.tick_params(labelsize=_FONT_TICK)
+
+        self.result_fig.tight_layout(pad=0.5)
+        self.result_canvas.draw()
+        self.result_toolbar.set_home_limits()

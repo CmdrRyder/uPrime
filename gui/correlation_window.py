@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QComboBox, QSpinBox, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QTabWidget,
     QGridLayout, QRadioButton, QButtonGroup,
-    QFileDialog, QFrame, QDialog, QProgressBar
+    QFileDialog, QFrame, QDialog, QProgressBar, QApplication,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -154,7 +154,6 @@ class CorrelationWindow(PickerMixin, QWidget):
         self._last_R_tau   = None
         self._last_tau_sec = None
 
-        self._show_convergence_warning(is_time_resolved, Nt_warn, duration_warn)
         self._build_ui()
         self._draw_mean_field()
         self._connect_mouse()
@@ -164,19 +163,6 @@ class CorrelationWindow(PickerMixin, QWidget):
     # -----------------------------------------------------------------------
     # Convergence warning
     # -----------------------------------------------------------------------
-
-    def _show_convergence_warning(self, is_tr, Nt, duration):
-        if is_tr:
-            if duration < 2.0:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"Dataset is {duration:.2f} s (< 2 s).\n"
-                    "Correlations may not be statistically converged.")
-        else:
-            if Nt < 2000:
-                QMessageBox.warning(self, "Convergence Warning",
-                    f"Only {Nt} snapshots (< 2000 recommended).\n"
-                    "Spatial correlations may not be converged.\n"
-                    "Temporal tab is not available for non-time-resolved data.")
 
     # -----------------------------------------------------------------------
     # UI
@@ -265,6 +251,7 @@ class CorrelationWindow(PickerMixin, QWidget):
         self.lbl_status.setStyleSheet("color: gray; font-size: 11px;")
         self.lbl_status.setWordWrap(True)
         ll.addWidget(self.lbl_status)
+
 
         splitter.addWidget(left)
 
@@ -484,7 +471,7 @@ class CorrelationWindow(PickerMixin, QWidget):
         U_mean[~self.dataset["MASK"]] = np.nan
 
         self.field_ax.contourf(
-            self._x, self._y, U_mean, levels=50,
+            self._x, self._y, np.ma.masked_invalid(U_mean), levels=50,
             cmap=_CMAP_DIV, extend="neither")
         self.field_ax.set_xlabel("x [mm]", fontsize=_FONT_AX)
         self.field_ax.set_ylabel("y [mm]", fontsize=_FONT_AX)
@@ -681,7 +668,7 @@ class CorrelationWindow(PickerMixin, QWidget):
     def _plot_spatial_2d(self, R_norm):
         self.spatial_2d_fig.clear()
         ax = self.spatial_2d_fig.add_subplot(111)
-        cf = ax.contourf(self._x, self._y, R_norm,
+        cf = ax.contourf(self._x, self._y, np.ma.masked_invalid(R_norm),
                          levels=np.linspace(-1, 1, 41),
                          cmap=_CMAP_DIV, extend="neither")
         cb = self.spatial_2d_fig.colorbar(cf, ax=ax, label="R [ ]", shrink=0.8)
@@ -1130,26 +1117,56 @@ class CorrelationWindow(PickerMixin, QWidget):
         self.lbl_status.setText(f"Exported 2D map to {path}")
 
     def _export_spatial_1d(self):
+        import traceback
         if self._last_R_x is None:
+            QMessageBox.warning(self, "No Data",
+                "Plot a line profile first before exporting.")
             return
+        try:
+            _cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            _cn = "Data_1"
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export 1D Slices", "spatial_corr_1d.csv",
+            self, "Export 1D Slices", f"{_cn}_correlation_line.csv",
             "CSV Files (*.csv);;All Files (*)")
         if not path:
             return
-        comp = self.combo_comp.currentText()
-        settings = {"Analysis": f"Spatial Correlation 1D  {comp}",
-                    "Snapshots": self.dataset["Nt"]}
-        means = {"R_x": self._last_R_x, "R_y": self._last_R_y}
-        export_line_csv(path, self._last_dx, self._last_dx,
-                        self._last_dx, means, {}, settings)
-        self.lbl_status.setText(f"Exported 1D slices to {path}")
+        try:
+            comp = self.combo_comp.currentText()
+            settings = {"Analysis": f"Spatial Correlation 1D  {comp}",
+                        "Snapshots": self.dataset["Nt"]}
+            base, ext = os.path.splitext(path)
+            if not ext:
+                ext = ".csv"
+            # x-slice: R_x(dx) — R_x and _last_dx both have length nx
+            path_x = base + "_Rx" + ext
+            export_line_csv(path_x,
+                            self._last_dx,
+                            self._last_dx,
+                            np.zeros_like(self._last_dx),
+                            {"R_x": self._last_R_x}, {}, settings)
+            # y-slice: R_y(dy) — R_y and _last_dy both have length ny
+            path_y = base + "_Ry" + ext
+            if self._last_R_y is not None and self._last_dy is not None:
+                export_line_csv(path_y,
+                                self._last_dy,
+                                np.zeros_like(self._last_dy),
+                                self._last_dy,
+                                {"R_y": self._last_R_y}, {}, settings)
+            self.lbl_status.setText(
+                f"Exported to {os.path.basename(path_x)} and {os.path.basename(path_y)}")
+        except Exception:
+            QMessageBox.critical(self, "Export Error", traceback.format_exc())
 
     def _export_temporal(self):
         if self._last_R_tau is None:
             return
+        try:
+            _cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            _cn = "Data_1"
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Temporal Correlation", "temporal_corr.csv",
+            self, "Export Temporal Correlation", f"{_cn}_correlation_temporal.csv",
             "CSV Files (*.csv);;All Files (*)")
         if not path:
             return
@@ -1167,3 +1184,4 @@ class CorrelationWindow(PickerMixin, QWidget):
 
     def _component_key(self):
         return self.combo_comp.currentText().replace("R_", "")
+

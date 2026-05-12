@@ -735,8 +735,13 @@ class VortexWindow(PickerMixin, QWidget):
         if self._current_field is None:
             QMessageBox.warning(self, "No Data", "Compute a field first.")
             return
+        try:
+            cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            cn = "Data_1"
+        key = self.combo_field.currentData()
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Scalar Field", "",
+            self, "Export Scalar Field", f"{cn}_vortex_{key}.dat",
             "Tecplot DAT (*.dat);;All Files (*)")
         if not path:
             return
@@ -759,8 +764,13 @@ class VortexWindow(PickerMixin, QWidget):
                 "Run 'Detect Vortices' first (and ensure at least one "
                 "vortex was found).")
             return
+        try:
+            cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            cn = "Data_1"
+        key = self.combo_field.currentData()
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Vortex Table", "",
+            self, "Export Vortex Table", f"{cn}_vortex_table_{key}.csv",
             "CSV (*.csv);;All Files (*)")
         if not path:
             return
@@ -780,8 +790,13 @@ class VortexWindow(PickerMixin, QWidget):
         prob_map = compute_spatial_probability(
             self._current_field, threshold, sign_filter)
 
+        try:
+            cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            cn = "Data_1"
+        key = self.combo_field.currentData()
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Probability Map", "",
+            self, "Export Probability Map", f"{cn}_vortex_prob_{key}.dat",
             "Tecplot DAT (*.dat);;All Files (*)")
         if not path:
             return
