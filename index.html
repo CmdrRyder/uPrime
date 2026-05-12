@@ -3,15 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <title>uPrime - PIV & CFD Velocity Field Analysis Software</title>
-  <meta name="description" content="GUI-based velocity field analysis software for PIV and CFD. Turbulence analysis without scripting.">
+  <meta name="description" content="GUI-based velocity field analysis software for PIV and CFD. Turbulence analysis without scripting. Reads Tecplot .dat and MATLAB .mat files.">
+  <meta name="keywords" content="PIV, CFD, turbulence, Reynolds stresses, TKE budget, POD, DMD, vortex identification, MATLAB mat, DaVis, open source">
+  <meta property="og:title" content="uPrime - PIV & CFD Velocity Field Analysis">
+  <meta property="og:description" content="Standalone desktop application for turbulence post-processing. No scripting required.">
+  <meta property="og:type" content="website">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       background: #0f1117;
       color: #e6edf3;
       text-align: center;
       padding: 40px 20px;
+      line-height: 1.5;
     }
     .container {
       max-width: 960px;
@@ -35,7 +40,7 @@
     .description {
       font-size: 1.05rem;
       color: #c9d1d9;
-      max-width: 640px;
+      max-width: 680px;
       margin: 0 auto 24px;
       line-height: 1.6;
     }
@@ -51,9 +56,16 @@
       border-radius: 6px;
       text-decoration: none;
       font-size: 0.95rem;
+      transition: background 0.15s;
+    }
+    a.button:hover {
+      background: #2ea043;
     }
     a.secondary {
       background: #30363d;
+    }
+    a.secondary:hover {
+      background: #424a53;
     }
     .gui-img {
       width: 100%;
@@ -71,8 +83,45 @@
       margin: 4px;
       border: 1px solid #30363d;
     }
+    .badge.highlight {
+      background: #1f3a5f;
+      color: #58a6ff;
+      border-color: #1f6feb;
+    }
     .badges {
       margin-bottom: 28px;
+    }
+    .whats-new {
+      background: #161b22;
+      border: 1px solid #1f6feb;
+      border-radius: 8px;
+      padding: 18px 24px;
+      margin: 0 auto 40px;
+      max-width: 720px;
+      text-align: left;
+    }
+    .whats-new h2 {
+      font-size: 1.0rem;
+      color: #58a6ff;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+    .whats-new ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    .whats-new li {
+      font-size: 0.88rem;
+      color: #c9d1d9;
+      padding: 4px 0;
+      padding-left: 18px;
+      position: relative;
+    }
+    .whats-new li::before {
+      content: "→";
+      position: absolute;
+      left: 0;
+      color: #3fb950;
     }
     .features {
       display: grid;
@@ -121,9 +170,12 @@
       padding: 6px 0;
       border-bottom: 1px solid #21262d;
     }
-    .module-item span {
+    .module-item span.check {
       color: #3fb950;
       margin-right: 8px;
+    }
+    .module-item.new span.check {
+      color: #f0883e;
     }
     .module-badge {
       font-size: 0.7rem;
@@ -132,6 +184,37 @@
       padding: 1px 6px;
       border-radius: 4px;
       margin-left: 6px;
+    }
+    .module-badge.new {
+      background: #3d2317;
+      color: #f0883e;
+    }
+    .formats {
+      text-align: left;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 48px;
+    }
+    .formats h2 {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      color: #e6edf3;
+    }
+    .formats p {
+      font-size: 0.88rem;
+      color: #c9d1d9;
+      margin-bottom: 8px;
+      line-height: 1.6;
+    }
+    .formats code {
+      background: #0d1117;
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: #79c0ff;
+      font-size: 0.85rem;
+      border: 1px solid #21262d;
     }
     .footer {
       color: #8b949e;
@@ -142,6 +225,9 @@
     .footer a {
       color: #58a6ff;
       text-decoration: none;
+    }
+    .footer a:hover {
+      text-decoration: underline;
     }
     h2.section-title {
       font-size: 1.3rem;
@@ -156,37 +242,61 @@
   <!-- Logo -->
   <img class="logo" src="assets/logo_dark.png" alt="uPrime logo">
 
-  <!-- Title -->
+  <!-- Tagline -->
   <p class="tagline">Turbulence is complex. Analysis shouldn't be.</p>
 
   <!-- Badges -->
   <div class="badges">
-    <span class="badge">v0.4.1 alpha</span>
+    <span class="badge highlight">v0.6.1 alpha</span>
     <span class="badge">Python 3.10+</span>
     <span class="badge">GPLv3</span>
     <span class="badge">Windows · macOS · Linux</span>
+    <span class="badge">.dat &middot; .mat</span>
   </div>
 
   <!-- Description -->
   <p class="description">
     uPrime is a standalone desktop application for post-processing and turbulence analysis
-    of velocity field data from PIV and CFD. No scripting. No setup. Just analysis.
+    of velocity field data from PIV and CFD. Reads Tecplot ASCII .dat (LaVision DaVis) and
+    MATLAB .mat files. No scripting. No setup. Just analysis.
   </p>
 
   <!-- Buttons -->
   <div class="buttons">
-    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/tag/v0.4.1">Download v0.4.1</a>
+    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/latest">Download v0.6.1</a>
     <a class="button secondary" href="https://github.com/CmdrRyder/uPrime">View on GitHub</a>
     <a class="button secondary" href="https://doi.org/10.5281/zenodo.19376184">DOI</a>
-    <a class="button secondary" href="https://cmdrryder.github.io/uPrime/docs/manual.pdf">Manual (PDF)</a>
+    <a class="button secondary" href="https://cmdrryder.github.io/uPrime/manual.pdf">Manual (PDF)</a>
   </div>
 
   <!-- GUI Screenshot -->
-  <img class="gui-img" src="docs/images/gui_v041.png" alt="uPrime v0.4.1 GUI">
+  <img class="gui-img" src="docs/images/gui_v061.png" alt="uPrime v0.6.1 GUI"
+       onerror="this.onerror=null;this.src='docs/images/gui_v041.png';">
+
+  <!-- What's New -->
+  <div class="whats-new">
+    <h2>NEW IN v0.6</h2>
+    <ul>
+      <li><strong>Mean &amp; Convergence module</strong>: mean velocity line profiles plus point-wise statistical convergence check using Welford's online algorithm with sustained-crossing N* detection.</li>
+      <li><strong>MATLAB .mat file input</strong>: classic v5/v7 and v7.3 (HDF5). Variable confirmation dialog with auto-detection, snapshot subset spinboxes, single-snapshot rejection.</li>
+      <li><strong>Multi-case comparison</strong>: import previous results as CSV and overlay in Reynolds stress, TKE budget, spectra, correlation, anisotropy, and mean velocity plots.</li>
+      <li><strong>Inline non-convergence notice</strong>: persistent amber top-bar on Reynolds, TKE, and Spectra modules when fewer than 500 snapshots are loaded.</li>
+      <li><strong>TKE budget split panels</strong>: TKE k now plotted in a dedicated upper panel, P/C/D/R in the lower panel sharing the x-axis.</li>
+      <li><strong>Float16 storage option</strong> for .mat files exceeding 5 GB, with explicit warning about reduced numerical precision.</li>
+    </ul>
+  </div>
 
   <!-- Key Features -->
   <h2 class="section-title">Key Features</h2>
   <div class="features">
+    <div class="feature-card">
+      <h3>📊 Convergence verification</h3>
+      <p>Cumulative first, second, and third central moments at any picked point, with automatic N* detection. Know whether your statistics are trustworthy before you publish them.</p>
+    </div>
+    <div class="feature-card">
+      <h3>📂 Two input formats</h3>
+      <p>Reads Tecplot ASCII .dat from DaVis (one file per snapshot) and MATLAB .mat files (full time series in a single file, classic and v7.3 HDF5). Auto-detects variable names.</p>
+    </div>
     <div class="feature-card">
       <h3>⚡ Non-blocking computation</h3>
       <p>All heavy analysis runs in background threads. The window stays fully responsive during POD, DMD, TKE budget, and vortex identification.</p>
@@ -197,13 +307,13 @@
     </div>
     <div class="feature-card">
       <h3>🎭 Non-destructive masking</h3>
-      <p>Draw masks over walls, shadows, and reflections. Raw data is never modified — toggle masks on and off instantly.</p>
+      <p>Draw masks over walls, shadows, and reflections. Raw data is never modified. Toggle masks on and off instantly.</p>
     </div>
     <div class="feature-card">
       <h3>🔍 Unit auto-detection</h3>
-      <p>Reads mm/m/s units directly from Tecplot .dat file headers. No manual configuration needed.</p>
+      <p>Reads mm/m/s units directly from Tecplot .dat file headers and MATLAB variable shapes. No manual configuration needed.</p>
     </div>
-     <div class="feature-card">
+    <div class="feature-card">
       <h3>📄 Publication-ready export</h3>
       <p>PNG (300 DPI), PDF, and SVG with editable text. Compatible with Adobe Illustrator and Inkscape.</p>
     </div>
@@ -211,44 +321,67 @@
       <h3>🖥️ Standalone executable</h3>
       <p>Windows .exe with no Python or dependencies required. macOS and Linux users run from source in three commands.</p>
     </div>
- <div class="feature-card">
-  <h3>📐 Transform & Alignment</h3>
-  <p>Correct camera misalignment, shift the coordinate origin, and mirror datasets. Built for experimental data where even a 1° tilt can corrupt turbulence statistics.</p>
+    <div class="feature-card">
+      <h3>📐 Transform &amp; Alignment</h3>
+      <p>Correct camera misalignment, shift the coordinate origin, and mirror datasets. Built for experimental data where even a 1° tilt can corrupt turbulence statistics.</p>
+    </div>
+    <div class="feature-card">
+      <h3>🧠 Full turbulence pipeline</h3>
+      <p>Reynolds stresses, TKE budget, spectra, POD, DMD, correlations, and vortex identification, all in one environment. No MATLAB or Python required.</p>
+    </div>
+    <div class="feature-card">
+      <h3>📏 Integral scales &amp; correlation</h3>
+      <p>Compute spatial and temporal correlations with automatic integral length and time scale extraction using multiple robust methods.</p>
+    </div>
+    <div class="feature-card">
+      <h3>🔀 Multi-case comparison</h3>
+      <p>Import previous results as CSV and overlay them on top of the current dataset. Per-case styling, manage cases, combined export.</p>
+    </div>
   </div>
-  <div class="feature-card">
-  <h3>🧠 Full turbulence pipeline</h3>
-  <p>Reynolds stresses, TKE budget, spectra, POD, DMD, correlations, and vortex identification — all in one environment, no MATLAB or Python required.</p>
-  </div>
-<div class="feature-card">
-  <h3>📏 Integral scales & correlation</h3>
-  <p>Compute spatial and temporal correlations with automatic integral length and time scale extraction using multiple robust methods.</p>
-</div>
+
+  <!-- Input Formats -->
+  <div class="formats">
+    <h2>Input Formats</h2>
+    <p>
+      <strong>Tecplot ASCII <code>.dat</code></strong> (LaVision DaVis export):
+      one file per snapshot, select multiple files to load a time series.
+      Variable names and units auto-detected from the header. Supports 2D2C and 2D3C (stereo).
+    </p>
+    <p>
+      <strong>MATLAB <code>.mat</code></strong> (classic v5/v7 and v7.3 HDF5):
+      a single file containing the entire dataset. Velocity arrays in shape <code>(Ny, Nx, N_snap)</code>;
+      coordinates as 1D vectors or 2D meshgrid (auto-transposed if needed). Variable confirmation dialog
+      reads metadata first, so even a 10+ GB file opens the dialog within seconds.
+    </p>
   </div>
 
   <!-- Analysis Modules -->
   <div class="modules">
     <h2>Analysis Modules</h2>
     <div class="module-grid">
-      <div class="module-item"><span>✓</span>Reynolds Stress Analysis</div>
-      <div class="module-item"><span>✓</span>TKE Budget</div>
-      <div class="module-item"><span>✓</span>Space-Time Spectral Analysis</div>
-      <div class="module-item"><span>✓</span>Anisotropy Invariants <span class="module-badge">Stereo only</span></div>
-      <div class="module-item"><span>✓</span>Correlation Analysis</div>
-      <div class="module-item"><span>✓</span>POD Analysis</div>
-      <div class="module-item"><span>✓</span>DMD Analysis <span class="module-badge">TR only</span></div>
-      <div class="module-item"><span>✓</span>Vortex Identification</div>
-      <div class="module-item"><span>✓</span>Mask Editor</div>
-      <div class="module-item"><span>✓</span>Coordinate Transform</div>
+      <div class="module-item new"><span class="check">✓</span>Mean &amp; Convergence <span class="module-badge new">v0.6</span></div>
+      <div class="module-item"><span class="check">✓</span>Reynolds Stress Analysis</div>
+      <div class="module-item"><span class="check">✓</span>TKE Budget</div>
+      <div class="module-item"><span class="check">✓</span>Space-Time Spectral Analysis</div>
+      <div class="module-item"><span class="check">✓</span>Anisotropy Invariants <span class="module-badge">Stereo only</span></div>
+      <div class="module-item"><span class="check">✓</span>Correlation Analysis</div>
+      <div class="module-item"><span class="check">✓</span>POD Analysis</div>
+      <div class="module-item"><span class="check">✓</span>DMD Analysis <span class="module-badge">TR only</span></div>
+      <div class="module-item"><span class="check">✓</span>Vortex Identification</div>
+      <div class="module-item"><span class="check">✓</span>Mask Editor</div>
+      <div class="module-item"><span class="check">✓</span>Coordinate Transform</div>
     </div>
   </div>
 
   <!-- Footer -->
   <div class="footer">
-    <p>  Developed by <strong>Jibu Tom Jose</strong> ·   <a href="https://www.tfmltechnion.com/" target="_blank">     Transient Fluid Mechanics Laboratory   </a>, Technion</p>
-    <p>Built with assistance from <a href="https://www.anthropic.com">Claude</a> (Anthropic)</p>
+    <p>Developed by <strong>Jibu Tom Jose</strong> &middot;
+       <a href="https://www.tfmltechnion.com/" target="_blank">Transient Fluid Mechanics Laboratory</a>, Technion</p>
+    <p>Built with assistance from <a href="https://www.anthropic.com" target="_blank">Claude</a> (Anthropic)</p>
     <p style="margin-top:8px;">
-      <a href="https://github.com/CmdrRyder/uPrime">GitHub</a> ·
-      <a href="https://doi.org/10.5281/zenodo.19376184">Zenodo</a> ·
+      <a href="https://github.com/CmdrRyder/uPrime">GitHub</a> &middot;
+      <a href="https://github.com/CmdrRyder/uPrime/releases">Releases</a> &middot;
+      <a href="https://doi.org/10.5281/zenodo.19376184">Zenodo</a> &middot;
       <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPLv3</a>
     </p>
     <p style="margin-top:8px; color:#444d56;">These are derived quantities, not conclusions. Interpret with care.</p>
