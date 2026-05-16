@@ -1,0 +1,1153 @@
+\documentclass[11pt, a4paper]{report}
+
+% -----------------------------------------------------------------------
+% Packages
+% -----------------------------------------------------------------------
+\usepackage[a4paper, top=25mm, bottom=25mm, left=28mm, right=28mm]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{mdframed}
+\usepackage{fontawesome5}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{tcolorbox}
+\usepackage{amsmath}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{tikz}
+
+% -----------------------------------------------------------------------
+% Colors
+% -----------------------------------------------------------------------
+\definecolor{upblue}{RGB}{30, 90, 160}
+\definecolor{upaccent}{RGB}{220, 80, 60}
+\definecolor{upgray}{RGB}{100, 100, 100}
+\definecolor{uplightgray}{RGB}{245, 245, 245}
+\definecolor{upboxborder}{RGB}{180, 200, 230}
+\definecolor{tipgreen}{RGB}{40, 130, 80}
+
+% -----------------------------------------------------------------------
+% Hyperref
+% -----------------------------------------------------------------------
+\hypersetup{
+    colorlinks  = true,
+    linkcolor   = upblue,
+    urlcolor    = upblue,
+    citecolor   = upblue,
+    pdftitle    = {uPrime v0.3.4: Open-Source PIV Post-Processing and Turbulence Analysis Software, User Manual},
+    pdfauthor   = {Jibu Tom Jose},
+    pdfsubject  = {Particle Image Velocimetry, Turbulence Analysis, Open-Source Software},
+    pdfkeywords = {PIV, turbulence, Reynolds stresses, TKE budget, POD, proper orthogonal decomposition, spectral analysis, two-point correlation, anisotropy invariants, open-source, DaVis, LaVision},
+    pdfcreator  = {uPrime, Transient Fluid Mechanics Laboratory, Technion},
+    pdflang     = {en-US},
+}
+
+% -----------------------------------------------------------------------
+% Header / footer
+% -----------------------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{upgray}{uPrime v0.3.4 -- User Manual}}
+\fancyhead[R]{\small\textcolor{upgray}{\leftmark}}
+\fancyfoot[C]{\small\textcolor{upgray}{\thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% -----------------------------------------------------------------------
+% Section formatting
+% -----------------------------------------------------------------------
+\titleformat{\chapter}[display]
+  {\normalfont\Large\bfseries\color{upblue}}
+  {\chaptertitlename\ \thechapter}{10pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{20pt}{20pt}
+
+\titleformat{\section}
+  {\normalfont\large\bfseries\color{upblue}}
+  {\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\normalsize\bfseries\color{upblue!80!black}}
+  {\thesubsection}{1em}{}
+
+% -----------------------------------------------------------------------
+% Custom boxes
+% -----------------------------------------------------------------------
+\tcbuselibrary{skins, breakable}
+
+\newtcolorbox{notebox}{
+  colback  = uplightgray,
+  colframe = upboxborder,
+  coltitle = upblue,
+  fonttitle= \bfseries\small,
+  title    = {\faInfoCircle\quad Note},
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt, arc=3pt,
+}
+
+\newtcolorbox{tipbox}{
+  colback  = green!5,
+  colframe = tipgreen!60,
+  coltitle = tipgreen,
+  fonttitle= \bfseries\small,
+  title    = {\faLightbulb\quad Tip},
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt, arc=3pt,
+}
+
+\newtcolorbox{warnbox}{
+  colback  = red!5,
+  colframe = upaccent!60,
+  coltitle = upaccent,
+  fonttitle= \bfseries\small,
+  title    = {\faExclamationTriangle\quad Warning},
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt, arc=3pt,
+}
+
+\newtcolorbox{stepbox}{
+  colback  = upblue!5,
+  colframe = upblue!35,
+  coltitle = upblue,
+  fonttitle= \bfseries\small,
+  title    = {\faListOl\quad Step-by-step},
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt, arc=3pt,
+}
+
+% -----------------------------------------------------------------------
+% Misc helpers
+% -----------------------------------------------------------------------
+\newcommand{\uipth}[1]{\textbf{\textcolor{upblue}{#1}}}
+\newcommand{\key}[1]{\fbox{\small\texttt{#1}}}
+\newcommand{\software}[1]{\textsf{#1}}
+
+\graphicspath{{Figs/}}
+
+% -----------------------------------------------------------------------
+% Document
+% -----------------------------------------------------------------------
+\begin{document}
+
+% ============================= TITLE PAGE ==============================
+\begin{titlepage}
+\thispagestyle{empty}
+
+\noindent\colorbox{upblue}{\rule{0pt}{5pt}\hspace{\dimexpr\textwidth+2\fboxsep\relax}}
+\vspace*{1.6cm}
+
+\begin{tikzpicture}[remember picture, overlay]
+  \foreach \x in {-1, -0.45, ..., 22} {
+    \foreach \y in {-2, -2.55, ..., -10} {
+      \fill[upblue!10] (current page.north west) ++(\x cm, \y cm) circle (1.2pt);
+    }
+  }
+\end{tikzpicture}
+
+\begin{center}
+  \includegraphics[width=4cm]{logo_upblue.png}\\[0.4cm]
+  {\large\itshape\textcolor{upgray}{Because u$'$ matters}}
+\end{center}
+
+\vspace{0.6cm}
+\noindent\textcolor{upblue!40}{\rule{\textwidth}{0.8pt}}
+\vspace{0.5cm}
+
+\begin{flushleft}
+  \hspace{2mm}{\LARGE\bfseries\textcolor{upblue}{User Manual}}\\[0.4cm]
+  \hspace{2mm}{\normalsize\textcolor{upgray}{Version 0.3.4\quad$\cdot$\quad Alpha Release}}
+\end{flushleft}
+
+\vfill
+
+\noindent\textcolor{upblue!20}{\rule{\textwidth}{0.4pt}}
+\vspace{0.5cm}
+
+\begin{flushleft}
+  \hspace{2mm}{\normalsize\textbf{Jibu Tom Jose}}\\[0.15cm]
+  \hspace{2mm}{\small\textcolor{upgray}{Transient Fluid Mechanics Laboratory (PI: Omri Ram)}}\\[0.05cm]
+  \hspace{2mm}{\small\textcolor{upgray}{Faculty of Mechanical Engineering, Technion}}\\[0.05cm]
+  \hspace{2mm}{\small\textcolor{upgray}{Israel Institute of Technology, Haifa}}\\[0.5cm]
+  \hspace{2mm}{\small\textcolor{upblue}{\faGithub\quad
+    \href{https://github.com/CmdrRyder/uPrime}{github.com/CmdrRyder/uPrime}}}\\[0.2cm]
+  \hspace{2mm}{\small\textcolor{upblue}{\faLink\quad
+    \href{https://doi.org/10.5281/zenodo.19376184}{doi.org/10.5281/zenodo.19376184}}}\\[0.3cm]
+  \hspace{2mm}{\small\textcolor{upgray}{Open source\quad$\cdot$\quad GNU GPL v3\quad$\cdot$\quad 2026}}
+\end{flushleft}
+
+\vspace{0.4cm}
+\noindent\colorbox{upblue}{\rule{0pt}{5pt}\hspace{\dimexpr\textwidth+2\fboxsep\relax}}
+\end{titlepage}
+
+% ============================= ABSTRACT ================================
+\clearpage
+\thispagestyle{empty}
+
+\section*{Abstract}
+
+\software{uPrime} is an open-source, cross-platform desktop application for the post-processing and turbulence analysis of planar velocity fields obtained from particle image velocimetry (PIV) and computational fluid dynamics (CFD). The software provides an integrated graphical environment covering the full range of standard turbulence diagnostics: Reynolds normal and shear stresses, turbulent kinetic energy (TKE) budgets, one-dimensional and two-dimensional spatial and temporal power spectral densities, two-point spatial and temporal correlation functions with automatic integral length and time scale extraction, turbulence anisotropy analysis via the Lumley triangle and barycentric maps, and snapshot Proper Orthogonal Decomposition (POD) with modal energy spectra and low-order flow field reconstruction. All analyzes are accessible through a labeled graphical interface without requiring programming knowledge, making the tool accessible to students and researchers new to quantitative flow analysis.
+
+\software{uPrime} reads multi-snapshot Tecplot ASCII \texttt{.dat} files exported from LaVision DaVis and supports both 2D two-component (2D2C) and stereo three-component (2D3C) PIV datasets. It includes coordinate transformation tools for correcting camera calibration misalignment and a snapshot subsampling interface for efficient handling of large time-resolved datasets. Figures are exportable as PNG (300\,DPI) or vector graphics (PDF, SVG) with editable text, facilitating direct integration into publication workflows.
+
+\vspace{0.5cm}
+\noindent\textbf{Keywords:} particle image velocimetry; turbulence post-processing; Reynolds stresses; turbulent kinetic energy budget; power spectral density; two-point correlation; integral length scale; Lumley triangle; Proper Orthogonal Decomposition; open-source software; LaVision DaVis
+
+\tableofcontents
+\clearpage
+
+% ============================= CHAPTER 1 ==============================
+\chapter{Getting Started}
+
+\section{What is uPrime?}
+
+\software{uPrime} reads Tecplot \texttt{.dat} files exported from LaVision DaVis and provides a graphical interface for turbulence post-processing. You do not need to know Python, MATLAB, or any programming language to use it. Everything is point-and-click.
+
+The workflow is always the same:
+\begin{enumerate}[leftmargin=1.5em]
+  \item Load your PIV snapshots.
+  \item Set the acquisition type and sampling frequency.
+  \item Align the coordinate system if needed.
+  \item Open any analysis module and explore your data.
+\end{enumerate}
+
+\section{What uPrime can do}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item Load 2D2C and 2D3C (stereo) PIV data from multiple \texttt{.dat} files simultaneously.
+  \item Display mean velocity fields, standard deviation, vorticity, velocity vectors, and streamlines.
+  \item Compute all Reynolds stress components with 2D maps, line profiles, and uncertainty bands.
+  \item Compute and plot the full TKE budget (production, convection, diffusion, residual).
+  \item Perform spatial, temporal, and space--time spectral analysis.
+  \item Compute two-point spatial and temporal correlations with integral length and time scales.
+  \item Analyze turbulence anisotropy via the Lumley triangle and barycentric maps (stereo only).
+  \item Perform Proper Orthogonal Decomposition (POD) with energy spectra, mode shapes, and flow reconstruction.
+  \item Correct camera calibration misalignment, shift the coordinate origin, and mirror the dataset.
+  \item Export all results as Tecplot \texttt{.dat} or \texttt{.csv} files, and figures as PNG (300 DPI), PDF, or SVG with editable text.
+\end{itemize}
+
+\section{System requirements}
+
+\begin{table}[htbp]
+\centering
+\caption{Minimum system requirements.}
+\begin{tabular}{ll}
+\toprule
+\textbf{Item} & \textbf{Requirement} \\
+\midrule
+Operating system  & Windows 10/11 (primary); macOS 12+; Linux (Ubuntu 20+) \\
+Python            & 3.10 or later (source installation only) \\
+RAM               & 8\,GB minimum; 16\,GB or more recommended for large datasets \\
+Display           & 1920$\times$1080 or larger strongly recommended \\
+\midrule
+\multicolumn{2}{l}{\textit{Python dependencies (source installation)}} \\
+\midrule
+\texttt{numpy}      & Array operations and numerical core \\
+\texttt{scipy}      & Signal processing and spectral analysis \\
+\texttt{matplotlib} & Plotting and figure export \\
+\texttt{PyQt6}      & Graphical user interface \\
+\texttt{pyfftw}     & Fast Fourier transforms (accelerates spectral analysis) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{notebox}
+All Python dependencies are installed automatically via \texttt{pip install -r requirements.txt}. The Windows executable requires no Python or dependency installation.
+\end{notebox}
+
+\section{Installation}
+
+\subsection{Option A: Windows executable (recommended for non-developers)}
+
+Download \texttt{uPrime\_v0.3.4.exe} from the
+\href{https://github.com/CmdrRyder/uPrime/releases}{GitHub Releases page}
+and double-click to launch. No Python or any other software is required.
+
+\begin{notebox}
+Windows Defender may show a security warning on first launch. Click \textbf{More info} then \textbf{Run anyway}. This is normal for executables built with PyInstaller that have not been code-signed.
+\end{notebox}
+
+\subsection{Option B: Run from source}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Clone the repository:
+\begin{verbatim}
+git clone https://github.com/CmdrRyder/uPrime.git
+cd uPrime
+\end{verbatim}
+  \item Install dependencies:
+\begin{verbatim}
+pip install -r requirements.txt
+\end{verbatim}
+  \item Launch:
+\begin{verbatim}
+python main.py
+\end{verbatim}
+\end{enumerate}
+
+\section{Input file format}
+
+uPrime reads \textbf{Tecplot ASCII \texttt{.dat} files} in the standard DaVis export format. Each file contains one PIV snapshot. Select multiple files at once to load a full time series.
+
+\begin{notebox}
+uPrime auto-detects variable names. It expects \texttt{x}, \texttt{y}, \texttt{U} (or \texttt{Velocity u}), \texttt{V} (or \texttt{Velocity v}), and optionally \texttt{W} for stereo. Extra columns (vorticity, acceleration, etc.) are ignored silently. An \texttt{isValid} or \texttt{mask} column is used to exclude invalid vectors; this column is present by default in DaVis exports. Files exported directly from DaVis will load without any configuration.
+\end{notebox}
+
+% ============================= CHAPTER 2 ==============================
+\chapter{Main Window}
+\label{ch:main}
+
+\section{Overview}
+
+When uPrime launches you will see a welcome screen. The sidebar on the left is your control panel. All steps are numbered in the order you should use them.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig0}
+  \caption{uPrime welcome screen on launch. Load \texttt{.dat} files from the sidebar to begin.}
+  \label{fig:welcome}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig1}
+  \caption{Main window after loading data. The info ribbon below the options strip shows the dataset summary. The four numbered steps in the sidebar guide the workflow.}
+  \label{fig:main}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig1_1}
+  \caption{Main window showing the snapshot subsampling controls (Reload Last Dataset and Select Subset buttons) that appear after a successful load.}
+  \label{fig:main2}
+\end{figure}
+
+\begin{notebox}
+All sample images in this manual were generated from a representative dataset of 200 snapshots only, which is insufficient for statistically converged turbulence quantities. They are included for illustration purposes only. In practice, at least 2000 snapshots are recommended for non-time-resolved data and at least 2 seconds of recording for time-resolved data.
+\end{notebox}
+
+\section{The four sidebar steps}
+
+Always work through the sidebar from top to bottom when starting with a new dataset.
+
+\subsection{Step 1: Load Data}
+
+Click \uipth{Select .dat Files\ldots} and choose all your snapshot files at once. Hold \key{Ctrl} or \key{Shift} to select multiple files. uPrime stacks them into a single dataset in memory.
+
+For large datasets the total file size may trigger a subsampling dialog; see Section~\ref{sec:subsample}.
+
+After a successful load, two additional buttons appear:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \uipth{Reload Last Dataset}: reloads the same files without the file browser. Use this to undo a bad transform.
+  \item \uipth{Select Subset\ldots}: carve out a subset of the already-loaded snapshots without re-reading from disk (see Section~\ref{sec:subsample}).
+\end{itemize}
+
+\subsection{Step 2: Acquisition Type}
+
+Tell uPrime whether your data is time-resolved:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \uipth{Time-Resolved (TR)}: snapshots are acquired at a fixed rate. Enter $f_s$ in Hz. Temporal analyzes (temporal spectra, temporal correlation, POD temporal coefficients) become available.
+  \item \uipth{Non-TR}: snapshots are statistically independent (e.g.\ double-frame PIV). Temporal analyzes are greyed out.
+\end{itemize}
+
+\begin{warnbox}
+Set the correct acquisition type and $f_s$ \emph{before} opening any analysis window. Analysis windows read these settings when they are opened and do not update if you change $f_s$ afterwards.
+\end{warnbox}
+
+\subsection{Step 3: Align / Transform}
+
+Click \uipth{Transform / Align\ldots} to open the coordinate correction tool. This is where you fix camera tilt, shift the coordinate origin, and optionally mirror the dataset. \textbf{Always do this before running any analysis.} Full details are in Chapter~\ref{ch:transform}.
+
+\subsection{Step 4: Analysis}
+
+Click any analysis button to open that module in its own window. Multiple analysis windows can be open at the same time and can be compared side by side.
+
+\section{Dataset info ribbon}
+\label{sec:datasetinfo}
+
+A compact info strip appears just below the options strip after loading:
+
+\begin{center}
+\texttt{Grid: 500\,$\times$\,253 $\cdot$ dx/dy: 0.217\,mm $\cdot$ Snapshots: 200 $\cdot$ dt: 0.10\,ms $\cdot$ Type: 2D3C $\cdot$ Memory: \textasciitilde{}304\,MB}
+\end{center}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Grid}: number of velocity vectors in $x$ and $y$.
+  \item \textbf{dx / dy}: spatial resolution in mm.
+  \item \textbf{Snapshots}: how many snapshots are currently active (reflects subsampling).
+  \item \textbf{dt}: time between frames in milliseconds (TR data only; updates if $f_s$ or stride changes).
+  \item \textbf{Type}: \texttt{2D2C} for planar PIV; \texttt{2D3C} for stereo PIV with $W$.
+  \item \textbf{Memory}: estimated RAM used by the velocity arrays.
+\end{itemize}
+
+\section{Field viewer}
+
+The right panel shows the selected velocity field as a filled contour plot with optional velocity vectors.
+
+\subsection{Display controls}
+
+\begin{table}[htbp]
+\centering
+\caption{Field viewer display controls.}
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{Control} & \textbf{Description} \\
+\midrule
+Field         & Quantity to show: Mean U/V/W, speed $|V|$, vorticity, Std(U), Std(V) \\
+Overlay       & None, Vectors, or Streamlines \\
+Draw on contour & When checked, overlays the selected overlay on the filled contour. \\
+Clean export  & Hides all axis labels, tick marks, and the plot title for a clean exported image. \\
+Hide colorbar & Removes the colorbar from the plot. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+When \uipth{Vectors} or \uipth{Streamlines} is selected as the overlay, a second toolbar ribbon appears below the main toolbar with controls specific to that overlay:
+
+\begin{table}[htbp]
+\centering
+\caption{Vector and streamline ribbon controls (visible when Vectors or Streamlines is selected).}
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{Control} & \textbf{Description} \\
+\midrule
+Skip x / y    & Show every N-th vector. Default is 5. Increase for cleaner plots on dense grids. \\
+Length        & Multiplier for arrow or streamline length. Default 1.0. \\
+Arrow size    & Scale the arrowhead size independently of the line length. \\
+Apply         & Redraws the field with the current settings. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tipbox}
+Velocity arrows are scaled by magnitude; the longest arrow corresponds to the maximum speed in the field and all others are proportional. Use \uipth{Length} to scale all arrows up or down uniformly.
+\end{tipbox}
+
+\subsection{Streamlines}
+
+Streamlines trace the instantaneous mean velocity field and give a cleaner visual impression of the flow topology than arrow vectors, especially in regions with complex recirculation.
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Set \uipth{Overlay} to \uipth{Streamlines}.
+  \item The vector ribbon appears. Left-click and drag on the field to draw a rake seed line. Multiple rakes can be drawn cumulatively.
+  \item Adjust \uipth{Length}, color, and line width in the ribbon.
+  \item Click \uipth{Apply} to redraw.
+  \item Click \uipth{Reset} in the ribbon to clear all seed rakes and start over.
+\end{enumerate}
+\end{stepbox}
+
+\begin{notebox}
+Streamlines are drawn from the mean velocity field only. They do not reflect instantaneous snapshot structure.
+\end{notebox}
+
+\subsection{Toolbar}
+
+\begin{table}[htbp]
+\centering
+\caption{Toolbar button functions.}
+\begin{tabular}{ll}
+\toprule
+\textbf{Button} & \textbf{Function} \\
+\midrule
+Home           & Resets the view to the \emph{original} limits, regardless of zoom history \\
+Back / Forward & Step through zoom history \\
+Pan            & Click and drag to pan the view \\
+Zoom           & Click and drag a rectangle to zoom in \\
+Save           & Save the figure as PNG (300 DPI), PDF, or SVG \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{notebox}
+The \textbf{Home} button always returns to the original limits set when the field was first plotted, not just the previous zoom step. This is consistent across all analysis windows.
+\end{notebox}
+
+\begin{notebox}
+When the Zoom or Pan toolbar tool is active, mouse clicks on the field do \emph{not} trigger point picking or line drawing. Click the Home or Zoom button again to deactivate the toolbar tool before interacting with the data.
+\end{notebox}
+
+\subsection{Saving figures}
+
+Click the Save button in the toolbar. PNG is saved at 300\,DPI. PDF and SVG use vector graphics; all text (axis labels, tick values, legend entries) is saved as editable text and can be restyled directly in Adobe Illustrator or Inkscape.
+
+\begin{tipbox}
+For publication figures: (1) enable \uipth{Clean export} to hide axes, (2) enable \uipth{Hide colorbar} if not needed, (3) save as SVG and open in Illustrator to set your journal's font and size requirements.
+\end{tipbox}
+
+\section{Snapshot subsampling}
+\label{sec:subsample}
+
+For large datasets (estimated file size above 500\,MB), uPrime shows a subsampling dialog before loading:
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{fig1_1}
+  \caption{Subsampling dialog shown when the total dataset size exceeds 500\,MB. The user can load all snapshots, use every K-th frame (stride), or limit to the first N snapshots. The estimated snapshot count and memory usage update live as options are changed.}
+  \label{fig:subsample}
+\end{figure}
+
+After loading, click \uipth{Select Subset\ldots} to change the selection from the already-loaded data without re-reading from disk. You can specify a start snapshot, end snapshot, and stride.
+
+\begin{tipbox}
+For 10,000+ snapshot datasets, start with Stride 5 ($\sim$2000 samples). Mean fields and Reynolds stresses converge well at this level. Run POD and spectra on the full set once you know what you are looking for.
+\end{tipbox}
+
+% ============================= CHAPTER 3 ==============================
+\chapter{Coordinate Transform}
+\label{ch:transform}
+
+Open from \uipth{3.\ Align / Transform $\to$ Transform / Align\ldots}.
+
+\begin{warnbox}
+Transforms modify the dataset \textbf{in memory} and cannot be undone. If you make a mistake, click \uipth{Reload Last Dataset} in the sidebar to reload from disk and start again.
+\end{warnbox}
+
+In PIV experiments, the camera is rarely perfectly aligned with the flow geometry. Even a $1^\circ$ tilt introduces errors in all derived quantities, including mean profiles, Reynolds stresses, line profiles, and integral scales. Always apply the transform \emph{before} opening any analysis module.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig11}
+  \caption{Coordinate Transform window. Left: controls. Right: live preview of the mean field. A reference line drawn along the lower pipe wall is shown in cyan. The computed correction angle appears automatically in the left panel.}
+  \label{fig:transform}
+\end{figure}
+
+\section{Rotation}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Left-click and drag on the field preview (right panel) to draw a reference line along any feature that should be perfectly horizontal or vertical, such as a wall, step edge, pipe centerline, or free surface.
+  \item The misalignment angle is computed automatically and shown in the \uipth{Correction angle} field.
+  \item You can also type the angle directly if you know it from calibration.
+  \item Choose \uipth{Linear} (fast, good for checking) or \uipth{Cubic} (smoother, recommended for final results).
+  \item Click \uipth{Apply Rotation}.
+\end{enumerate}
+\end{stepbox}
+
+\begin{notebox}
+Rotation is limited to $\pm10^\circ$. For larger corrections, fix the calibration in DaVis and re-export your data.
+\end{notebox}
+
+\begin{tipbox}
+Draw the reference line along the longest visible physical feature. A wall spanning the full field width gives a more accurate angle than a short edge in the corner.
+\end{tipbox}
+
+\section{Origin shift}
+
+Moves the coordinate origin $(0, 0)$ to a physically meaningful reference point such as a step corner, pipe inlet, or cylinder center.
+
+Two modes are available:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Set new origin}: click directly on the point that should become $(0, 0)$. That point's current coordinates are subtracted from the whole grid.
+  \item \textbf{Set known point}: click a point on the preview, then enter what its real-world coordinates should be. For example, click on a step corner (currently at $x = 2.3$\,mm, $y = -0.8$\,mm) and type \mbox{$x_\mathrm{real} = 0$}, $y_\mathrm{real} = 0$ to place it at the origin. Or click a point that should be $10$\,mm downstream of the inlet and enter $x_\mathrm{real} = 10$, $y_\mathrm{real} = 0$.
+\end{itemize}
+
+Click \uipth{Apply Shift} to apply.
+
+\section{Mirror}
+
+Flips the entire dataset (all snapshots) along an axis through the current origin:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \uipth{Mirror X}: negates all $x$-coordinates and the $U$ velocity component. Flips the field left--right.
+  \item \uipth{Mirror Y}: negates all $y$-coordinates and the $V$ velocity component. Flips the field top--bottom.
+\end{itemize}
+
+\begin{notebox}
+Mirroring followed by rotation works correctly in v0.3.4. The coordinate arrays are automatically re-sorted after mirroring so that rotation interpolation does not produce a blank result.
+\end{notebox}
+
+\section{Transform status}
+
+The main window shows a persistent colored strip below the info ribbon confirming every applied transform:
+
+\begin{center}
+\textit{Data transformed: Rotated $-1.3^\circ$ $\cdot$ Shifted to $(51.0,\ 0.0)$\,mm}
+\end{center}
+
+This strip is always visible so you always know the state of the coordinate system.
+
+\section{Done button}
+
+Click \uipth{Done: Close Window} at the bottom of the transform window when you are finished. The main window updates automatically.
+
+% ============================= CHAPTER 4 ==============================
+\chapter{Reynolds Stress Analysis}
+\label{ch:reynolds}
+
+Open from \uipth{4.\ Analysis $\to$ Reynolds Stresses}.
+
+Reynolds stresses quantify the intensity and structure of velocity fluctuations. They are the time-averaged products of velocity fluctuation components:
+\[
+\langle u'u' \rangle,\quad \langle v'v' \rangle,\quad \langle w'w' \rangle,\quad \langle u'v' \rangle,\quad \langle u'w' \rangle,\quad \langle v'w' \rangle
+\]
+
+For 2D2C data, only $\langle u'u' \rangle$, $\langle v'v' \rangle$, and $\langle u'v' \rangle$ are available. All six components are computed for stereo (2D3C) data.
+
+\section{2D contour map}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Select \uipth{2D Contour Map} under Plot Mode.
+  \item Choose the component from the \uipth{Component} dropdown.
+  \item Optionally check \uipth{Scale by $U_m^2$} and enter the bulk velocity $U_m$ to non-dimensionalise.
+  \item Click \uipth{Plot Contour}.
+\end{enumerate}
+\end{stepbox}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig2}
+  \caption{Reynolds stress window in 2D contour mode showing $\langle u'v' \rangle$. The mean field is shown in the small reference panel on the left.}
+  \label{fig:reynolds_contour}
+\end{figure}
+
+\section{Line profile}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Select \uipth{Line Profile} under Plot Mode.
+  \item Choose line orientation: \uipth{Free} (any direction), \uipth{Horizontal} (snaps to nearest row), or \uipth{Vertical} (snaps to nearest column).
+  \item For Horizontal/Vertical, set \uipth{Spatial avg $\pm$ pts} to average over neighboring rows or columns and reduce noise.
+  \item Left-click and drag on the left field panel to draw the line.
+  \item Click \uipth{Plot Line Profile}.
+\end{enumerate}
+\end{stepbox}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig3}
+  \caption{Reynolds stress window in line profile mode. All stress components are plotted simultaneously in different colors. Shaded bands show $\pm 1\sigma$ statistical uncertainty. The x-axis shows the physical coordinate measured from the coordinate origin.}
+  \label{fig:reynolds_profile}
+\end{figure}
+
+All available stress components are plotted together. The x-axis always shows the physical coordinate from the origin (0,0), not the distance from the start of the drawn line. Check \uipth{Show $\pm1\sigma$ band} to display uncertainty bands.
+
+\section{Exporting}
+
+Click \uipth{Export Data\ldots} to save \textbf{all} stress components simultaneously in a single Tecplot \texttt{.dat} file. You do not need to switch components and export one at a time.
+
+% ============================= CHAPTER 5 ==============================
+\chapter{TKE Budget}
+\label{ch:tke}
+
+Open from \uipth{4.\ Analysis $\to$ TKE Budget}.
+
+The TKE budget describes how turbulent kinetic energy $k = \tfrac{1}{2}(\langle u'u'\rangle + \langle v'v'\rangle + \langle w'w'\rangle)$ is produced, transported, and dissipated across the flow field. The terms computed are:
+
+\begin{table}[htbp]
+\centering
+\caption{TKE budget terms in uPrime.}
+\begin{tabular}{lll}
+\toprule
+\textbf{Symbol} & \textbf{Name} & \textbf{Availability} \\
+\midrule
+$k$                     & Turbulent kinetic energy  & Always \\
+$P$                     & Production                & Always \\
+$C$                     & Convection                & Always \\
+$D$                     & Turbulent diffusion       & Always \\
+$R$                     & Residual                  & Always \\
+$\partial k/\partial t$ & Unsteady term             & TR data only \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{notebox}
+The residual $R$ absorbs pressure diffusion and viscous dissipation, which cannot be computed from planar PIV. A non-zero residual is expected and is \emph{not} an error in the calculation.
+\end{notebox}
+
+\section{Using the window}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Set parameters: enter $U_m$ and $L$ if normalising. Adjust the smoothing kernel if the field is noisy.
+  \item Click \uipth{Compute Budget} (only needs to be done once per session).
+  \item Select a term from the \uipth{Term} dropdown.
+  \item Choose \uipth{2D Contour} or \uipth{Line Profile}.
+  \item Click \uipth{Plot}.
+\end{enumerate}
+\end{stepbox}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig4}
+  \caption{TKE Budget window showing the production term $P$ as a 2D contour map. The mean field reference is shown in the left panel.}
+  \label{fig:tke}
+\end{figure}
+
+In line profile mode, TKE $k$ is always overlaid as a dashed reference line regardless of which budget term is selected. This lets you immediately compare the magnitude of each term to the local energy level.
+
+\begin{tipbox}
+Enable \uipth{Normalize by $U_m^3/L$} to make the budget terms non-dimensional. This is essential when comparing results across different flow conditions or Reynolds numbers.
+\end{tipbox}
+
+\section{Exporting}
+
+Click \uipth{Export Data\ldots} to save \textbf{all} budget terms together in a single file.
+
+% ============================= CHAPTER 6 ==============================
+\chapter{Space--Time Spectral Analysis}
+\label{ch:spectra}
+
+Open from \uipth{4.\ Analysis $\to$ Space-Time Spectra}.
+
+The spectral window has four tabs. \textbf{Spatial (Welch)} is always available. \textbf{Temporal} and \textbf{Spatiotemporal} require time-resolved data. \textbf{Spatial (FFT)} is always available and provides a complementary 2D ROI-based spatial spectrum.
+
+\section{Spatial Spectra -- Welch (Tab 1)}
+
+Computes the 1D spatial energy spectrum $E(k)$ along a horizontal or vertical line using Welch's method averaged over all snapshots.
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Choose \uipth{Horizontal (kx)} or \uipth{Vertical (ky)} mode.
+  \item Left-click and drag on the field to draw the line.
+  \item Select which velocity components to include (U, V, W).
+  \item Set the number of Welch segments and overlap. These are set automatically when the line selection changes based on the number of available spatial points.
+  \item Click \uipth{Compute}.
+\end{enumerate}
+\end{stepbox}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig5}
+  \caption{Spatial spectra (Welch) showing $E(k_x)$ for U, V, and W components along a line through the shear layer. The dashed line shows the Kolmogorov $-5/3$ reference slope.}
+  \label{fig:spectra}
+\end{figure}
+
+Results are plotted on a log--log scale. The Kolmogorov $-5/3$ reference slope can be toggled on/off. You can also compensate the spectrum by multiplying by $k^{5/3}$ to flatten the inertial range and make deviations more visible.
+
+\begin{notebox}
+The Rectangle ROI mode is not available in the Welch tab. Use the FFT tab (Tab 4) for 2D ROI-based spatial spectra.
+\end{notebox}
+
+\section{Temporal Spectra (Tab 2, TR Only)}
+
+Computes the power spectral density $E(f)$ using Welch's method at a picked point or averaged over an ROI.
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Left-click on the field to pick a reference point, or right-click drag to draw an ROI.
+  \item Set the number of Welch segments. More segments give a smoother spectrum at the cost of frequency resolution.
+  \item Click \uipth{Compute}.
+\end{enumerate}
+\end{stepbox}
+
+\begin{tipbox}
+Looking for a shedding frequency or flapping mode? Use fewer segments (higher frequency resolution). Just want the spectral shape? Use more segments for a smoother curve.
+\end{tipbox}
+
+\section{Space-Time Spectra (Tab 3, TR Only)}
+
+Computes the 2D space--time spectrum $E(k, f)$. Diagonal ridges in this map correspond to convective structures. The slope of a ridge gives the convection velocity $U_c = 2\pi f / k$.
+
+\section{Spatial Spectra -- FFT (Tab 4)}
+
+Computes the 2D spatial energy spectrum over a rectangular ROI using a direct FFT (via pyFFTW), averaged over all snapshots. The result is shown as 1D marginal spectra $E(k_x)$ and $E(k_y)$ alongside the 2D spectral map.
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Left-click and drag on the field to draw a rectangular ROI.
+  \item Select which velocity components to include (U, V, W).
+  \item Click \uipth{Compute}.
+\end{enumerate}
+\end{stepbox}
+
+\begin{notebox}
+If the selected ROI contains masked (invalid) vectors, uPrime fills those regions with zero before applying the FFT. A warning is shown below the plot if the masked fraction exceeds 5\%. For best results, draw the ROI to avoid heavily masked regions.
+\end{notebox}
+
+\begin{tipbox}
+Use the \textbf{Welch tab} for spectra along a specific line (e.g.\ a wall-normal profile or a streamwise cut). Use the \textbf{FFT tab} when you want the full 2D spatial spectrum averaged over a region, with marginal spectra in both directions simultaneously.
+\end{tipbox}
+
+% ============================= CHAPTER 7 ==============================
+\chapter{Anisotropy Invariant Analysis}
+\label{ch:anisotropy}
+
+Open from \uipth{4.\ Analysis $\to$ Anisotropy Invariants}.
+
+\begin{notebox}
+This module requires \textbf{stereo PIV (2D3C)} data. It is not available for 2D2C datasets.
+\end{notebox}
+
+Anisotropy analysis answers the question: at each point in the flow, is turbulence dominated by one velocity component, two, or is it close to isotropic? The window has two modes: Lumley triangle and barycentric map.
+
+\section{Lumley triangle mode}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Ensure \uipth{Line (Lumley triangle)} is selected.
+  \item Choose \uipth{Free}, \uipth{Horizontal}, or \uipth{Vertical} line orientation.
+  \item Left-click and drag on the mean field to draw the sampling line.
+  \item Click \uipth{Compute}.
+\end{enumerate}
+\end{stepbox}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig7}
+  \caption{Anisotropy window in Lumley triangle mode. The vertical sampling line crosses the shear layer (left panel). Each sampled point appears in the triangle (right panel), colored by its distance along the line.}
+  \label{fig:anisotropy}
+\end{figure}
+
+Reading the triangle:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Red triangle (top)}: one-component turbulence, with all energy concentrated in one direction.
+  \item \textbf{Green square (bottom-left)}: two-component axisymmetric contraction.
+  \item \textbf{Bottom-right}: two-component axisymmetric expansion.
+  \item \textbf{Blue circle (origin)}: isotropic turbulence, with energy equal in all three directions.
+\end{itemize}
+
+All physically realisable states lie inside the triangle boundary. Points outside the boundary indicate numerical issues (insufficient snapshots or masked regions near the sampling line).
+
+\section{Barycentric map mode}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Select \uipth{Rectangle (Barycentric map)}.
+  \item Left-click and drag to draw a rectangular region on the field.
+  \item Click \uipth{Compute}.
+\end{enumerate}
+\end{stepbox}
+
+The map colors each grid point by its anisotropy state: red = one-component, blue = two-component axisymmetric, green = three-component (near isotropic). Check \uipth{Median filter} to apply a $3\times3$ spatial smoothing to reduce noise.
+
+% ============================= CHAPTER 8 ==============================
+\chapter{Correlation Analysis}
+\label{ch:correlation}
+
+Open from \uipth{4.\ Analysis $\to$ Correlation Analysis}.
+
+This window computes two-point spatial correlations $R(\Delta x, \Delta y)$ and, for TR data, temporal autocorrelations $R(\tau)$. Integral length scales $L_x$, $L_y$ and integral time scale $T$ are extracted automatically.
+
+\section{Selecting a reference}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \uipth{Point mode}: left-click on the mean field to select a single reference point. Enable \uipth{$3\times3$ kernel average} to reduce sensitivity to noisy vectors at that point.
+  \item \uipth{ROI mode}: left-click and drag to draw a rectangle. The correlation is computed as a spatial average over the region (following Jose et al., 2026).
+\end{itemize}
+
+\section{Spatial correlation}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Select Point or ROI mode and pick your reference on the field.
+  \item Choose the velocity component: R$_{uu}$, R$_{vv}$, or R$_{ww}$.
+  \item Select the \uipth{Scale method} (Table~\ref{tab:scalemethods}).
+  \item Click \uipth{Compute Spatial Correlation}.
+\end{enumerate}
+\end{stepbox}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig6}
+  \caption{Correlation window in Point mode. Top: 2D spatial correlation map $R_{uu}$ centerd on the reference point (cross). Bottom left: 1D slice in $x$. Bottom right: 1D slice in $y$. The vertical dashed red line marks the computed integral length scale.}
+  \label{fig:correlation}
+\end{figure}
+
+In Point mode you see the full 2D correlation map and two independent 1D slice panels. In ROI mode only the 1D panels are shown. The computed $L_x$ and $L_y$ are displayed in the readout strip at the bottom of the window.
+
+Click \uipth{Show Diagnostic Plot} to see the cumulative integral of $R(\Delta r)$, which shows whether the integral has converged before the first zero crossing.
+
+\begin{table}[htbp]
+\centering
+\caption{Integral scale methods.}
+\label{tab:scalemethods}
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{Method} & \textbf{When to use} \\
+\midrule
+Zero crossing   & Clean, well-resolved correlations with a clear zero crossing. Standard choice. \\
+Exponential fit & Noisy correlations without a clear zero crossing. Robust to noise in the tail. \\
+1/e point       & When you want the scale corresponding to where $R$ first reaches $e^{-1} \approx 0.37$. \\
+Domain integral & When no zero crossing exists and you want a conservative upper bound. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tipbox}
+If unsure, start with \textbf{Zero crossing}. If the correlation does not have a clean crossing (common for low-Reynolds-number flows or short datasets), switch to \textbf{Exponential fit}.
+\end{tipbox}
+
+\section{Temporal correlation (TR only)}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Click the \uipth{Temporal} tab.
+  \item Pick a reference point or draw an ROI as before.
+  \item Set \uipth{Max lag (\% of Nt)}: 50\% is usually sufficient.
+  \item Select the Scale method.
+  \item Click \uipth{Compute Temporal Correlation}.
+\end{enumerate}
+\end{stepbox}
+
+Results show $R(\tau)$ vs time lag $\tau$ in milliseconds, with integral time scale $T$ and Taylor microscale $\lambda_t$ marked.
+
+% ============================= CHAPTER 9 ==============================
+\chapter{POD Analysis}
+\label{ch:pod}
+
+Open from \uipth{4.\ Analysis $\to$ POD Analysis}.
+
+Proper Orthogonal Decomposition (POD) decomposes the velocity field into a ranked set of spatial modes. Mode 1 captures the most energy, Mode 2 the next most, and so on. The first few modes typically correspond to the dominant coherent structures in the flow, including recirculation zones, vortex shedding, shear layer flapping, etc.
+
+\section{Computing POD}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Set \uipth{Modes to compute} (default 25). Increasing this takes longer.
+  \item Click \uipth{Compute POD}. For large datasets this may take several seconds to a minute.
+  \item All four tabs populate automatically when done.
+\end{enumerate}
+\end{stepbox}
+
+\begin{notebox}
+POD uses all velocity components simultaneously (U+V for 2D2C; U+V+W for 2D3C). The energy percentage of each mode reflects the combined energy across all components.
+\end{notebox}
+
+\section{Energy Spectrum tab}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig8}
+  \caption{POD Energy Spectrum. Bars: energy percentage per mode. Orange curve: cumulative energy. Dashed lines: 50\%, 80\%, and 90\% thresholds. Bottom strip: mode count needed to reach each threshold.}
+  \label{fig:pod_energy}
+\end{figure}
+
+Use the energy spectrum to decide how many modes to use for reconstruction and interpretation:
+\begin{itemize}[leftmargin=1.5em]
+  \item A steep drop after Mode 1 or 2 indicates a flow dominated by one or two strong coherent structures.
+  \item A slow, gradual decay indicates broadband turbulence with energy distributed across many scales.
+\end{itemize}
+
+\section{Spatial Modes tab}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{fig9}
+  \caption{POD Mode 1 of the $U$ component (16.3\% energy). Red and blue regions represent opposite-signed velocity fluctuations associated with the dominant flow structure.}
+  \label{fig:pod_mode}
+\end{figure}
+
+Use the \uipth{Mode} spinbox or \uipth{$<$ Prev} / \uipth{Next $>$} buttons to step through modes. Use the \uipth{Component} dropdown (U / V / W) to inspect different velocity directions. The title shows the mode number and its energy fraction.
+
+\section{Temporal Coefficients tab (TR only)}
+
+Shows the temporal coefficient time series $a_n(t)$ for the selected mode and its power spectral density. A sharp peak in the PSD indicates a periodic structure at that frequency (e.g.\ vortex shedding or shear layer flapping).
+
+\section{Reconstruction tab}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig10}
+  \caption{POD Reconstruction tab. Left: original snapshot. Center: reconstruction with 10 modes. Right: residual (original minus reconstructed). The RMS error is shown at the bottom.}
+  \label{fig:pod_recon}
+\end{figure}
+
+\begin{stepbox}
+\begin{enumerate}[leftmargin=1.5em, topsep=2pt]
+  \item Drag the \uipth{Snapshot} slider to select a snapshot (available for both TR and non-TR data).
+  \item Set \uipth{Modes for reconstruction} (minimum 1).
+  \item Click \uipth{Reconstruct}.
+\end{enumerate}
+\end{stepbox}
+
+The three panels show the original field, the low-order reconstruction, and the residual (what the modes did not capture). A residual below 10--20\% RMS generally means the selected modes capture the dominant structure.
+
+\begin{tipbox}
+Reconstruct with 1 mode, then 5, then 10. Watching the residual shrink gives a physical intuition for what each group of modes represents in the flow.
+\end{tipbox}
+
+\section{Exporting}
+
+Click \uipth{Export Modes\ldots} to save:
+\begin{itemize}[leftmargin=1.5em]
+  \item All spatial modes as a Tecplot \texttt{.dat} file (one zone per mode).
+  \item Temporal coefficients as a \texttt{.csv} file (one column per mode, one row per snapshot).
+\end{itemize}
+
+% ============================= CHAPTER 10 ==============================
+\chapter{Tips, Workflow, and Troubleshooting}
+
+\section{Recommended workflow}
+
+For any new dataset, follow this order:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Load} your files. Use stride subsampling if the dataset is large.
+  \item \textbf{Set} acquisition type and $f_s$.
+  \item \textbf{Transform}: rotate to correct tilt, shift the origin to a physical reference.
+  \item \textbf{Inspect} the mean field. Does the flow look correct? Right direction, sensible magnitudes?
+  \item \textbf{Reynolds stresses}: identify turbulent regions and shear layers.
+  \item \textbf{TKE budget}: understand energy production and transport.
+  \item \textbf{Correlations}: measure integral length and time scales.
+  \item \textbf{POD}: identify dominant coherent structures.
+  \item \textbf{Export} results.
+\end{enumerate}
+
+\section{Performance tips}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item POD computation time scales as $N_t^2$. For 5000+ snapshots use stride subsampling to $\sim$1000--2000 samples first, then run on the full set if needed.
+  \item Velocity data is loaded as 32-bit floats (float32), halving RAM usage compared to the 64-bit default. The info ribbon shows the estimated memory footprint after loading.
+  \item Close unused analysis windows to free RAM.
+  \item Use \uipth{Reload Last Dataset} to undo a bad transform without restarting the application.
+  \item For the rotation transform, use \uipth{Linear} for a quick check and \uipth{Cubic} for the final result.
+  \item For spatial spectra over a region, the FFT tab is faster than running multiple Welch lines because it processes the entire ROI in a single pass.
+\end{itemize}
+
+\section{Exporting figures for publication}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{PDF / SVG}: all text is embedded as editable text objects. Open in Adobe Illustrator or Inkscape to change fonts, sizes, and labels to match journal requirements.
+  \item \textbf{PNG}: 300 DPI by default. Suitable for Word, PowerPoint, and reports.
+  \item Enable \uipth{Clean export} and/or \uipth{Hide colorbar} for plain field images without annotations.
+\end{itemize}
+
+\section{Known limitations}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item 3D (tomographic) PIV data is not supported.
+  \item Pressure and viscous dissipation are not computed; the TKE budget residual absorbs these terms.
+  \item Taylor hypothesis (for converting temporal to spatial scales) is only valid at low turbulence intensity ($u'/\langle U\rangle \ll 1$).
+  \item Anisotropy analysis requires stereo data (2D3C) and will be unavailable for 2D2C datasets.
+  \item All exported results are time-averaged. Per-snapshot export will be added in a future version.
+\end{itemize}
+
+\section{Common issues}
+
+\begin{table}[htbp]
+\centering
+\caption{Common issues and solutions.}
+\begin{tabular}{p{5.2cm}p{8.8cm}}
+\toprule
+\textbf{Issue} & \textbf{Solution} \\
+\midrule
+Files do not load & Confirm files are Tecplot ASCII format from DaVis. Binary \texttt{.dat} files are not supported. \\
+\addlinespace
+Anisotropy module is greyed out & Data is 2D2C. This module requires stereo (2D3C) data with a $W$ component. \\
+\addlinespace
+Temporal tabs are greyed out & Set Acquisition Type to Time-Resolved and enter $f_s$ \emph{before} opening the analysis window. \\
+\addlinespace
+PDF save fails: permission denied & The file is open in Adobe Acrobat. Close it in Acrobat first, then save again. \\
+\addlinespace
+Rotation gives a blank result & Mirror the dataset \emph{before} rotating, not after. This is handled correctly in v0.3.4. \\
+\addlinespace
+Budget terms much larger than TKE & Verify $f_s$ is correct and that $x$/$y$ are in mm (not metres). uPrime converts internally. \\
+\addlinespace
+Lumley triangle points outside boundary & Insufficient snapshots or masked/invalid vectors near the sampling line. Avoid masked regions when drawing the analysis line. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================= CHAPTER 11 ==============================
+\chapter{Mouse and Keyboard Reference}
+
+\section{Mouse interactions by window}
+
+\begin{table}[htbp]
+\centering
+\caption{Mouse interactions in analysis windows.}
+\begin{tabular}{lp{4cm}p{6.5cm}}
+\toprule
+\textbf{Window} & \textbf{Action} & \textbf{Effect} \\
+\midrule
+All windows       & Left-click on toolbar Home & Reset to original zoom \\
+Main (Streamlines) & Left-click drag on field & Draw streamline seed rake \\
+Reynolds, TKE     & Left-click drag on field & Draw line profile \\
+Spectra           & Left-click drag on field & Draw analysis line \\
+Spectra           & Right-click drag on field & Draw rectangular ROI \\
+Anisotropy        & Left-click drag on field & Draw Lumley triangle line \\
+Anisotropy        & Left-click drag on field & Draw barycentric ROI (in Rectangle mode) \\
+Correlation       & Left-click on field & Pick reference point (Point mode) \\
+Correlation       & Left-click drag on field & Draw ROI (ROI mode) \\
+Transform         & Left-click drag on preview & Draw rotation reference line \\
+Transform         & Left-click on preview & Set new origin (Shift Origin mode) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{notebox}
+In the Correlation window, \textbf{both} point picking and ROI drawing use \textbf{left-click}. The mode (Point vs ROI) is controlled by the radio buttons in the left panel. Switch mode first, then interact with the field.
+\end{notebox}
+
+\section{Field Viewer: Display Controls Summary}
+
+\begin{table}[htbp]
+\centering
+\caption{Quick reference for display controls.}
+\begin{tabular}{ll}
+\toprule
+\textbf{Control} & \textbf{Shortcut / location} \\
+\midrule
+Change displayed field     & \uipth{Field} dropdown in the options strip \\
+Toggle overlay type        & \uipth{Overlay} dropdown (None / Vectors / Streamlines) \\
+Adjust vector density      & \uipth{Skip x} and \uipth{Skip y} spinboxes in the vector ribbon \\
+Scale arrow/streamline length & \uipth{Length} spinbox in the vector ribbon \\
+Scale arrowhead size       & \uipth{Arrow size} spinbox in the vector ribbon \\
+Draw streamline rake       & Left-click drag on field (Streamlines overlay active) \\
+Clear all streamline rakes & \uipth{Reset} button in the vector ribbon \\
+Hide all axes and labels   & \uipth{Clean export} checkbox \\
+Hide colorbar              & \uipth{Hide colorbar} checkbox \\
+Reset view                 & \uipth{Home} button in toolbar \\
+Save figure                & Save button in toolbar (PNG 300 DPI, PDF, SVG) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================= APPENDIX ================================
+\appendix
+
+\chapter{Citing uPrime}
+
+If uPrime contributes to your research, please cite:
+
+\begin{mdframed}[backgroundcolor=uplightgray, linecolor=upboxborder, linewidth=1pt]
+Jibu Tom Jose, \& Ram, O. (2026). \textit{uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data}. Transient Fluid Mechanics Laboratory (TFML), Technion (v0.3.4-alpha). Zenodo.\\
+\url{https://doi.org/10.5281/zenodo.19376184}
+\end{mdframed}
+
+\chapter{Sample Dataset}
+\label{app:sample}
+
+A sample dataset is available for testing and evaluating uPrime workflows without needing your own experimental data.
+
+\begin{mdframed}[backgroundcolor=uplightgray, linecolor=upboxborder, linewidth=1pt]
+\textbf{Download:} \url{https://doi.org/10.5281/zenodo.19539711}
+\end{mdframed}
+
+The dataset includes:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{One non-time-resolved stereo PIV dataset (2D3C)} with 100 snapshots, suitable for testing Reynolds stress, TKE budget, correlation, anisotropy, and POD modules.
+  \item \textbf{One time-resolved planar PIV dataset (2D2C)} with 200 snapshots, suitable for testing temporal spectra, temporal correlation, and TR-POD workflows.
+\end{itemize}
+
+Both datasets are provided in the required Tecplot ASCII \texttt{.dat} format and load directly into uPrime without any configuration.
+
+\begin{warnbox}
+This dataset is provided strictly for testing and evaluation of uPrime. It must not be used for research, publications, or redistribution without explicit written permission from the authors. The data is derived from published experimental studies and remains the intellectual property of the authors.
+\end{warnbox}
+
+\chapter{Version history}
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lp{12cm}}
+\toprule
+\textbf{Version} & \textbf{Summary} \\
+\midrule
+v0.1   & Initial release: Reynolds stresses, TKE visualisation, basic spectral analysis. \\
+v0.2   & TKE budget, anisotropy invariants, correlation analysis, coordinate transform. Migrated from PyQt5 to PyQt6. \\
+v0.3   & POD analysis, improved correlation module (multiple scale methods, diagnostic plots), expanded transform tool. \\
+v0.3.3 & Bug fixes (TKE budget unit error, home button, mirror--rotate sequence, correlation ROI drawing). UI improvements: sidebar reorganized, dataset info ribbon, Times New Roman export font, 300\,DPI PNG. New features: snapshot subsampling and subset selection, reload button, mirror transform, exit confirmation dialog, hide axes/colorbar in all windows. \\
+v0.3.4 & Streamline overlay: rake-based seed drawing, cumulative rakes, color picker, line width control. Spatial FFT tab: 2D ROI-based spatial spectra via pyFFTW with $E(k_x)$ and $E(k_y)$ marginal spectra. Vector/streamline controls moved to a dedicated second ribbon. Welch spatial tab restricted to line modes (Rectangle ROI moved to FFT tab). Memory halved: velocity arrays loaded as float32; invalid vectors masked at load time. Improved subset loading: start, end, and step configurable before loading. Export improvements: 300\,DPI PNG, improved PDF quality. Bug fixes: FFT NaN fill, masked-region warning, requirements encoding. Added sample dataset (Appendix~\ref{app:sample}). Updated citation to include co-author O.\ Ram. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}
