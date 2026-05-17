@@ -1,0 +1,33 @@
+\chapter{Version history}
+
+\begin{longtable}{lp{12cm}}
+\toprule
+\textbf{Version} & \textbf{Summary} \\
+\midrule
+\endfirsthead
+
+\multicolumn{2}{l}{\small\textit{(continued from previous page)}} \\
+\toprule
+\textbf{Version} & \textbf{Summary} \\
+\midrule
+\endhead
+
+\midrule
+\multicolumn{2}{r}{\small\textit{(continued on next page)}} \\
+\endfoot
+
+\bottomrule
+\endlastfoot
+v0.1   & Initial release: Reynolds stresses, TKE visualisation, basic spectral analysis. \\
+v0.2   & TKE budget, anisotropy invariants, correlation analysis, coordinate transform. Migrated from PyQt5 to PyQt6. \\
+v0.3   & POD analysis, improved correlation module (multiple scale methods, diagnostic plots), expanded transform tool. \\
+v0.3.3 & Bug fixes (home button, mirror--rotate sequence, correlation ROI drawing). UI improvements: sidebar reorganized, dataset info ribbon, Times New Roman export font, 300\,DPI PNG. New features: snapshot subsampling and subset selection, reload button, mirror transform, exit confirmation dialog, hide axes/colorbar in all windows. \\
+v0.3.4 & Streamline overlay: rake-based seed drawing, cumulative rakes, color picker, line width control. Spatial FFT tab: 2D ROI-based spatial spectra via pyFFTW. Memory halved: velocity arrays loaded as float32. Improved subset loading. Export improvements: 300\,DPI PNG, improved PDF quality. \\
+v0.4.0 & New modules: DMD Analysis (TR only, frequency-growth rate spectrum, spatial mode viewer, Strouhal number support); Vortex Identification (vorticity, Q-criterion, $\lambda_{ci}$, $\lambda_2$, $\Gamma_1$/$\Gamma_2$, per-vortex statistics, spatial probability map). Non-destructive masking: raw velocity data never modified; mask stored as single 2D boolean array. Unit auto-detection from \texttt{.dat} file header. Acquisition type moved to dataset info ribbon with popup dialog on load. Correlation: 1/e method now returns interpolated crossing lag; zero-crossing marker placed at actual crossing position. Logo added to application and manual. User manual accessible via F1 or top-right button. \\
+v0.4.1 & Performance: all heavy computations (POD, DMD, TKE budget, correlation, spectra, vortex identification) moved to background QThread workers; main window stays responsive during computation; progress indicator shown below compute button. Large dataset support: datasets exceeding 4\,GB are automatically memory-mapped to a temporary file in the system temp folder instead of being loaded into RAM; a warning with the temp path and required disk space is shown in the subsampling dialog. Bug fix: cursor value readout now reports correct values after mirror transform. \\
+v0.5.0 & Multi-case comparison workflow added to Reynolds Stress, TKE Budget, Spectra, Correlation, and Anisotropy windows: Import Case, Edit Styles, Manage Cases, Combined CSV export. Export menu in main window with Tecplot ASCII mean field export. Term-visibility checkboxes (P/C/D/R) on TKE budget line plot. Reynolds stress $\pm 1\sigma$ band hidden by default. \\
+v0.5.1 & New \uipth{Mean \& Convergence} module: first entry in the Analysis panel. Mean Velocity tab with line profiles, $U_m$ normalization, and multi-case import matching the Reynolds Stress workflow. Convergence tab with Welford online algorithm for cumulative first, second, and third central moments at a kernel-averaged picked point; sustained-crossing $N^*$ detection; grid layout (raw values) and single normalized layout. Convergence pop-up warnings removed and replaced by an inline amber top-bar label on Reynolds, TKE, and Spectra modules when $N < 500$. \\
+v0.6.0 & MATLAB \texttt{.mat} file input (classic v5/v7 and v7.3 HDF5). Variable confirmation dialog with auto-detection, snapshot subset spinboxes, single-snapshot rejection. Auto-correction of meshgrid orientation and \texttt{(Nx, Ny, Nt)} velocity arrays. dx/dy estimated from coordinate arrays via robust median-of-differences. Default export filenames in Vortex Identification module. Mean \& Convergence picker fix for elongated fields (canvas height computed from data aspect). Field-display ZeroDivisionError guard. \\
+\bottomrule
+\end{longtable}
+
