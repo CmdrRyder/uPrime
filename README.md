@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/gui_v041.png" width="855">
+  <img src="docs/images/gui_v061.png" width="855">
 </p>
 
 **uPrime** is a standalone desktop application for post-processing and turbulence analysis of velocity field data from PIV and CFD. It provides a unified graphical interface covering the full range of standard turbulence diagnostics — from Reynolds stresses to DMD — without requiring any scripting or programming knowledge.
@@ -228,7 +228,7 @@ Both datasets load directly into uPrime without any configuration.
 
 ## 📘 Documentation
 
-📄 [uPrime User Manual (PDF)](docs/manual.pdf)
+📄 [uPrime User Manual (PDF)](docs/Manual.pdf)
 
 Covers all modules with governing equations, step-by-step instructions, and references.
 
