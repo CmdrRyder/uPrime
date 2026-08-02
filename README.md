@@ -5,7 +5,7 @@
 ![Version](https://img.shields.io/badge/version-0.7.1%20alpha-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
-### *Because u′ matters*
+### *Turbulence is complex. Analysis shouldn't be.*
 
 <p align="center">
   <picture>
