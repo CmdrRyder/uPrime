@@ -1103,9 +1103,13 @@ class CorrelationWindow(PickerMixin, QWidget):
     def _export_spatial_2d(self):
         if self._last_R_norm is None:
             return
+        try:
+            _cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            _cn = "Data_1"
         path, _ = QFileDialog.getSaveFileName(
             self, "Export Spatial Correlation 2D",
-            "spatial_corr_2d.dat", "Tecplot DAT (*.dat);;All Files (*)")
+            f"{_cn}_spatial_corr_2d.dat", "Tecplot DAT (*.dat);;All Files (*)")
         if not path:
             return
         comp = self.combo_comp.currentText()

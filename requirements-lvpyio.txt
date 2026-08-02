@@ -1,0 +1,15 @@
+# Optional dependency for LaVision DaVis (.set / .vc7 / .vec) support.
+#
+# lvpyio is a SEPARATELY-LICENSED LaVision library, distributed under a
+# "Free To Use But Restricted" licence. It is NOT GPL and is NOT part of
+# uPrime's core dependencies (see requirements.txt). Install it only if you
+# need DaVis loading — either to run uPrime from source with DaVis support,
+# or to produce the lab's DaVis-enabled build (build_uprime.py --with-lvpyio).
+#
+# It is intentionally kept out of requirements.txt and out of any public
+# distribution.
+lvpyio
+
+# If lvpyio's bundled Qt clashes with PyQt6 at runtime, use the wrapped
+# distribution instead (uncomment):
+# lvpyio_wrapped

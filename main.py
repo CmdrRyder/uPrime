@@ -30,13 +30,15 @@ matplotlib.rcParams['font.serif']   = ['Times New Roman', 'Times', 'DejaVu Serif
 matplotlib.rcParams['mathtext.fontset'] = 'stix'
 
 from PyQt6.QtWidgets import QApplication
-from gui.main_window import MainWindow
+from gui.main_window import MainWindow, apply_neutral_control_theme
 
 
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("uPrime")
     app.setStyle("Fusion")
+    # Neutral-grey radio/checkbox indicators (no orange accent) app-wide.
+    apply_neutral_control_theme(app)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

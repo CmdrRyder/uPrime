@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QGroupBox, QPushButton, QRadioButton, QCheckBox,
     QSizePolicy, QMessageBox, QSplitter, QComboBox,
-    QDoubleSpinBox, QButtonGroup, QFileDialog
+    QDoubleSpinBox, QButtonGroup, QFileDialog, QApplication
 )
 from PyQt6.QtCore import Qt
 
@@ -419,8 +419,12 @@ class TKEWindow(PickerMixin, QWidget):
             export_line_csv(path, ld["dist"], ld["xpts"], ld["ypts"],
                             {"TKE": ld["vals"]}, {"TKE": ld["std_vals"]}, settings)
         else:
+            try:
+                _cn = QApplication.instance()._session_case_name or "Data_1"
+            except AttributeError:
+                _cn = "Data_1"
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export TKE 2D Field", "tke_2d.dat",
+                self, "Export TKE 2D Field", f"{_cn}_tke_2d.dat",
                 "Tecplot DAT (*.dat);;CSV Files (*.csv)"
             )
             if not path:

@@ -30,6 +30,37 @@ def _is_dark_mode():
     return palette.window().color().lightness() < 128
 
 
+def neutral_control_qss(dark=None):
+    """App-wide QSS that recolors QRadioButton/QCheckBox indicators to a neutral
+    grey (no orange accent), so color lives in the plots, not the controls.
+
+    Scoped strictly to the indicator subcontrols — does not touch plot colors,
+    colormaps, or the status-bar styling.
+    """
+    if dark is None:
+        dark = _is_dark_mode()
+    if dark:
+        checked, border = "#b0b3b8", "#6b6f76"   # light-neutral on dark
+    else:
+        checked, border = "#5a5d63", "#9a9da3"   # mid/dark-neutral on light
+    return (
+        "QRadioButton::indicator, QCheckBox::indicator {"
+        " width:12px; height:12px; }"
+        "QRadioButton::indicator { border-radius:7px; }"
+        "QCheckBox::indicator { border-radius:2px; }"
+        "QRadioButton::indicator:checked, QCheckBox::indicator:checked {"
+        f" background-color:{checked}; border:1px solid {checked}; }}"
+        "QRadioButton::indicator:unchecked, QCheckBox::indicator:unchecked {"
+        f" border:1px solid {border}; background-color:transparent; }}"
+    )
+
+
+def apply_neutral_control_theme(app):
+    """Append the neutral-indicator QSS to the application stylesheet."""
+    existing = app.styleSheet() or ""
+    app.setStyleSheet(existing + "\n" + neutral_control_qss())
+
+
 def _load_logo_pixmap(size=None):
     name = "logo_dark.png" if _is_dark_mode() else "logo.png"
     path = _asset_path(name)
@@ -46,7 +77,10 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
 
-from core.loader import load_dataset, cleanup_memmap, SIZE_THRESHOLD
+from core.loader import load_dataset, cleanup_memmap, sweep_orphan_memmaps, SIZE_THRESHOLD
+# core.davis_io guards its own optional lvpyio import; importing it here is safe
+# and never pulls lvpyio into the GPL core.
+from core.davis_io import HAS_LVPYIO
 from core.transform import transform_status_string
 from gui.anisotropy_window import AnisotropyWindow
 from gui.reynolds_window import ReynoldsWindow
@@ -57,8 +91,31 @@ from gui.correlation_window import CorrelationWindow
 from gui.pod_window import PODWindow
 from gui.transform_window import TransformWindow
 from gui.arrow_toolbar import PickerMixin, DrawAwareToolbar
-from core.export_tecplot import write_tecplot_mean
+from core.export import export_2d_tecplot
 from gui.mean_convergence_tab import MeanConvergenceWindow
+from gui.compare_window import CompareWindow
+
+
+def _read_app_version(default="0.7.0"):
+    """Return the app version string from version.txt (single source of truth).
+
+    Handles both a normal source checkout and a PyInstaller bundle
+    (version.txt sits next to main.py / in the extraction folder).
+    Falls back to `default` if the file cannot be read.
+    """
+    if getattr(sys, "frozen", False):
+        base = sys._MEIPASS
+    else:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        with open(os.path.join(base, "version.txt"), encoding="utf-8") as f:
+            v = f.read().strip()
+            return v or default
+    except OSError:
+        return default
+
+
+APP_VERSION = _read_app_version()
 
 
 def get_session_case_name():
@@ -130,6 +187,30 @@ class MatLoaderThread(QThread):
             self.error.emit(f"{e}\n\n{traceback.format_exc()}")
 
 
+class DavisLoaderThread(QThread):
+    """Background loader for LaVision DaVis datasets (optional, via lvpyio)."""
+    progress = pyqtSignal(int)
+    finished = pyqtSignal(dict)
+    error    = pyqtSignal(str)
+
+    def __init__(self, paths, subset=None):
+        super().__init__()
+        # paths: a single .set path (str) or a list of .vc7/.vec paths.
+        self._paths = paths
+        self.file_list = paths if isinstance(paths, list) else [paths]
+        self._subset = subset
+
+    def run(self):
+        try:
+            from core.davis_io import load_davis
+            dataset = load_davis(self._paths, subset=self._subset,
+                                 progress_callback=self.progress.emit)
+            self.finished.emit(dataset)
+        except Exception as e:
+            import traceback
+            self.error.emit(f"{e}\n\n{traceback.format_exc()}")
+
+
 # ----------------------------------------------------------------------- #
 # Plot canvas
 # ----------------------------------------------------------------------- #
@@ -161,12 +242,15 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("uPrime v0.6.1")
+        sweep_orphan_memmaps()  # clear temp files left by any crashed session
+        self.setWindowTitle(f"uPrime v{APP_VERSION}")
         self.setWindowIcon(QIcon(_load_logo_pixmap(size=(256, 256))))
         self.setMinimumSize(1100, 650)
-        self.resize(1400, 900)
         screen = QApplication.primaryScreen().availableGeometry()
-        self.move((screen.width() - 1400) // 2, (screen.height() - 900) // 2)
+        win_w = min(1540, screen.width())
+        win_h = min(990, screen.height())
+        self.resize(win_w, win_h)
+        self.move((screen.width() - win_w) // 2, (screen.height() - win_h) // 2)
         self.dataset           = None
         self.loader_thread     = None
         self._windows          = []
@@ -225,6 +309,19 @@ class MainWindow(PickerMixin, QMainWindow):
         self.btn_load.setMinimumHeight(32)
         self.btn_load.clicked.connect(self._on_load_files)
         load_lay.addWidget(self.btn_load)
+
+        # --- DaVis loader (optional, guarded). Always visible; enabled state
+        #     and sub-text branch on lvpyio availability and frozen-exe status
+        #     (Distribution "Option A"). ---
+        self.btn_load_davis = QPushButton("\ud83d\udce5 Load from DaVis (.vc7 / .vec)")
+        self.btn_load_davis.clicked.connect(self._on_load_davis)
+        load_lay.addWidget(self.btn_load_davis)
+        self.lbl_davis_note = QLabel("")
+        self.lbl_davis_note.setStyleSheet("color:#888; font-size:10px;")
+        self.lbl_davis_note.setWordWrap(True)
+        load_lay.addWidget(self.lbl_davis_note)
+        self._init_davis_control()
+
         self.btn_reload = QPushButton("\u21ba  Reload Last Dataset")
         self.btn_reload.clicked.connect(self._on_reload_files)
         self.btn_reload.setStyleSheet(
@@ -307,6 +404,32 @@ class MainWindow(PickerMixin, QMainWindow):
 
 
         sl.addWidget(self.analysis_group)
+
+        # -- Compare Cases: a standalone tool, not an analysis module.
+        #    Separated from the analysis group by a spacer + divider, and given
+        #    a distinct indigo accent (its own hue vs the blue Reload / teal
+        #    Subset buttons) so it stands out as a separate tool.
+        sl.addSpacing(14)
+        sl.addWidget(self._separator())
+        sl.addSpacing(6)
+        self.btn_compare_cases = QPushButton("⚖  Compare Cases")
+        self.btn_compare_cases.setToolTip(
+            "Open the standalone Compare Cases viewer.\n"
+            "Reads uPrime's own 1D exports — no dataset needed.")
+        if _is_dark_mode():
+            _cc_bg, _cc_hover, _cc_pressed = "#4a4373", "#565083", "#3d3762"
+            _cc_text, _cc_border = "#e8e8f0", "#565083"
+        else:
+            _cc_bg, _cc_hover, _cc_pressed = "#6c63a6", "#7b72b5", "#5b5391"
+            _cc_text, _cc_border = "#ffffff", "#7b72b5"
+        self.btn_compare_cases.setStyleSheet(
+            f"QPushButton {{ text-align:left; padding:5px 8px;"
+            f" background:{_cc_bg}; color:{_cc_text};"
+            f" border:1px solid {_cc_border}; border-radius:3px; }}"
+            f"QPushButton:hover {{ background:{_cc_hover}; }}"
+            f"QPushButton:pressed {{ background:{_cc_pressed}; }}")
+        self.btn_compare_cases.clicked.connect(self._run_compare_cases)
+        sl.addWidget(self.btn_compare_cases)
 
         sl.addStretch()
 
@@ -749,6 +872,86 @@ class MainWindow(PickerMixin, QMainWindow):
 
         return indices, desc
 
+    def _init_davis_control(self):
+        """Set the DaVis button enabled-state and sub-text (Distribution 'Option A').
+
+        The button is ALWAYS visible. The message branches on lvpyio
+        availability and whether we are a frozen PyInstaller exe:
+          * lvpyio present            -> enabled (lab exe OR source + lvpyio).
+          * absent AND frozen exe     -> disabled; a public-exe user cannot fix
+                                         it by pip-installing lvpyio (a frozen
+                                         exe only sees bundled packages).
+          * absent AND from source    -> disabled; suggest pip install lvpyio.
+        """
+        frozen = getattr(sys, "frozen", False)
+        if HAS_LVPYIO:
+            self.btn_load_davis.setEnabled(True)
+            msg = "DaVis (.vc7 / .vec) support: enabled via lvpyio."
+        else:
+            self.btn_load_davis.setEnabled(False)
+            if frozen:
+                msg = ("This build does not include DaVis support. Run uPrime "
+                       "from source with lvpyio installed (pip install lvpyio) "
+                       "to enable it.")
+            else:
+                msg = ("DaVis loading needs lvpyio (LaVision). Install it "
+                       "separately:  pip install lvpyio")
+        self.lbl_davis_note.setText(msg)
+        self.btn_load_davis.setToolTip(msg)
+
+    def _on_load_davis(self):
+        """Load a LaVision DaVis vector set/file through the shared load path."""
+        if not HAS_LVPYIO:
+            return                                   # button is disabled anyway
+        # DaVis input is .vc7/.vec vector files only; multi-select for a series.
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Select DaVis .vc7 / .vec files", "",
+            "DaVis vector (*.vc7 *.vec);;All Files (*)")
+        if not paths:
+            return
+        selection = list(paths)
+
+        # Metadata-stage read: snapshot count + single-snapshot / bad-type
+        # rejection — the same way the .mat loader rejects single-snapshot files.
+        try:
+            from core.davis_io import davis_snapshot_count
+            n_total = davis_snapshot_count(selection)
+        except Exception as exc:
+            QMessageBox.critical(self, "DaVis Load Error", str(exc))
+            return
+
+        if n_total < 2:
+            QMessageBox.warning(
+                self, "Single Snapshot",
+                "This selection resolves to a single snapshot.\n\n"
+                "Select multiple .vc7 / .vec files (one per snapshot) so uPrime "
+                "can compute turbulence statistics.")
+            return
+
+        # Reuse the existing snapshot-subset dialog (over the sorted file list).
+        indices, desc = self._show_subsample_dialog(n_total)
+        if indices is None:
+            return
+        subset = indices
+        self._subsample_desc = desc
+
+        self._full_file_list = list(selection)
+        self._last_file_list = list(selection)
+
+        # Busy feedback + background load, matching the .mat/.dat pattern.
+        self.btn_load.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.lbl_status.setText(
+            f"Loading DaVis {len(selection)} .vc7/.vec file(s)…")
+
+        self.loader_thread = DavisLoaderThread(selection, subset=subset)
+        self.loader_thread.progress.connect(self.progress_bar.setValue)
+        self.loader_thread.finished.connect(self._on_load_finished)
+        self.loader_thread.error.connect(self._on_load_error)
+        self.loader_thread.start()
+
     def _on_load_mat(self, filepath):
         """
         Multi-step .mat load flow — all pre-commit state lives in local variables.
@@ -851,6 +1054,7 @@ class MainWindow(PickerMixin, QMainWindow):
         """Spawn a MatLoaderThread for the given .mat file, mapping, and snapshot subset."""
         if self.dataset:
             cleanup_memmap(self.dataset)
+        sweep_orphan_memmaps()
         self.lbl_files.setText(f"1 file\n{os.path.basename(filepath)}")
         self.btn_load.setEnabled(False)
         self.btn_reload.setEnabled(False)
@@ -943,6 +1147,7 @@ class MainWindow(PickerMixin, QMainWindow):
     def _start_load(self, file_list):
         if self.dataset:
             cleanup_memmap(self.dataset)
+        sweep_orphan_memmaps()
         self.lbl_files.setText(
             f"{len(file_list)} file(s)\n{os.path.basename(file_list[0])} ...")
         self.lbl_status.setText("Loading files...")
@@ -1572,6 +1777,10 @@ class MainWindow(PickerMixin, QMainWindow):
         self._windows.append(win)
         win.show(); win.raise_(); win.activateWindow()
 
+    def _run_compare_cases(self):
+        # Standalone viewer — independent of any loaded dataset, non-modal.
+        self._open_window(CompareWindow())
+
     def _run_mean_convergence(self):
         if not self._check_data(): return
         self._open_window(MeanConvergenceWindow(self.dataset))
@@ -1709,7 +1918,31 @@ class MainWindow(PickerMixin, QMainWindow):
         if not filepath:
             return
         try:
-            write_tecplot_mean(self.dataset, filepath)
+            ds = self.dataset
+            for key in ("x", "y", "U", "V"):
+                if key not in ds:
+                    raise KeyError(f"Dataset is missing required key '{key}'")
+
+            x, y = ds["x"], ds["y"]
+            U = np.nanmean(ds["U"], axis=-1)
+            V = np.nanmean(ds["V"], axis=-1)
+
+            has_w = "W" in ds and ds["W"] is not None
+            if has_w:
+                W = np.nanmean(ds["W"], axis=-1)
+                MAG = np.sqrt(U**2 + V**2 + W**2)
+                fields = [U, V, W, MAG]
+                labels = ["U [m/s]", "V [m/s]", "W [m/s]", "MAG [m/s]"]
+            else:
+                MAG = np.sqrt(U**2 + V**2)
+                fields = [U, V, MAG]
+                labels = ["U [m/s]", "V [m/s]", "MAG [m/s]"]
+
+            settings = {
+                "Analysis" : "Mean Velocity Field",
+                "Snapshots": ds.get("Nt", "N/A"),
+            }
+            export_2d_tecplot(filepath, x, y, fields, labels, settings)
             QMessageBox.information(self, "Export Complete",
                 f"Mean fields exported to:\n{filepath}")
         except Exception as e:
@@ -1769,10 +2002,16 @@ class MainWindow(PickerMixin, QMainWindow):
         logo_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(logo_lbl)
 
-        ver_lbl = QLabel("v0.6.1  \u00b7  Alpha Release")
+        ver_lbl = QLabel(f"v{APP_VERSION}  \u00b7  Alpha Release")
         ver_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         ver_lbl.setStyleSheet("color:gray;")
         lay.addWidget(ver_lbl)
+
+        davis_lbl = QLabel(
+            f"DaVis (lvpyio) support: {'enabled' if HAS_LVPYIO else 'not installed'}")
+        davis_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        davis_lbl.setStyleSheet("color:gray; font-size:10px;")
+        lay.addWidget(davis_lbl)
 
         lay.addWidget(self._separator_dlg())
 

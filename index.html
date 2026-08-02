@@ -247,7 +247,7 @@
 
   <!-- Badges -->
   <div class="badges">
-    <span class="badge highlight">v0.6.1 alpha</span>
+    <span class="badge highlight">v0.7.1 alpha</span>
     <span class="badge">Python 3.10+</span>
     <span class="badge">GPLv3</span>
     <span class="badge">Windows · macOS · Linux</span>
@@ -263,26 +263,24 @@
 
   <!-- Buttons -->
   <div class="buttons">
-    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/latest">Download v0.6.1</a>
+    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/latest">Download v0.7.1</a>
     <a class="button secondary" href="https://github.com/CmdrRyder/uPrime">View on GitHub</a>
     <a class="button secondary" href="https://doi.org/10.5281/zenodo.19376184">DOI</a>
     <a class="button secondary" href="https://github.com/CmdrRyder/uPrime/tree/main/docs/Manual.pdf">Manual (PDF)</a>
   </div>
 
   <!-- GUI Screenshot -->
-  <img class="gui-img" src="docs/images/gui_v061.png" alt="uPrime v0.6.1 GUI"
+  <img class="gui-img" src="docs/images/gui_v061.png" alt="uPrime v0.7.1 GUI"
        onerror="this.onerror=null;this.src='docs/images/gui_v061.png';">
 
   <!-- What's New -->
   <div class="whats-new">
-    <h2>NEW IN v0.6</h2>
+    <h2>NEW IN v0.7</h2>
     <ul>
-      <li><strong>Mean &amp; Convergence module</strong>: mean velocity line profiles plus point-wise statistical convergence check using Welford's online algorithm with sustained-crossing N* detection.</li>
-      <li><strong>MATLAB .mat file input</strong>: classic v5/v7 and v7.3 (HDF5). Variable confirmation dialog with auto-detection, snapshot subset spinboxes, single-snapshot rejection.</li>
-      <li><strong>Multi-case comparison</strong>: import previous results as CSV and overlay in Reynolds stress, TKE budget, spectra, correlation, anisotropy, and mean velocity plots.</li>
-      <li><strong>Inline non-convergence notice</strong>: persistent amber top-bar on Reynolds, TKE, and Spectra modules when fewer than 500 snapshots are loaded.</li>
-      <li><strong>TKE budget split panels</strong>: TKE k now plotted in a dedicated upper panel, P/C/D/R in the lower panel sharing the x-axis.</li>
-      <li><strong>Float16 storage option</strong> for .mat files exceeding 5 GB, with explicit warning about reduced numerical precision.</li>
+      <li><strong>Compare Cases viewer</strong>: standalone window comparing up to six datasets at once, with a 1D overlay plus value table and a 2D Field Compare tiled contour view sharing one color scale.</li>
+      <li><strong>Manual line-coordinate entry</strong>: set line-profile endpoints numerically (x0, y0, x1, y1) in Reynolds Stress, TKE Budget, and Mean Velocity, so an identical line is reproduced exactly across datasets.</li>
+      <li><strong>Automatic temp-file cleanup</strong> (v0.7.1): orphaned memory-map files from crashed sessions are swept at startup and before each load; files in use are never touched.</li>
+      <li><strong>Larger main window</strong> (v0.7.1): the control sidebar no longer shows a scrollbar.</li>
     </ul>
   </div>
 
@@ -359,7 +357,8 @@
   <div class="modules">
     <h2>Analysis Modules</h2>
     <div class="module-grid">
-      <div class="module-item new"><span class="check">✓</span>Mean &amp; Convergence <span class="module-badge new">v0.6</span></div>
+      <div class="module-item"><span class="check">✓</span>Mean &amp; Convergence</div>
+      <div class="module-item new"><span class="check">✓</span>Compare Cases <span class="module-badge new">v0.7</span></div>
       <div class="module-item"><span class="check">✓</span>Reynolds Stress Analysis</div>
       <div class="module-item"><span class="check">✓</span>TKE Budget</div>
       <div class="module-item"><span class="check">✓</span>Space-Time Spectral Analysis</div>

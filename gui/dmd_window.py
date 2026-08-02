@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
     QPushButton, QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox,
     QSizePolicy, QMessageBox, QSplitter, QTabWidget,
-    QFileDialog, QProgressBar,
+    QFileDialog, QProgressBar, QApplication,
 )
 from PyQt6.QtCore import Qt
 
@@ -653,8 +653,12 @@ class DmdWindow(PickerMixin, QWidget):
                 "Click a mode in the DMD Spectrum first.")
             return
 
+        try:
+            _cn = QApplication.instance()._session_case_name or "Data_1"
+        except AttributeError:
+            _cn = "Data_1"
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Mode Field", "dmd_mode.dat",
+            self, "Export Mode Field", f"{_cn}_dmd_mode.dat",
             "Tecplot DAT (*.dat);;All Files (*)")
         if not path:
             return

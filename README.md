@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/1197739784.svg)](https://doi.org/10.5281/zenodo.19376184)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
-![Version](https://img.shields.io/badge/version-0.6.1%20alpha-blue)
+![Version](https://img.shields.io/badge/version-0.7.1%20alpha-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
 ### *Because u′ matters*
@@ -96,6 +96,7 @@ python main.py
 
 | Module | Description | TR required |
 |---|---|---|
+| Mean & Convergence | Mean velocity line profiles; point-wise statistical convergence (Welford, N* detection) | No |
 | Reynolds Stresses | All $R_{ij}$ components, 2D maps, line profiles | No |
 | TKE Budget | Production, convection, diffusion, residual | No |
 | Space-Time Spectra | Spatial E(k), temporal E(f), space-time E(k,f) | Temporal tabs only |
@@ -104,6 +105,7 @@ python main.py
 | POD Analysis | Energy spectrum, spatial modes, temporal coefficients, reconstruction | No |
 | DMD Analysis | Frequency–growth rate spectrum, spatial mode viewer | **Yes** |
 | Vortex Identification | ω, Q, λci, λ2, Γ1/Γ2, per-vortex statistics | No |
+| Compare Cases | Standalone viewer: overlay up to 6 datasets (1D profiles + tiled 2D fields) | No |
 
 ---
 
@@ -116,6 +118,8 @@ python main.py
 - **Non-destructive masking**: draw masks over wall regions, shadows, or reflections without modifying raw data
 - **Unit auto-detection**: reads mm/m/s units from `.dat` file headers automatically
 - **PIV + CFD compatible**: any structured velocity data in Tecplot ASCII format
+- **Compare cases**: standalone viewer overlays up to six datasets (1D profiles + tiled 2D fields); per-module CSV overlay inside analysis windows
+- **Manual line-coordinate entry**: set profile endpoints numerically (x0, y0, x1, y1) for lines reproduced exactly across datasets
 - **Publication-ready export**: PNG (300 DPI), PDF, SVG with editable text
 
 ---
@@ -174,6 +178,33 @@ uPrime also loads MATLAB `.mat` files (classic v5/v7 and HDF5-based v7.3):
 - **Storage precision:** By default uPrime loads `.mat` files as float32 (single precision), matching the `.dat` loader. For files larger than 5 GB the variable confirmation dialog offers a float16 (half precision) option that halves memory usage, allowing files that would otherwise not fit in RAM to load. Float16 has only ~3 decimal digits of precision, and all subsequent computations (Reynolds stresses, TKE budget, POD, DMD, FFT) run at this reduced precision. Fluctuation-based statistics are particularly vulnerable to catastrophic cancellation. Use float16 only for preliminary inspection or mean-field viewing. For final results, reload with the default float32 mode.
 - **Mask convention:** uPrime expects `isValid` to follow the "1 = valid, 0 = invalid" convention. If your `.mat` file uses the opposite convention (e.g. a variable named `Mask` where 1 means "mask this out"), select **"1 = invalid (mask out)"** in the **Mask convention** dropdown next to the isValid selector in the variable confirmation dialog. The loader applies the chosen convention with no auto-detection. After loading, the status bar warns if the resulting masked fraction looks extreme (< 5 % or > 95 %); if this fires unexpectedly, reload with the other convention.
 
+### DaVis support (optional)
+
+uPrime can load LaVision **DaVis** vector data — **`.vc7` / `.vec` vector files only** (one field per file; select multiple files for a time series) — via the [`lvpyio`](https://www.lavision.de/en/downloads/software/python_add_ons.php) library. `.set` files and DaVis images (`.im7` / `.imx`) are **not** supported; export or convert a `.set` to `.vc7`. This support is **optional** and **off by default**, because `lvpyio` is a **separately-licensed LaVision library** ("Free To Use But Restricted") and is **not GPL** — it is never bundled into a public release.
+
+**Read this before expecting DaVis loading to work:**
+
+- **The public release `.exe` does NOT include DaVis loading.** The **Load from DaVis (.vc7 / .vec)** button is present but disabled.
+- **A separately-installed `lvpyio` will NOT be picked up by the public `.exe`.** A frozen PyInstaller executable only sees packages bundled at build time, not your system's `pip`-installed packages. So `pip install lvpyio` will **not** enable DaVis in the public exe.
+- DaVis support is available **two ways only**:
+  1. **Run uPrime from source** with `lvpyio` installed:
+     ```bash
+     pip install -r requirements.txt
+     pip install -r requirements-lvpyio.txt   # installs lvpyio (restricted licence)
+     python main.py
+     ```
+  2. Use a **DaVis-enabled build** produced with the `--with-lvpyio` flag (see below).
+- DaVis files: select **multiple `.vc7` / `.vec` files** (one per snapshot); they are stacked in natural filename order (`B0001, B0002, … B0010`). A single file is one snapshot and is rejected, like single-snapshot `.mat` files. All files must share the same grid, axes and components (2D2C/2D3C) or the load aborts naming the offending file.
+
+**Building the DaVis-enabled executable (lab build):**
+
+```bash
+pip install -r requirements-lvpyio.txt     # lvpyio must be importable to build
+python build_uprime.py --with-lvpyio       # -> dist/uPrime_v0.7.0_davis.exe
+```
+
+The default `python build_uprime.py` produces the public `dist/uPrime_v0.7.0.exe` with `lvpyio` explicitly excluded. `lvpyio` is kept out of `requirements.txt` on purpose; it lives only in `requirements-lvpyio.txt`.
+
 ---
 
 ## 🧪 Sample Dataset
@@ -219,7 +250,7 @@ Tests run headlessly (Agg backend + offscreen Qt) with no real `.dat` files requ
 
 ## 🧠 Development Status
 
-uPrime is under active development (**v0.6.1 alpha**).
+uPrime is under active development (**v0.7.1 alpha**).
 Core analysis modules are stable. Performance and usability improvements ongoing.
 
 ---
@@ -241,7 +272,7 @@ Core analysis modules are stable. Performance and usability improvements ongoing
 
 If uPrime contributes to your research, please cite:
 
-> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.6.1-alpha). Zenodo.
+> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.7.1-alpha). Zenodo.
 > https://doi.org/10.5281/zenodo.19376184
 
 ---

@@ -34,6 +34,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 from core.reynolds_stress import extract_line_profile
+from core.line_sample import sample_along_line
 from core.export import export_2d_tecplot, export_line_csv
 from gui.line_selector import LineSelectorWidget, compute_snapped_line
 from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
@@ -73,6 +74,7 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
         self._selection   = None
         self._budget      = None
         self._last_line   = None
+        self._manual_active = False
 
         self._build_ui()
         self._draw_field()
@@ -156,7 +158,11 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
         cl.addWidget(self.combo_term)
         ll.addWidget(self.contour_grp)
 
-        # Line selector
+        # Line Entry (Draw / Manual) -> Line Mode -> Spatial Averaging, adjacent.
+        self.manual_grp = self._build_manual_group()
+        self.manual_grp.setVisible(False)
+        ll.addWidget(self.manual_grp)
+
         self.line_sel = LineSelectorWidget(show_avg=True)
         self.line_sel.setVisible(False)
         ll.addWidget(self.line_sel)
@@ -171,7 +177,7 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
         cp = QVBoxLayout(comp_grp)
 
         n_row = QHBoxLayout()
-        self.chk_norm = QCheckBox("Normalize by Um\u00b3/L")
+        self.chk_norm = QCheckBox("Normalize")
         self.chk_norm.setChecked(False)
         n_row.addWidget(self.chk_norm)
         cp.addLayout(n_row)
@@ -333,6 +339,7 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
         self._x = x
         self._y = y
         self._last_field_values = speed
+        self._set_manual_ranges()
 
     # ----------------------------------------------------------------------- #
     # Mode
@@ -344,12 +351,14 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
             self.contour_grp.setVisible(True)
             self.line_sel.setVisible(False)
             self.term_grp.setVisible(False)
+            self.manual_grp.setVisible(False)
             self.lbl_hint.setText("Select term and click 'Plot'.")
         else:
             self._mode = "line"
             self.contour_grp.setVisible(False)
-            self.line_sel.setVisible(True)
             self.term_grp.setVisible(True)
+            self.manual_grp.setVisible(True)
+            self._on_line_entry_changed()
             if self._budget is not None:
                 self.lbl_hint.setText(
                     "Left-click+drag to draw a line, then click Plot.")
@@ -358,6 +367,115 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
                     "Compute budget first.  Then left-click+drag to draw a line.")
         self._clear_line()
         self._selection = None
+
+    # ----------------------------------------------------------------------- #
+    # Manual coordinate entry
+    # ----------------------------------------------------------------------- #
+
+    def _build_manual_group(self):
+        grp = QGroupBox("Line Entry")
+        lay = QVBoxLayout(grp)
+
+        row_mode = QHBoxLayout()
+        self.rb_draw   = QRadioButton("Draw")
+        self.rb_manual = QRadioButton("Manual")
+        self.rb_draw.setChecked(True)
+        self._entry_grp = QButtonGroup(grp)
+        self._entry_grp.addButton(self.rb_draw)
+        self._entry_grp.addButton(self.rb_manual)
+        self.rb_draw.toggled.connect(self._on_line_entry_changed)
+        row_mode.addWidget(self.rb_draw)
+        row_mode.addWidget(self.rb_manual)
+        lay.addLayout(row_mode)
+
+        self.manual_coord_widget = QWidget()
+        cl = QHBoxLayout(self.manual_coord_widget)
+        cl.setContentsMargins(0, 0, 0, 0)
+        self.spin_x0 = QDoubleSpinBox(); self.spin_y0 = QDoubleSpinBox()
+        self.spin_x1 = QDoubleSpinBox(); self.spin_y1 = QDoubleSpinBox()
+        for sp in (self.spin_x0, self.spin_y0, self.spin_x1, self.spin_y1):
+            sp.setDecimals(3)
+            sp.setRange(-1e6, 1e6)
+        cl.addWidget(QLabel("x0:")); cl.addWidget(self.spin_x0)
+        cl.addWidget(QLabel("y0:")); cl.addWidget(self.spin_y0)
+        cl.addWidget(QLabel("x1:")); cl.addWidget(self.spin_x1)
+        cl.addWidget(QLabel("y1:")); cl.addWidget(self.spin_y1)
+        lay.addWidget(self.manual_coord_widget)
+
+        self.btn_manual_plot = QPushButton("Plot")
+        self.btn_manual_plot.clicked.connect(self._on_manual_plot)
+        lay.addWidget(self.btn_manual_plot)
+
+        return grp
+
+    def _set_manual_ranges(self):
+        """Set spinbox ranges/defaults from the data extents (mm)."""
+        if getattr(self, "_x", None) is None:
+            return
+        xmin, xmax = float(np.nanmin(self._x)), float(np.nanmax(self._x))
+        ymin, ymax = float(np.nanmin(self._y)), float(np.nanmax(self._y))
+        for sp in (self.spin_x0, self.spin_x1):
+            sp.setRange(xmin, xmax)
+        for sp in (self.spin_y0, self.spin_y1):
+            sp.setRange(ymin, ymax)
+        self.spin_x0.setValue(xmin); self.spin_x1.setValue(xmax)
+        self.spin_y0.setValue((ymin + ymax) / 2.0)
+        self.spin_y1.setValue((ymin + ymax) / 2.0)
+
+    def _on_line_entry_changed(self, *args):
+        self._manual_active = self.rb_manual.isChecked()
+        self.manual_coord_widget.setVisible(self._manual_active)
+        self.btn_manual_plot.setVisible(self._manual_active)
+        self.line_sel.setVisible(not self._manual_active)
+
+    def _on_manual_plot(self):
+        if self._budget is None:
+            QMessageBox.information(self, "No Data",
+                "Please compute the budget first.")
+            return
+        p0 = (self.spin_x0.value(), self.spin_y0.value())
+        p1 = (self.spin_x1.value(), self.spin_y1.value())
+        if abs(p1[0] - p0[0]) < 0.1 and abs(p1[1] - p0[1]) < 0.1:
+            self.lbl_hint.setText("Line too short -- adjust coordinates.")
+            return
+        self.lbl_status.setText("Sampling line…")
+        QApplication.processEvents()
+        try:
+            self._run_line_profile(p0, p1)
+        finally:
+            QApplication.processEvents()
+
+    def _run_line_profile(self, p0, p1):
+        """Single entry point shared by drawn and manual lines: draw the line
+        on the field axes then render the profile through _plot_line()."""
+        self._clear_line()
+        ln, = self.field_ax.plot(
+            [p0[0], p1[0]], [p0[1], p1[1]], "r-", linewidth=2, zorder=10)
+        self._line_artist = ln
+        self.field_canvas.draw()
+        self._selection = {"x0": p0[0], "y0": p0[1], "x1": p1[0], "y1": p1[1]}
+        self._plot_line()
+
+    def _profile_values(self, field, sel):
+        """Sample `field` along the current selection.
+
+        Manual entry samples free point-to-point via sample_along_line;
+        drawn lines keep the LineSelector snapping / averaging modes.
+        Returns (vals, dist, xpts, ypts)."""
+        if self._manual_active:
+            x1d = self._x[0, :]
+            y1d = self._y[:, 0]
+            p0 = (sel["x0"], sel["y0"])
+            p1 = (sel["x1"], sel["y1"])
+            s, vals = sample_along_line(x1d, y1d, field, p0, p1)
+            n = len(s)
+            xpts = np.linspace(sel["x0"], sel["x1"], n)
+            ypts = np.linspace(sel["y0"], sel["y1"], n)
+            return vals, s, xpts, ypts
+        return extract_line_profile(
+            field, self._x, self._y,
+            sel["x0"], sel["y0"], sel["x1"], sel["y1"],
+            mode=self.line_sel.get_mode(), avg_band=self.line_sel.get_avg_band())
 
     # ----------------------------------------------------------------------- #
     # Mouse -- left-click drag, no ROI rectangle
@@ -513,20 +631,31 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _scale_for(self, key):
-        """Return (scale, unit_label) for the given term key."""
+        """Return (scale, y-axis label) for the given term key.
+
+        Per-panel normalization (task-specified):
+          - k (upper panel)        : divide by Um**2       -> "k/Um^2 [-]"
+          - budget terms (lower)   : divide by Um**3 / L   -> "(P L)/Um^3 [-]"
+        When normalization is off, raw dimensional values / labels are used.
+        """
         if self.chk_norm.isChecked():
-            um  = self.spin_um.value()
-            L_m = self.spin_L.value() / 1000.0
+            Um  = self.spin_um.value()
+            L_m = self.spin_L.value() / 1000.0     # L in metres
             if key == "k":
-                s   = 1.0 / (um ** 2)
-                lbl = f"k/Um\u00b2  (Um={um:.2f} m/s)"
+                s = 1.0 / (Um ** 2)
             else:
-                s   = L_m / (um ** 3)
-                lbl = f"Um\u00b3/L  (Um={um:.2f} m/s, L={self.spin_L.value():.1f} mm)"
+                s = 1.0 / ((Um ** 3) / L_m)        # = L / Um**3
+            lbl = "[-]"
         else:
             s   = 1.0
             lbl = "[m\u00b2/s\u00b2]" if key == "k" else "[m\u00b2/s\u00b3]"
         return s, lbl
+
+    def _panel_ylabels(self):
+        """Return (upper_k_label, lower_budget_label) for the line panels."""
+        if self.chk_norm.isChecked():
+            return "k/Um\u00b2 [-]", "(P L)/Um\u00b3 [-]"
+        return "k [m\u00b2/s\u00b2]", "TKE Budget [m\u00b2/s\u00b3]"
 
     # ----------------------------------------------------------------------- #
     # Plot
@@ -544,7 +673,9 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
                 QMessageBox.information(self, "No Line",
                     "Please draw a line on the field (left-click+drag).")
                 return
-            self._plot_line()
+            sel = self._selection
+            self._run_line_profile((sel["x0"], sel["y0"]),
+                                   (sel["x1"], sel["y1"]))
 
     def _on_term_filter_changed(self):
         if (self._mode == "line"
@@ -599,9 +730,8 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
     def _plot_line(self):
         sel          = self._selection
         _, unit_str  = self._scale_for("P")
-        _, k_unit    = self._scale_for("k")
+        k_unit, bud_label = self._panel_ylabels()
         lmode        = self.line_sel.get_mode()
-        avg_band     = self.line_sel.get_avg_band()
         xlabel       = {"horizontal": "x [mm]",
                         "vertical":   "y [mm]"}.get(lmode, "Distance from origin [mm]")
 
@@ -616,10 +746,8 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
         plotted_k = False
         if self._budget.get("k") is not None:
             scale_k, _ = self._scale_for("k")
-            vals_k, dist_k, xpts_k, ypts_k = extract_line_profile(
-                self._budget["k"] * scale_k, self._x, self._y,
-                sel["x0"], sel["y0"], sel["x1"], sel["y1"],
-                mode=lmode, avg_band=avg_band)
+            vals_k, dist_k, xpts_k, ypts_k = self._profile_values(
+                self._budget["k"] * scale_k, sel)
             valid_k = np.isfinite(vals_k)
             if np.any(valid_k):
                 ax_k.plot(dist_k[valid_k], vals_k[valid_k],
@@ -633,7 +761,7 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
                 self._last_line["means"]["k"] = vals_k
 
         if plotted_k:
-            ax_k.set_ylabel(f"TKE k {k_unit}", fontsize=_FONT_AX)
+            ax_k.set_ylabel(k_unit, fontsize=_FONT_AX)
             ax_k.legend(fontsize=_FONT_LEG)
             ax_k.grid(True, alpha=0.3)
             ax_k.tick_params(labelsize=_FONT_TICK)
@@ -641,7 +769,7 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
             ax_k.text(0.5, 0.5, "k not available",
                       transform=ax_k.transAxes, ha="center", va="center",
                       fontsize=10, color="gray")
-            ax_k.set_ylabel(f"TKE k {k_unit}", fontsize=_FONT_AX)
+            ax_k.set_ylabel(k_unit, fontsize=_FONT_AX)
             ax_k.tick_params(labelsize=_FONT_TICK)
         ax_k.set_title("TKE Budget Profile", fontsize=_FONT_AX)
 
@@ -653,10 +781,8 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
             if key in self.term_chks and not self.term_chks[key].isChecked():
                 continue
             scale, _ = self._scale_for(key)
-            vals, dist, xpts, ypts = extract_line_profile(
-                self._budget[key] * scale, self._x, self._y,
-                sel["x0"], sel["y0"], sel["x1"], sel["y1"],
-                mode=lmode, avg_band=avg_band)
+            vals, dist, xpts, ypts = self._profile_values(
+                self._budget[key] * scale, sel)
             valid = np.isfinite(vals)
             if not np.any(valid):
                 continue
@@ -673,7 +799,7 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
 
         if plotted_bud:
             ax_bud.axhline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
-            ax_bud.set_ylabel(f"TKE Budget {unit_str}", fontsize=_FONT_AX)
+            ax_bud.set_ylabel(bud_label, fontsize=_FONT_AX)
             ax_bud.legend(fontsize=_FONT_LEG)
             ax_bud.grid(True, alpha=0.3)
             ax_bud.tick_params(labelsize=_FONT_TICK)
@@ -681,7 +807,7 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
             ax_bud.text(0.5, 0.5, "No valid data along line",
                         transform=ax_bud.transAxes, ha="center", va="center",
                         fontsize=11, color="gray")
-            ax_bud.set_ylabel(f"TKE Budget {unit_str}", fontsize=_FONT_AX)
+            ax_bud.set_ylabel(bud_label, fontsize=_FONT_AX)
             ax_bud.tick_params(labelsize=_FONT_TICK)
         ax_bud.set_xlabel(xlabel, fontsize=_FONT_AX)
 
@@ -710,8 +836,12 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
         }
 
         if self._mode == "contour" and self._budget:
+            try:
+                _cn = QApplication.instance()._session_case_name or "Data_1"
+            except AttributeError:
+                _cn = "Data_1"
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export 2D Field", "tke_budget_all.dat",
+                self, "Export 2D Field", f"{_cn}_tke_budget_all.dat",
                 "Tecplot DAT (*.dat);;CSV (*.csv)")
             if not path:
                 return
@@ -738,6 +868,10 @@ class TKEBudgetWindow(PickerMixin, ComparisonMixin, QWidget):
                 "CSV (*.csv)")
             if not path:
                 return
+            sel = self._selection or {}
+            settings["Line entry"] = "Manual" if self._manual_active else "Drawn"
+            settings["Line start (mm)"] = f'({sel.get("x0", float("nan")):.4f}, {sel.get("y0", float("nan")):.4f})'
+            settings["Line end (mm)"]   = f'({sel.get("x1", float("nan")):.4f}, {sel.get("y1", float("nan")):.4f})'
             n = len(self._last_line["means"])
             export_line_csv(path,
                             self._last_line["dist"],

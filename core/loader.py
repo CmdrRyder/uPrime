@@ -7,6 +7,7 @@ Invalid vectors (isValid == 0) are set to NaN.
 
 import os
 import re
+import glob
 import tempfile
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -35,6 +36,31 @@ def cleanup_memmap(dataset):
         except FileNotFoundError:
             pass
     dataset["_memmap_path"] = None
+
+
+def sweep_orphan_memmaps():
+    """Delete uprime_memmap_* temp files left behind by dead sessions.
+
+    Files whose embedded PID matches the current process are skipped, so this
+    session's live memmap is never deleted. Files locked by another running
+    uPrime instance raise OSError on Windows and are skipped too. Returns the
+    number of bytes freed.
+    """
+    freed = 0
+    keep_prefix = f"uprime_memmap_{os.getpid()}.bin"
+    pattern = os.path.join(tempfile.gettempdir(), "uprime_memmap_*.bin_*")
+    for f in glob.glob(pattern):
+        if os.path.basename(f).startswith(keep_prefix):
+            continue  # never delete the current session's live files
+        try:
+            size = os.path.getsize(f)
+            os.remove(f)
+            freed += size
+        except OSError:
+            pass  # locked by a live instance, or already gone
+    if freed:
+        print(f"[uPrime] Cleared {freed / 1024**2:.0f} MB of orphaned memmap temp files.")
+    return freed
 
 
 def parse_header(filepath):

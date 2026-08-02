@@ -32,9 +32,12 @@ def _settings_header(info_dict, comment="#"):
 # 2D field export -- Tecplot ASCII
 # --------------------------------------------------------------------------- #
 
-def export_2d_tecplot(filepath, x, y, fields, field_names, settings_info):
+def export_2d_tecplot(filepath, x, y, fields, field_names, settings_info,
+                      fmt="%.6e"):
     """
     Export a 2D field to Tecplot ASCII .dat format.
+
+    This is the single canonical 2D .dat writer for the whole project.
 
     Parameters
     ----------
@@ -43,6 +46,7 @@ def export_2d_tecplot(filepath, x, y, fields, field_names, settings_info):
     fields       : list of [ny, nx] arrays (mean values only)
     field_names  : list of strings, one per field
     settings_info: dict of settings to write in header
+    fmt          : printf-style format for every numeric value (default %.6e)
     """
     ny, nx = x.shape
 
@@ -72,7 +76,7 @@ def export_2d_tecplot(filepath, x, y, fields, field_names, settings_info):
                     fld[j, i] if np.isfinite(fld[j, i]) else 0.0
                     for fld in fields_out
                 ]
-                f.write(" ".join(f"{v:.6g}" for v in vals) + "\n")
+                f.write(" ".join(fmt % v for v in vals) + "\n")
 
 
 # --------------------------------------------------------------------------- #

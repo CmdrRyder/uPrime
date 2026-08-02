@@ -33,6 +33,7 @@ from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
 from gui.comparison_mixin import ComparisonMixin
 from core.reynolds_stress import extract_line_profile
 from core.export import export_2d_tecplot, export_line_csv
+from core.line_sample import sample_along_line
 from gui.line_selector import LineSelectorWidget, compute_snapped_line
 
 
@@ -72,6 +73,7 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
         self._line_artist  = None
         self._roi_artist   = None
         self._selection    = None
+        self._manual_active = False
 
         self._stresses  = None
         self._k         = None
@@ -193,6 +195,11 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
         mode_lay.addWidget(self.rb_contour)
         mode_lay.addWidget(self.rb_line)
         ll.addWidget(mode_grp)
+
+        # Line Entry (Draw / Manual) -> Line Mode -> Spatial Averaging, adjacent.
+        self.manual_grp = self._build_manual_group()
+        self.manual_grp.setVisible(False)
+        ll.addWidget(self.manual_grp)
 
         self.line_sel = LineSelectorWidget(show_avg=True)
         self.line_sel.setVisible(False)
@@ -328,6 +335,7 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
         self._x = x
         self._y = y
         self._last_field_values = speed
+        self._set_manual_ranges()
 
     # ----------------------------------------------------------------------- #
     # Mode
@@ -341,6 +349,7 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
             self.line_comp_grp.setVisible(False)
             self.combo_comp.setVisible(True)
             self.line_sel.setVisible(False)
+            self.manual_grp.setVisible(False)
         else:
             self._mode = "line"
             self.btn_plot.setText("Plot Line Profile")
@@ -348,9 +357,97 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
                 "Left-click+drag to draw a line.  Right-click+drag for ROI.")
             self.line_comp_grp.setVisible(True)
             self.combo_comp.setVisible(False)
-            self.line_sel.setVisible(True)
+            self.manual_grp.setVisible(True)
+            self._on_line_entry_changed()
         self._clear_all_artists()
         self._selection = None
+
+    # ----------------------------------------------------------------------- #
+    # Manual coordinate entry
+    # ----------------------------------------------------------------------- #
+
+    def _build_manual_group(self):
+        grp = QGroupBox("Line Entry")
+        lay = QVBoxLayout(grp)
+
+        row_mode = QHBoxLayout()
+        self.rb_draw   = QRadioButton("Draw")
+        self.rb_manual = QRadioButton("Manual")
+        self.rb_draw.setChecked(True)
+        self._entry_grp = QButtonGroup(grp)
+        self._entry_grp.addButton(self.rb_draw)
+        self._entry_grp.addButton(self.rb_manual)
+        self.rb_draw.toggled.connect(self._on_line_entry_changed)
+        row_mode.addWidget(self.rb_draw)
+        row_mode.addWidget(self.rb_manual)
+        lay.addLayout(row_mode)
+
+        self.manual_coord_widget = QWidget()
+        cl = QHBoxLayout(self.manual_coord_widget)
+        cl.setContentsMargins(0, 0, 0, 0)
+        self.spin_x0 = QDoubleSpinBox(); self.spin_y0 = QDoubleSpinBox()
+        self.spin_x1 = QDoubleSpinBox(); self.spin_y1 = QDoubleSpinBox()
+        for sp in (self.spin_x0, self.spin_y0, self.spin_x1, self.spin_y1):
+            sp.setDecimals(3)
+            sp.setRange(-1e6, 1e6)
+        cl.addWidget(QLabel("x0:")); cl.addWidget(self.spin_x0)
+        cl.addWidget(QLabel("y0:")); cl.addWidget(self.spin_y0)
+        cl.addWidget(QLabel("x1:")); cl.addWidget(self.spin_x1)
+        cl.addWidget(QLabel("y1:")); cl.addWidget(self.spin_y1)
+        lay.addWidget(self.manual_coord_widget)
+
+        self.btn_manual_plot = QPushButton("Plot")
+        self.btn_manual_plot.clicked.connect(self._on_manual_plot)
+        lay.addWidget(self.btn_manual_plot)
+
+        return grp
+
+    def _set_manual_ranges(self):
+        """Set spinbox ranges/defaults from the data extents (mm)."""
+        if getattr(self, "_x", None) is None:
+            return
+        xmin, xmax = float(np.nanmin(self._x)), float(np.nanmax(self._x))
+        ymin, ymax = float(np.nanmin(self._y)), float(np.nanmax(self._y))
+        for sp in (self.spin_x0, self.spin_x1):
+            sp.setRange(xmin, xmax)
+        for sp in (self.spin_y0, self.spin_y1):
+            sp.setRange(ymin, ymax)
+        self.spin_x0.setValue(xmin); self.spin_x1.setValue(xmax)
+        self.spin_y0.setValue((ymin + ymax) / 2.0)
+        self.spin_y1.setValue((ymin + ymax) / 2.0)
+
+    def _on_line_entry_changed(self, *args):
+        self._manual_active = self.rb_manual.isChecked()
+        self.manual_coord_widget.setVisible(self._manual_active)
+        self.btn_manual_plot.setVisible(self._manual_active)
+        # Manual mode uses free point-to-point sampling; hide snap controls.
+        self.line_sel.setVisible(not self._manual_active)
+
+    def _on_manual_plot(self):
+        if self._stresses is None:
+            return
+        p0 = (self.spin_x0.value(), self.spin_y0.value())
+        p1 = (self.spin_x1.value(), self.spin_y1.value())
+        if abs(p1[0] - p0[0]) < 0.1 and abs(p1[1] - p0[1]) < 0.1:
+            self.lbl_hint.setText("Line too short -- adjust coordinates.")
+            return
+        self.lbl_status.setText("Sampling line…")
+        QApplication.processEvents()
+        try:
+            self._run_line_profile(p0, p1)
+        finally:
+            QApplication.processEvents()
+
+    def _run_line_profile(self, p0, p1):
+        """Single entry point shared by drawn and manual lines: draw the line
+        on the field axes then render the profile through _plot_line()."""
+        self._clear_line_artist()
+        ln, = self.field_ax.plot(
+            [p0[0], p1[0]], [p0[1], p1[1]], "r-", linewidth=2, zorder=10)
+        self._line_artist = ln
+        self.field_canvas.draw()
+        self._selection = {"x0": p0[0], "y0": p0[1], "x1": p1[0], "y1": p1[1]}
+        self._plot_line()
 
     # ----------------------------------------------------------------------- #
     # Mouse
@@ -500,7 +597,30 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
                 QMessageBox.information(self, "No Line",
                     "Please draw a line on the field first (left-click+drag).")
                 return
-            self._plot_line()
+            sel = self._selection
+            self._run_line_profile((sel["x0"], sel["y0"]),
+                                   (sel["x1"], sel["y1"]))
+
+    def _profile_values(self, field, sel):
+        """Sample `field` along the current selection.
+
+        Manual entry samples free point-to-point via sample_along_line;
+        drawn lines keep the LineSelector snapping / averaging modes.
+        Returns (vals, dist, xpts, ypts)."""
+        if self._manual_active:
+            x1d = self._x[0, :]
+            y1d = self._y[:, 0]
+            p0 = (sel["x0"], sel["y0"])
+            p1 = (sel["x1"], sel["y1"])
+            s, vals = sample_along_line(x1d, y1d, field, p0, p1)
+            n = len(s)
+            xpts = np.linspace(sel["x0"], sel["x1"], n)
+            ypts = np.linspace(sel["y0"], sel["y1"], n)
+            return vals, s, xpts, ypts
+        return extract_line_profile(
+            field, self._x, self._y,
+            sel["x0"], sel["y0"], sel["x1"], sel["y1"],
+            mode=self.line_sel.get_mode(), avg_band=self.line_sel.get_avg_band())
 
     def _plot_contour(self):
         comp  = self.combo_comp.currentData()
@@ -559,18 +679,12 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
             if field is None:
                 continue
 
-            vals, dist, xpts, ypts = extract_line_profile(
-                field * scale, self._x, self._y,
-                sel["x0"], sel["y0"], sel["x1"], sel["y1"],
-                mode=lmode, avg_band=avg_band)
+            vals, dist, xpts, ypts = self._profile_values(field * scale, sel)
 
             std_field = self._std.get(comp)
             std_vals  = None
             if std_field is not None:
-                std_vals, _, _, _ = extract_line_profile(
-                    std_field * scale, self._x, self._y,
-                    sel["x0"], sel["y0"], sel["x1"], sel["y1"],
-                    mode=lmode, avg_band=avg_band)
+                std_vals, _, _, _ = self._profile_values(std_field * scale, sel)
 
             valid = np.isfinite(vals)
             if not np.any(valid):
@@ -634,9 +748,13 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
             if not path:
                 return
             ld = self._last_line_data
+            sel = self._selection or {}
             settings = {
                 "Analysis"    : "Reynolds Stress - Line Profile",
                 "Snapshots"   : self.dataset["Nt"],
+                "Line entry"  : "Manual" if self._manual_active else "Drawn",
+                "Line start (mm)": f'({sel.get("x0", float("nan")):.4f}, {sel.get("y0", float("nan")):.4f})',
+                "Line end (mm)"  : f'({sel.get("x1", float("nan")):.4f}, {sel.get("y1", float("nan")):.4f})',
                 "Scaled by Um": (f"Yes, Um={self.spin_um.value():.3f} m/s"
                                  if self.chk_scale.isChecked() else "No"),
             }
@@ -644,8 +762,12 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
                             ld["means"], ld["stds"], settings)
             self.lbl_status.setText(f"Exported to {path}")
         else:
+            try:
+                _cn = QApplication.instance()._session_case_name or "Data_1"
+            except AttributeError:
+                _cn = "Data_1"
             path, _ = QFileDialog.getSaveFileName(
-                self, "Export 2D Field", "reynolds_stresses_all.dat",
+                self, "Export 2D Field", f"{_cn}_reynolds_stresses_all.dat",
                 "Tecplot DAT (*.dat);;CSV Files (*.csv)")
             if not path:
                 return

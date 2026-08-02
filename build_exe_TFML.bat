@@ -1,15 +1,23 @@
 @echo off
 REM ============================================================
-REM  build_exe.bat -- uPrime v0.7.1  (PUBLIC build)
+REM  ****  TFML-INTERNAL BUILD -- DO NOT REDISTRIBUTE PUBLICLY  ****
+REM  This exe bundles LaVision's proprietary lvpyio for DaVis (.vc7/.vec)
+REM  input. It MUST NOT be uploaded to GitHub releases or shared outside
+REM  TFML. The public build (build_exe.bat) is the redistributable one.
+REM
+REM  New in v0.7.1 (TFML build):
+REM    - lvpyio BUNDLED (DaVis .vc7/.vec loading enabled).
+REM    - Orphaned memmap temp-file sweep at startup and before each load.
+REM    - Main window opens ~10% larger (no sidebar scrollbar).
+REM
+REM  build_exe_TFML.bat -- uPrime v0.7.1  (TFML LAB build)
 REM  Builds a single-file windowed executable via PyInstaller
 REM  Target: Python 3.11
 REM  Usage:  double-click or run from project root
 REM
-REM  VARIANT: PUBLIC.  DaVis support is NOT included -- lvpyio is
-REM  explicitly excluded so it can never be swept in, even if it
-REM  happens to be installed in the build environment.  To use DaVis
-REM  (.vc7/.vec) loading, either run uPrime from source with lvpyio
-REM  installed, or use the internal TFML build (build_exe_TFML.bat).
+REM  VARIANT: TFML-INTERNAL.  DaVis support IS included -- lvpyio is
+REM  bundled (--collect-all / --collect-binaries).  Do NOT redistribute
+REM  this exe; use the public build (build_exe.bat) for any release.
 REM
 REM  Packages bundled:
 REM    matplotlib  -- collect-all (backends, fonts, style data)
@@ -21,13 +29,8 @@ REM    h5py        -- collect-all (v7.3 .mat file reading)
 REM    PIL/Pillow  -- collect-all (image handling)
 REM    openpyxl    -- hidden-import (optional .xlsx reading in Compare
 REM                   Cases; harmless warning if openpyxl is absent)
-REM
-REM  New in v0.7.1 (public build):
-REM    - lvpyio EXCLUDED. LaVision DaVis (.vc7/.vec) loading is unavailable
-REM      in this exe. To use DaVis input, run from source with lvpyio
-REM      installed, or use the TFML build (build_exe_TFML.bat).
-REM    - Orphaned memmap temp-file sweep at startup and before each load.
-REM    - Main window opens ~10% larger (no sidebar scrollbar).
+REM    lvpyio      -- collect-all + collect-binaries (LaVision DaVis IO;
+REM                   proprietary, TFML-internal only)
 REM
 REM  New in v0.7.0:
 REM    - Compare Cases viewer (standalone, dataset-independent):
@@ -44,8 +47,7 @@ REM    - TKE normalization fix: k/Um^2 (upper) and (P L)/Um^3 (lower)
 REM      applied per panel; normalize checkbox relabelled.
 REM    - Unified 2D .dat export (single canonical Tecplot writer) and
 REM      case-name-prefixed default filenames for .dat exports.
-REM    - Optional DaVis (.vc7/.vec) vector-file support via lvpyio
-REM      (EXCLUDED from this public build; see TFML build).
+REM    - Optional DaVis (.vc7/.vec) vector-file support via lvpyio.
 REM    - Neutral-grey control indicators; version read from version.txt.
 REM
 REM  Carried from v0.6.x:
@@ -60,11 +62,23 @@ REM    tempfile, mmap       -- memory-mapped large dataset support
 REM    traceback            -- worker error reporting
 REM    concurrent.futures   -- thread pool support
 REM ============================================================
+
+python -c "import lvpyio" 2>NUL
+if errorlevel 1 (
+    echo ============================================================
+    echo  ERROR: lvpyio is not installed in this environment.
+    echo  The TFML build bundles LaVision DaVis support and requires
+    echo  lvpyio. Install it, then re-run this script. Aborting.
+    echo ============================================================
+    pause
+    exit /b 1
+)
+
 python -m pip install pyinstaller --quiet
 pyinstaller ^
     --onefile ^
     --windowed ^
-    --name uPrime_v0.7.1 ^
+    --name uPrime_v0.7.1_TFML ^
     --add-data "assets;assets" ^
     --collect-all matplotlib ^
     --hidden-import matplotlib.backends.backend_qtagg ^
@@ -117,6 +131,9 @@ pyinstaller ^
     --hidden-import PIL.Image ^
     --hidden-import PIL.ImageDraw ^
     --hidden-import openpyxl ^
+    --collect-all lvpyio ^
+    --collect-binaries lvpyio ^
+    --hidden-import lvpyio ^
     --hidden-import concurrent.futures ^
     --hidden-import tempfile ^
     --hidden-import mmap ^
@@ -127,13 +144,12 @@ pyinstaller ^
     --hidden-import threading ^
     --hidden-import queue ^
     --hidden-import gc ^
-    --exclude-module lvpyio ^
     --exclude-module lvpyio_wrapped ^
     main.py
 echo.
 if errorlevel 1 (
     echo BUILD FAILED. Check output above.
 ) else (
-    echo BUILD COMPLETE: dist\uPrime_v0.7.1.exe
+    echo BUILD COMPLETE: dist\uPrime_v0.7.1_TFML.exe
 )
 pause
