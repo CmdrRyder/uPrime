@@ -33,9 +33,9 @@ def _read_version():
     here = os.path.dirname(os.path.abspath(__file__))
     try:
         with open(os.path.join(here, "version.txt"), encoding="utf-8") as f:
-            return f.read().strip() or "0.7.0"
+            return f.read().strip() or "0.7.1"
     except OSError:
-        return "0.7.0"
+        return "0.7.1"
 
 
 def _module_available(name):
