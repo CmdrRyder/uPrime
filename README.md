@@ -200,10 +200,10 @@ uPrime can load LaVision **DaVis** vector data — **`.vc7` / `.vec` vector file
 
 ```bash
 pip install -r requirements-lvpyio.txt     # lvpyio must be importable to build
-python build_uprime.py --with-lvpyio       # -> dist/uPrime_v0.7.0_davis.exe
+python build_uprime.py --with-lvpyio       # -> dist/uPrime_v0.7.1_davis.exe
 ```
 
-The default `python build_uprime.py` produces the public `dist/uPrime_v0.7.0.exe` with `lvpyio` explicitly excluded. `lvpyio` is kept out of `requirements.txt` on purpose; it lives only in `requirements-lvpyio.txt`.
+The default `python build_uprime.py` produces the public `dist/uPrime_v0.7.1.exe` with `lvpyio` explicitly excluded. `lvpyio` is kept out of `requirements.txt` on purpose; it lives only in `requirements-lvpyio.txt`.
 
 ---
 
