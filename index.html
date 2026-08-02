@@ -251,7 +251,7 @@
     <span class="badge">Python 3.10+</span>
     <span class="badge">GPLv3</span>
     <span class="badge">Windows · macOS · Linux</span>
-    <span class="badge">.dat &middot; .mat</span>
+    <span class="badge">.dat &middot; .mat &middot; .vc7</span>
   </div>
 
   <!-- Description -->
@@ -279,6 +279,7 @@
     <ul>
       <li><strong>Compare Cases viewer</strong>: standalone window comparing up to six datasets at once, with a 1D overlay plus value table and a 2D Field Compare tiled contour view sharing one color scale.</li>
       <li><strong>Manual line-coordinate entry</strong>: set line-profile endpoints numerically (x0, y0, x1, y1) in Reynolds Stress, TKE Budget, and Mean Velocity, so an identical line is reproduced exactly across datasets.</li>
+      <li><strong>DaVis native input</strong>: read LaVision DaVis <code>.vc7</code> and <code>.vec</code> files directly when the optional <strong>lvpyio</strong> package is installed separately (<code>pip install lvpyio</code>). Not bundled in the Windows executable; available when running uPrime from source.</li>
       <li><strong>Automatic temp-file cleanup</strong> (v0.7.1): orphaned memory-map files from crashed sessions are swept at startup and before each load; files in use are never touched.</li>
       <li><strong>Larger main window</strong> (v0.7.1): the control sidebar no longer shows a scrollbar.</li>
     </ul>
@@ -350,6 +351,13 @@
       a single file containing the entire dataset. Velocity arrays in shape <code>(Ny, Nx, N_snap)</code>;
       coordinates as 1D vectors or 2D meshgrid (auto-transposed if needed). Variable confirmation dialog
       reads metadata first, so even a 10+ GB file opens the dialog within seconds.
+    </p>
+    <p>
+      <strong>LaVision DaVis <code>.vc7</code> / <code>.vec</code></strong> (optional):
+      read DaVis vector files natively when the <strong>lvpyio</strong> package is installed
+      separately (<code>pip install lvpyio</code>). lvpyio is not bundled in the Windows
+      executable, so this input is available when running uPrime from source; once installed,
+      <code>.vc7</code>/<code>.vec</code> files load through the same workflow as <code>.dat</code> and <code>.mat</code>.
     </p>
   </div>
 
