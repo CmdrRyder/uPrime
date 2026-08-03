@@ -196,15 +196,6 @@ uPrime can load LaVision **DaVis** vector data — **`.vc7` / `.vec` vector file
   2. Use a **DaVis-enabled build** produced with the `--with-lvpyio` flag (see below).
 - DaVis files: select **multiple `.vc7` / `.vec` files** (one per snapshot); they are stacked in natural filename order (`B0001, B0002, … B0010`). A single file is one snapshot and is rejected, like single-snapshot `.mat` files. All files must share the same grid, axes and components (2D2C/2D3C) or the load aborts naming the offending file.
 
-**Building the DaVis-enabled executable (lab build):**
-
-```bash
-pip install -r requirements-lvpyio.txt     # lvpyio must be importable to build
-python build_uprime.py --with-lvpyio       # -> dist/uPrime_v0.7.1_davis.exe
-```
-
-The default `python build_uprime.py` produces the public `dist/uPrime_v0.7.1.exe` with `lvpyio` explicitly excluded. `lvpyio` is kept out of `requirements.txt` on purpose; it lives only in `requirements-lvpyio.txt`.
-
 ---
 
 ## 🧪 Sample Dataset
