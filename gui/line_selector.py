@@ -26,9 +26,10 @@ class LineSelectorWidget(QWidget):
     Embed this in any analysis window that needs line profiles.
     """
 
-    def __init__(self, show_avg=True, parent=None):
+    def __init__(self, show_avg=True, show_free=True, parent=None):
         super().__init__(parent)
         self.show_avg = show_avg
+        self.show_free = show_free
         self._build_ui()
 
     def _build_ui(self):
@@ -40,13 +41,22 @@ class LineSelectorWidget(QWidget):
         mode_grp = QGroupBox("Line Mode")
         mode_lay = QHBoxLayout(mode_grp)
 
-        self.rb_free  = QRadioButton("Free")
         self.rb_horiz = QRadioButton("Horizontal")
         self.rb_vert  = QRadioButton("Vertical")
-        self.rb_free.setChecked(True)
 
         self._btn_grp = QButtonGroup()
-        for rb in [self.rb_free, self.rb_horiz, self.rb_vert]:
+        if self.show_free:
+            # Free mode first, matching the historical layout and default.
+            self.rb_free = QRadioButton("Free")
+            self.rb_free.setChecked(True)
+            self._btn_grp.addButton(self.rb_free)
+            mode_lay.addWidget(self.rb_free)
+        else:
+            # No free mode: default to Horizontal so get_mode() never returns "free".
+            self.rb_free = None
+            self.rb_horiz.setChecked(True)
+
+        for rb in [self.rb_horiz, self.rb_vert]:
             self._btn_grp.addButton(rb)
             mode_lay.addWidget(rb)
 
@@ -74,7 +84,11 @@ class LineSelectorWidget(QWidget):
             return "horizontal"
         elif self.rb_vert.isChecked():
             return "vertical"
-        return "free"
+        # Free is only reachable when it exists and is checked; otherwise the
+        # widget can never report "free" (show_free=False falls back to horizontal).
+        if self.rb_free is not None and self.rb_free.isChecked():
+            return "free"
+        return "horizontal"
 
     def get_avg_band(self):
         if self.spin_avg is None:

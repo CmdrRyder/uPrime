@@ -187,6 +187,56 @@ class VortexWorker(BaseWorker):
                         omega=fields['omega'], gamma2=None)
 
 
+class ProbabilityWorker(BaseWorker):
+    """task is one of: 'direction', 'histogram', 'quadrant', 'hole_sweep'."""
+    def __init__(self, task, **kwargs):
+        super().__init__()
+        self.task   = task
+        self.kwargs = kwargs
+
+    def compute(self):
+        from core import probability as prob
+        cb = self.progress.emit
+        task = self.task
+        kw = self.kwargs
+
+        if task == 'direction':
+            return prob.compute_direction_probability(
+                kw['field'], kw['mask_2d'],
+                deadband=kw.get('deadband', 0.0),
+                chunk=kw.get('chunk', prob.CHUNK_DEFAULT),
+                progress_cb=cb, region=kw.get('region'))
+
+        elif task == 'histogram':
+            edges = prob.estimate_bin_edges(
+                kw['field'], kw['mask_2d'], kw['region'],
+                nbins=kw.get('nbins', 101),
+                robust=kw.get('robust', True)) \
+                if kw.get('bin_edges') is None else kw['bin_edges']
+            counts, n_valid = prob.accumulate_histogram(
+                kw['field'], kw['mask_2d'], kw['region'], edges,
+                chunk=kw.get('chunk', prob.CHUNK_DEFAULT), progress_cb=cb)
+            stats = prob.histogram_stats(counts, edges)
+            return {'counts': counts, 'bin_edges': edges,
+                    'n_valid': n_valid, 'stats': stats}
+
+        elif task == 'quadrant':
+            return prob.compute_quadrant(
+                kw['field_a'], kw['field_b'], kw['mask_2d'],
+                hole=kw.get('hole', 0.0), region=kw.get('region'),
+                joint_bins=kw.get('joint_bins', 101),
+                chunk=kw.get('chunk', prob.CHUNK_DEFAULT), progress_cb=cb)
+
+        elif task == 'hole_sweep':
+            stress_frac, holes = prob.quadrant_hole_sweep(
+                kw['field_a'], kw['field_b'], kw['mask_2d'], kw.get('region'),
+                holes=kw.get('holes'),
+                chunk=kw.get('chunk', prob.CHUNK_DEFAULT), progress_cb=cb)
+            return {'stress_frac': stress_frac, 'holes': holes}
+
+        raise ValueError(f"unknown ProbabilityWorker task: {task!r}")
+
+
 class ReynoldsWorker(BaseWorker):
     def __init__(self, U, V, W):
         super().__init__()

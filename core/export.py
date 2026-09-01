@@ -33,7 +33,7 @@ def _settings_header(info_dict, comment="#"):
 # --------------------------------------------------------------------------- #
 
 def export_2d_tecplot(filepath, x, y, fields, field_names, settings_info,
-                      fmt="%.6e"):
+                      fmt="%.6e", nan_repr=None):
     """
     Export a 2D field to Tecplot ASCII .dat format.
 
@@ -47,6 +47,10 @@ def export_2d_tecplot(filepath, x, y, fields, field_names, settings_info,
     field_names  : list of strings, one per field
     settings_info: dict of settings to write in header
     fmt          : printf-style format for every numeric value (default %.6e)
+    nan_repr     : how to write a non-finite field value. Default (None) keeps
+                   the historical behaviour of writing 0 (``fmt % 0.0``); pass
+                   e.g. ``"NaN"`` to preserve NaN in the file (used by the
+                   Probability maps so a not-computed point stays distinguishable).
     """
     ny, nx = x.shape
 
@@ -70,13 +74,17 @@ def export_2d_tecplot(filepath, x, y, fields, field_names, settings_info,
         y_out = y[::-1, :]
         fields_out = [f[::-1, :] for f in fields]
 
+        zero = fmt % 0.0
         for j in range(ny):
             for i in range(nx):
-                vals = [x_out[j, i], y_out[j, i]] + [
-                    fld[j, i] if np.isfinite(fld[j, i]) else 0.0
-                    for fld in fields_out
-                ]
-                f.write(" ".join(fmt % v for v in vals) + "\n")
+                row = [fmt % x_out[j, i], fmt % y_out[j, i]]
+                for fld in fields_out:
+                    v = fld[j, i]
+                    if np.isfinite(v):
+                        row.append(fmt % v)
+                    else:
+                        row.append(zero if nan_repr is None else nan_repr)
+                f.write(" ".join(row) + "\n")
 
 
 # --------------------------------------------------------------------------- #

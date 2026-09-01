@@ -33,9 +33,9 @@ def _read_version():
     here = os.path.dirname(os.path.abspath(__file__))
     try:
         with open(os.path.join(here, "version.txt"), encoding="utf-8") as f:
-            return f.read().strip() or "0.7.1"
+            return f.read().strip() or "0.8.0"
     except OSError:
-        return "0.7.1"
+        return "0.8.0"
 
 
 def _module_available(name):
@@ -46,6 +46,7 @@ def _module_available(name):
 _BASE_ARGS = [
     "--onefile", "--windowed",
     "--add-data", "assets%sassets" % os.pathsep,
+    "--add-data", "version.txt%s." % os.pathsep,
     "--collect-all", "matplotlib",
     "--hidden-import", "matplotlib.backends.backend_qtagg",
     "--hidden-import", "matplotlib.backends.backend_qt",

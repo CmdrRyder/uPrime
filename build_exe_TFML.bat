@@ -5,12 +5,7 @@ REM  This exe bundles LaVision's proprietary lvpyio for DaVis (.vc7/.vec)
 REM  input. It MUST NOT be uploaded to GitHub releases or shared outside
 REM  TFML. The public build (build_exe.bat) is the redistributable one.
 REM
-REM  New in v0.7.1 (TFML build):
-REM    - lvpyio BUNDLED (DaVis .vc7/.vec loading enabled).
-REM    - Orphaned memmap temp-file sweep at startup and before each load.
-REM    - Main window opens ~10% larger (no sidebar scrollbar).
-REM
-REM  build_exe_TFML.bat -- uPrime v0.7.1  (TFML LAB build)
+REM  build_exe_TFML.bat -- uPrime v0.8.0  (TFML LAB build)
 REM  Builds a single-file windowed executable via PyInstaller
 REM  Target: Python 3.11
 REM  Usage:  double-click or run from project root
@@ -18,6 +13,36 @@ REM
 REM  VARIANT: TFML-INTERNAL.  DaVis support IS included -- lvpyio is
 REM  bundled (--collect-all / --collect-binaries).  Do NOT redistribute
 REM  this exe; use the public build (build_exe.bat) for any release.
+REM
+REM  New in v0.8.0 (TFML build):
+REM    - Probability Analysis module. One window, four tabs:
+REM        PDF -- histograms of u, v, w, |V|, u', v', w' sampled at a
+REM          point, along a line, over an ROI, or the whole field;
+REM          density/count normalisation, Gaussian overlay, log-y,
+REM          moment readout (kurtosis reported Gaussian = 3).
+REM        Flow Direction -- per-point forward/reverse probability maps
+REM          with an explicit FFP (P = 1 where q > 0) / RFP (P = 1 where
+REM          q < 0) convention toggle surfaced in the title, colorbar and
+REM          every export header. Optional deadband epsilon creating a
+REM          third indeterminate state; epsilon = 0 reduces exactly to
+REM          the strict sign test. 0.50 contour always drawn; optional
+REM          0.01 / 0.20 detachment-state contours. ROI statistics and
+REM          line profiles.
+REM        Binary Space-Time -- two-colour sign map on a grid-aligned
+REM          line in the (s, t) plane; horizontal/vertical lines only,
+REM          +/- grid-point averaging, normalised or raw axes, user
+REM          reference lines. TIME-RESOLVED DATA ONLY (tab self-disables).
+REM        Quadrant -- Q1..Q4 time and stress fractions, joint PDF with
+REM          hole-size hyperbola, Q2/Q4 stress maps, hole-size sweep.
+REM    - All time-axis accumulators are chunked (default 200 frames) and
+REM      memmap-safe; valid samples are counted per point so dropped
+REM      vectors no longer bias probabilities low.
+REM    - No new third-party dependencies (NumPy + matplotlib only).
+REM
+REM  Carried from v0.7.1:
+REM    - lvpyio BUNDLED (DaVis .vc7/.vec loading enabled).
+REM    - Orphaned memmap temp-file sweep at startup and before each load.
+REM    - Main window opens ~10% larger (no sidebar scrollbar).
 REM
 REM  Packages bundled:
 REM    matplotlib  -- collect-all (backends, fonts, style data)
@@ -78,14 +103,16 @@ python -m pip install pyinstaller --quiet
 pyinstaller ^
     --onefile ^
     --windowed ^
-    --name uPrime_v0.7.1_TFML ^
+    --name uPrime_v0.8.0_TFML ^
     --add-data "assets;assets" ^
+    --add-data "version.txt;." ^
     --collect-all matplotlib ^
     --hidden-import matplotlib.backends.backend_qtagg ^
     --hidden-import matplotlib.backends.backend_qt ^
     --hidden-import matplotlib.figure ^
     --hidden-import matplotlib.patches ^
     --hidden-import matplotlib.lines ^
+    --hidden-import matplotlib.colors ^
     --hidden-import matplotlib.pyplot ^
     --collect-all PyQt6 ^
     --hidden-import PyQt6.QtWidgets ^
@@ -150,6 +177,6 @@ echo.
 if errorlevel 1 (
     echo BUILD FAILED. Check output above.
 ) else (
-    echo BUILD COMPLETE: dist\uPrime_v0.7.1_TFML.exe
+    echo BUILD COMPLETE: dist\uPrime_v0.8.0_TFML.exe
 )
 pause

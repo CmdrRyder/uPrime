@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>uPrime - PIV & CFD Velocity Field Analysis Software</title>
-  <meta name="description" content="GUI-based velocity field analysis software for PIV and CFD. Turbulence analysis without scripting. Reads Tecplot .dat and MATLAB .mat files.">
-  <meta name="keywords" content="PIV, CFD, turbulence, Reynolds stresses, TKE budget, POD, DMD, vortex identification, MATLAB mat, DaVis, open source">
+  <meta name="description" content="GUI-based velocity field analysis software for PIV and CFD. Turbulence analysis without scripting. Velocity PDFs, backflow probability and quadrant analysis. Reads Tecplot .dat and MATLAB .mat files.">
+  <meta name="keywords" content="PIV, CFD, turbulence, Reynolds stresses, TKE budget, POD, DMD, vortex identification, probability density function, quadrant analysis, backflow, MATLAB mat, DaVis, open source">
   <meta property="og:title" content="uPrime - PIV & CFD Velocity Field Analysis">
   <meta property="og:description" content="Standalone desktop application for turbulence post-processing. No scripting required.">
   <meta property="og:type" content="website">
@@ -247,7 +247,7 @@
 
   <!-- Badges -->
   <div class="badges">
-    <span class="badge highlight">v0.7.1 alpha</span>
+    <span class="badge highlight">v0.8.0 alpha</span>
     <span class="badge">Python 3.10+</span>
     <span class="badge">GPLv3</span>
     <span class="badge">Windows · macOS · Linux</span>
@@ -263,25 +263,28 @@
 
   <!-- Buttons -->
   <div class="buttons">
-    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/latest">Download v0.7.1</a>
+    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/latest">Download v0.8.0</a>
     <a class="button secondary" href="https://github.com/CmdrRyder/uPrime">View on GitHub</a>
     <a class="button secondary" href="https://doi.org/10.5281/zenodo.19376184">DOI</a>
     <a class="button secondary" href="https://github.com/CmdrRyder/uPrime/tree/main/docs/Manual.pdf">Manual (PDF)</a>
   </div>
 
   <!-- GUI Screenshot -->
-  <img class="gui-img" src="docs/images/gui_v071.png" alt="uPrime v0.7.1 GUI"
-       onerror="this.onerror=null;this.src='docs/images/gui_v061.png';">
+  <img class="gui-img" src="docs/images/gui_v080.png" alt="uPrime v0.8.0 GUI"
+       onerror="this.onerror=null;this.src='docs/images/gui_v071.png';">
 
   <!-- What's New -->
   <div class="whats-new">
-    <h2>NEW IN v0.7</h2>
+    <h2>NEW IN v0.8</h2>
     <ul>
-      <li><strong>Compare Cases viewer</strong>: standalone window comparing up to six datasets at once, with a 1D overlay plus value table and a 2D Field Compare tiled contour view sharing one color scale.</li>
-      <li><strong>Manual line-coordinate entry</strong>: set line-profile endpoints numerically (x0, y0, x1, y1) in Reynolds Stress, TKE Budget, and Mean Velocity, so an identical line is reproduced exactly across datasets.</li>
-      <li><strong>DaVis native input</strong>: read LaVision DaVis <code>.vc7</code> and <code>.vec</code> files directly when the optional <strong>lvpyio</strong> package is installed separately (<code>pip install lvpyio</code>). Not bundled in the Windows executable; available when running uPrime from source.</li>
-      <li><strong>Automatic temp-file cleanup</strong> (v0.7.1): orphaned memory-map files from crashed sessions are swept at startup and before each load; files in use are never touched.</li>
-      <li><strong>Larger main window</strong> (v0.7.1): the control sidebar no longer shows a scrollbar.</li>
+      <li><strong>Probability Analysis module</strong>: a new window with four tabs covering velocity probability, flow direction, binary space-time maps, and quadrant analysis.</li>
+      <li><strong>PDF tab</strong>: probability density of <code>u</code>, <code>v</code>, <code>w</code>, <code>|V|</code> or their fluctuations, sampled at a point, along a line, inside a dragged ROI, or over the whole field, with an optional matched Gaussian overlay and a mean/std/skewness/kurtosis readout.</li>
+      <li><strong>Flow Direction tab</strong>: per-point forward and reverse flow probability maps, with an explicit FFP <code>P(q &gt; 0)</code> versus RFP <code>P(q &lt; 0)</code> convention carried through the title, colorbar and every export, plus optional Simpson detachment-state contours.</li>
+      <li><strong>Binary Space-Time tab</strong>: the classic space-versus-time map coloured by flow direction along a horizontal or vertical line, with band averaging and normalised axes. Time-resolved data only.</li>
+      <li><strong>Quadrant tab</strong>: Lu &amp; Willmarth quadrant decomposition of a fluctuation pair, with time- and stress-fraction maps, a joint PDF with the hole hyperbola, Q2/Q4 stress maps, and a hole-size sweep.</li>
+      <li><strong>ROI restricts computation</strong>: a dragged ROI limits what is read and computed rather than only what is displayed, so a small ROI on a large dataset is correspondingly cheaper. Regions outside the ROI render in a distinct grey.</li>
+      <li><strong>Compare Cases viewer</strong> (v0.7): standalone window comparing up to six datasets at once, with a 1D overlay plus value table and a 2D Field Compare tiled contour view sharing one color scale.</li>
+      <li><strong>DaVis native input</strong> (v0.7): read LaVision DaVis <code>.vc7</code> and <code>.vec</code> files directly when the optional <strong>lvpyio</strong> package is installed separately (<code>pip install lvpyio</code>). Not bundled in the Windows executable; available when running uPrime from source.</li>
     </ul>
   </div>
 
@@ -366,7 +369,7 @@
     <h2>Analysis Modules</h2>
     <div class="module-grid">
       <div class="module-item"><span class="check">✓</span>Mean &amp; Convergence</div>
-      <div class="module-item new"><span class="check">✓</span>Compare Cases <span class="module-badge new">v0.7</span></div>
+      <div class="module-item"><span class="check">✓</span>Compare Cases</div>
       <div class="module-item"><span class="check">✓</span>Reynolds Stress Analysis</div>
       <div class="module-item"><span class="check">✓</span>TKE Budget</div>
       <div class="module-item"><span class="check">✓</span>Space-Time Spectral Analysis</div>
@@ -375,6 +378,7 @@
       <div class="module-item"><span class="check">✓</span>POD Analysis</div>
       <div class="module-item"><span class="check">✓</span>DMD Analysis <span class="module-badge">TR only</span></div>
       <div class="module-item"><span class="check">✓</span>Vortex Identification</div>
+      <div class="module-item new"><span class="check">✓</span>Probability Analysis <span class="module-badge new">v0.8</span></div>
       <div class="module-item"><span class="check">✓</span>Mask Editor</div>
       <div class="module-item"><span class="check">✓</span>Coordinate Transform</div>
     </div>

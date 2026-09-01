@@ -829,3 +829,245 @@ class TestDavisIO:
         _write_davis_vc7(v, 4, 5)
         with pytest.raises(ValueError):
             load_davis([str(tmp_path / "recording.set"), str(v)])
+
+
+# ---------------------------------------------------------------------------
+# Probability Analysis (v0.8.0)
+# ---------------------------------------------------------------------------
+
+class TestProbability:
+    def test_direction_known_sign_pattern(self):
+        from core.probability import compute_direction_probability
+        ny, nx, Nt = 3, 4, 12
+        f = np.ones((ny, nx, Nt))
+        f[0, 0, :] = -1.0                 # all reverse
+        f[1, 1, :6] = 1.0; f[1, 1, 6:] = -1.0   # half/half
+        r = compute_direction_probability(f, None, 0.0)
+        assert r["p_forward"][0, 0] == 0.0 and r["p_reverse"][0, 0] == 1.0
+        assert r["p_forward"][1, 1] == pytest.approx(0.5)
+        assert r["p_forward"][2, 2] == 1.0
+
+    def test_nan_counted_against_valid_only(self):
+        from core.probability import compute_direction_probability
+        g = np.ones((1, 1, 10)); g[0, 0, 5:] = np.nan   # 5 valid, all forward
+        r = compute_direction_probability(g, None, 0.0)
+        assert r["n_valid"][0, 0] == 5
+        assert r["p_forward"][0, 0] == 1.0             # not 0.5 (would be /Nt)
+
+    def test_fully_invalid_point_is_nan(self):
+        from core.probability import compute_direction_probability
+        import warnings
+        h = np.full((1, 1, 8), np.nan)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")            # no divide-by-zero warning
+            r = compute_direction_probability(h, None, 0.0)
+        assert r["n_valid"][0, 0] == 0
+        assert np.isnan(r["p_forward"][0, 0])
+        assert r["p_forward"][0, 0] != 0.0 or np.isnan(r["p_forward"][0, 0])
+
+    def test_deadband_zero_is_strict_sign_bitforbit_and_sums_to_one(self):
+        from core.probability import compute_direction_probability
+        rng = np.random.default_rng(3)
+        fld = rng.standard_normal((6, 7, 40))
+        d0 = compute_direction_probability(fld, None, 0.0)
+        manual_fwd = (fld >= 0).sum(axis=2) / fld.shape[2]
+        assert np.array_equal(d0["p_forward"], manual_fwd)   # bit for bit
+        for eps in (0.0, 0.3):
+            d = compute_direction_probability(fld, None, eps)
+            s = d["p_forward"] + d["p_reverse"] + d["p_indeterminate"]
+            assert np.allclose(s, 1.0)
+
+    def test_chunk_invariance(self):
+        from core.probability import compute_direction_probability
+        rng = np.random.default_rng(4)
+        fld = rng.standard_normal((5, 5, 37))
+        base = compute_direction_probability(fld, None, 0.2, chunk=10_000)
+        for ch in (1, 8, 37, 100):    # includes > Nt and non-divisor of Nt
+            d = compute_direction_probability(fld, None, 0.2, chunk=ch)
+            assert np.allclose(d["p_forward"], base["p_forward"], equal_nan=True)
+            assert np.allclose(d["p_reverse"], base["p_reverse"], equal_nan=True)
+
+    def test_extract_space_time_row_and_band(self):
+        from core.probability import extract_space_time
+        ny, nx, Nt = 6, 8, 10
+        x = np.tile(np.linspace(0, 10, nx), (ny, 1))
+        y = np.tile(np.linspace(0, 6, ny), (nx, 1)).T
+        fld = np.arange(ny * nx * Nt, dtype=float).reshape(ny, nx, Nt)
+        q, s, info = extract_space_time(fld, x, y, 0, y[2, 0], 10, y[2, 0], "x", 0)
+        assert info["row"] == 2 and np.array_equal(q, fld[2, :, :])
+        q2, _, _ = extract_space_time(fld, x, y, 0, y[2, 0], 10, y[2, 0], "x", 1)
+        assert np.allclose(q2, np.nanmean(fld[1:4, :, :], axis=0))
+
+    def test_binarize_codes_and_nan_never_forward(self):
+        from core.probability import binarize_space_time
+        q = np.array([[1.0, -1.0, np.nan, 0.0, -0.05, 0.05]])
+        st = binarize_space_time(q, 0.0)
+        assert st.tolist() == [[1, 0, 3, 1, 0, 1]]
+        assert (st == 3).sum() == 1
+        # NaN never in the forward bin
+        assert not np.any(np.isnan(q) & (st == 1))
+        st2 = binarize_space_time(q, 0.1)      # eps>0 -> indeterminate around 0
+        assert st2[0, 2] == 3 and st2[0, 3] == 2
+
+    def test_quadrant_q2_dominant(self):
+        from core.probability import compute_quadrant
+        # one large Q2 event balanced by many small Q4 events -> zero mean,
+        # covariance concentrated in Q2 (fraction (Nt-1)/Nt).
+        Nt = 500; ny = nx = 2
+        A, B = 5.0, 4.0
+        a = np.empty((ny, nx, Nt)); b = np.empty((ny, nx, Nt))
+        a[:, :, 0] = -A; b[:, :, 0] = +B
+        a[:, :, 1:] = A / (Nt - 1); b[:, :, 1:] = -B / (Nt - 1)
+        r = compute_quadrant(a, b, None, hole=0.0, region=None, joint_bins=21)
+        sf = [np.nanmean(r["stress_frac"][i]) for i in range(4)]
+        assert sf[1] > 0.99                    # Q2 holds essentially all the stress
+        assert abs(sf[0]) < 1e-9 and abs(sf[2]) < 1e-9
+
+    def test_quadrant_time_fractions_sum_to_one(self):
+        from core.probability import compute_quadrant
+        rng = np.random.default_rng(7)
+        ny = nx = 3; Nt = 240
+        a = rng.normal(size=(ny, nx, Nt)); b = rng.normal(size=(ny, nx, Nt))
+        a[0, 0, :] = np.nan; b[0, 0, :] = np.nan      # fully invalid point
+        a[1, 1, :50] = np.nan                          # partially invalid point
+        r = compute_quadrant(a, b, None, hole=0.0, region=None, joint_bins=21)
+        tot = sum(r["time_frac"][i] for i in range(4))
+        valid = np.isfinite(tot)
+        assert valid[1, 1] and not valid[0, 0]         # NaN, not 0, where no samples
+        assert np.allclose(tot[valid], 1.0, atol=1e-12)
+
+    def test_quadrant_hole_zero_is_plain_decomposition(self):
+        from core.probability import compute_quadrant
+        rng = np.random.default_rng(11)
+        ny = nx = 2; Nt = 300
+        a = rng.normal(size=(ny, nx, Nt)); b = rng.normal(size=(ny, nx, Nt))
+        r = compute_quadrant(a, b, None, hole=0.0, region=None, joint_bins=21)
+        # H = 0 keeps every sample with a'b' != 0, so the four quadrants are just
+        # the sign quadrants of the fluctuations about the per-point temporal mean.
+        ap = a - a.mean(axis=2, keepdims=True)
+        bp = b - b.mean(axis=2, keepdims=True)
+        expect = [((ap > 0) & (bp > 0)).mean(axis=2),
+                  ((ap < 0) & (bp > 0)).mean(axis=2),
+                  ((ap < 0) & (bp < 0)).mean(axis=2),
+                  ((ap > 0) & (bp < 0)).mean(axis=2)]
+        for i in range(4):
+            assert np.allclose(r["time_frac"][i], expect[i], atol=1e-12)
+
+    def test_histogram_stats_recovers_gaussian(self):
+        from core.probability import histogram_stats
+        rng = np.random.default_rng(5)
+        samp = rng.normal(2.0, 1.5, size=200_000)
+        edges = np.linspace(-6, 10, 401)
+        counts, _ = np.histogram(samp, bins=edges)
+        hs = histogram_stats(counts, edges)
+        assert hs["mean"] == pytest.approx(2.0, abs=0.05)
+        assert hs["std"] == pytest.approx(1.5, abs=0.05)
+        assert hs["kurtosis"] == pytest.approx(3.0, abs=0.15)   # non-excess
+
+    def test_accumulate_histogram_region_and_mask(self):
+        from core.probability import estimate_bin_edges, accumulate_histogram
+        rng = np.random.default_rng(6)
+        fld = rng.standard_normal((4, 5, 30))
+        mask = np.ones((4, 5), dtype=bool); mask[0, :] = False
+        edges = estimate_bin_edges(fld, mask, None, nbins=41)
+        counts, n_valid = accumulate_histogram(fld, mask, None, edges)
+        assert n_valid == int(mask.sum()) * fld.shape[2]
+        assert counts.sum() <= n_valid
+
+
+class TestProbabilityRegion:
+    def test_direction_roi_restricts_and_embeds_full_size(self):
+        from core.probability import compute_direction_probability
+        rng = np.random.default_rng(0)
+        ny, nx, Nt = 10, 12, 40
+        fld = rng.standard_normal((ny, nx, Nt))
+        roi = (2, 6, 3, 8)
+        r = compute_direction_probability(fld, None, 0.0, region=("roi", *roi))
+        r0, r1, c0, c1 = roi
+        assert r["p_forward"].shape == (ny, nx)          # full-size output
+        outside = np.ones((ny, nx), bool); outside[r0:r1 + 1, c0:c1 + 1] = False
+        assert np.all(np.isnan(r["p_forward"][outside]))  # NaN outside ROI
+        assert np.all(r["n_valid"][outside] == 0)         # 0 outside ROI
+        # inside == manual nanmean over the same index range (check #4)
+        man = (fld[r0:r1 + 1, c0:c1 + 1] >= 0).mean(axis=2)
+        assert np.allclose(r["p_forward"][r0:r1 + 1, c0:c1 + 1], man)
+        assert r["region"] == ("roi", *roi)
+
+    def test_direction_whole_domain_unchanged(self):
+        from core.probability import compute_direction_probability
+        rng = np.random.default_rng(1)
+        fld = rng.standard_normal((6, 7, 30))
+        r = compute_direction_probability(fld, None, 0.0)          # region=None
+        assert np.array_equal(r["p_forward"], (fld >= 0).sum(2) / fld.shape[2])
+        assert r["region"] is None
+
+    def test_direction_single_row_col_and_clamp(self):
+        from core.probability import compute_direction_probability
+        rng = np.random.default_rng(2)
+        ny, nx, Nt = 8, 9, 20
+        fld = rng.standard_normal((ny, nx, Nt))
+        rr = compute_direction_probability(fld, None, 0.0, region=("roi", 4, 4, 0, nx - 1))
+        assert np.isfinite(rr["p_forward"][4, :]).all()
+        assert np.all(np.isnan(rr["p_forward"][5, :]))
+        cc = compute_direction_probability(fld, None, 0.0, region=("roi", 0, ny - 1, 7, 7))
+        assert np.isfinite(cc["p_forward"][:, 7]).all()
+        assert np.all(np.isnan(cc["p_forward"][:, 6]))
+        # out-of-range ROI clamps to the full grid
+        cl = compute_direction_probability(fld, None, 0.0,
+                                           region=("roi", -5, 100, -3, 100))
+        assert np.isfinite(cl["p_forward"]).all()
+
+    def test_quadrant_roi_maps_nan_outside(self):
+        from core.probability import compute_quadrant, quadrant_hole_sweep
+        rng = np.random.default_rng(3)
+        ny, nx, Nt = 10, 12, 40
+        a = rng.standard_normal((ny, nx, Nt)); b = rng.standard_normal((ny, nx, Nt))
+        roi = (2, 6, 3, 8)
+        q = compute_quadrant(a, b, None, hole=0.0, region=("roi", *roi), joint_bins=21)
+        r0, r1, c0, c1 = roi
+        outside = np.ones((ny, nx), bool); outside[r0:r1 + 1, c0:c1 + 1] = False
+        for i in range(4):
+            assert q["stress_frac"][i].shape == (ny, nx)
+            assert np.all(np.isnan(q["stress_frac"][i][outside]))
+            assert np.isfinite(q["stress_frac"][i][r0:r1 + 1, c0:c1 + 1]).any()
+        assert np.all(np.isnan(q["a_rms"][outside]))
+        assert q["region"] == ("roi", *roi)
+        sf, _ = quadrant_hole_sweep(a, b, None, ("roi", *roi), holes=np.arange(0, 3, 0.5))
+        assert abs(np.nansum(sf[:, 0]) - 1.0) < 1e-6
+
+    def test_export_2d_nan_repr(self, tmp_path):
+        from core.export import export_2d_tecplot
+        x = np.tile(np.linspace(0, 1, 3), (2, 1))
+        y = np.tile(np.linspace(0, 1, 2), (3, 1)).T
+        fld = np.array([[1.0, np.nan, 3.0], [4.0, 5.0, np.nan]])
+        p1 = tmp_path / "nan.dat"; p2 = tmp_path / "zero.dat"
+        export_2d_tecplot(str(p1), x, y, [fld], ["f"], {"m": 1}, nan_repr="NaN")
+        export_2d_tecplot(str(p2), x, y, [fld], ["f"], {"m": 1})   # default
+        body1 = [ln for ln in p1.read_text().splitlines() if not ln.startswith(("#", "TITLE", "VARIABLES", "ZONE"))]
+        assert any("NaN" in ln for ln in body1)               # NaN preserved
+        body2 = [ln for ln in p2.read_text().splitlines() if not ln.startswith(("#", "TITLE", "VARIABLES", "ZONE"))]
+        assert not any("NaN" in ln.lower() for ln in body2)   # default writes 0
+
+
+class TestProbabilityGUI:
+    def test_probability_window_smoke(self, qapp, dataset):
+        from gui.probability_window import ProbabilityWindow
+        win = ProbabilityWindow(dataset, is_time_resolved=False, fs=1.0)
+        assert win.tabs.count() == 4
+        # Binary tab disabled without time-resolved data
+        assert not win.tabs.isTabEnabled(2)
+        # lazy means are not computed until requested
+        assert win._means is None
+        m = win.get_means()
+        assert m["U"].shape == (dataset["ny"], dataset["nx"])
+        assert win._means is not None
+        win.close()
+
+    def test_binary_tab_enabled_when_tr(self, qapp, dataset):
+        from gui.probability_window import ProbabilityWindow
+        win = ProbabilityWindow(dataset, is_time_resolved=True, fs=100.0)
+        assert win.tabs.isTabEnabled(2)
+        # free-line mode is not offered on the binary tab (only H/V)
+        assert win.bin_tab.line_sel.rb_free is None
+        assert win.bin_tab.line_sel.get_mode() in ("horizontal", "vertical")
+        win.close()

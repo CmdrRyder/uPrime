@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  build_exe.bat -- uPrime v0.7.1  (PUBLIC build)
+REM  build_exe.bat -- uPrime v0.8.0  (PUBLIC build)
 REM  Builds a single-file windowed executable via PyInstaller
 REM  Target: Python 3.11
 REM  Usage:  double-click or run from project root
@@ -8,8 +8,8 @@ REM
 REM  VARIANT: PUBLIC.  DaVis support is NOT included -- lvpyio is
 REM  explicitly excluded so it can never be swept in, even if it
 REM  happens to be installed in the build environment.  To use DaVis
-REM  (.vc7/.vec) loading, either run uPrime from source with lvpyio
-REM  installed, or use the internal TFML build (build_exe_TFML.bat).
+REM  (.vc7/.vec) loading, run uPrime from source with lvpyio
+REM  installed.
 REM
 REM  Packages bundled:
 REM    matplotlib  -- collect-all (backends, fonts, style data)
@@ -22,10 +22,14 @@ REM    PIL/Pillow  -- collect-all (image handling)
 REM    openpyxl    -- hidden-import (optional .xlsx reading in Compare
 REM                   Cases; harmless warning if openpyxl is absent)
 REM
-REM  New in v0.7.1 (public build):
+REM  New in v0.8.0 (public build):
+REM    - Probability Analysis module (PDF, Flow Direction, Binary Space-Time,
+REM      Quadrant tabs). Chunked, memmap-safe, NaN-correct accumulators.
+REM
+REM  Carried from v0.7.1:
 REM    - lvpyio EXCLUDED. LaVision DaVis (.vc7/.vec) loading is unavailable
 REM      in this exe. To use DaVis input, run from source with lvpyio
-REM      installed, or use the TFML build (build_exe_TFML.bat).
+REM      installed.
 REM    - Orphaned memmap temp-file sweep at startup and before each load.
 REM    - Main window opens ~10% larger (no sidebar scrollbar).
 REM
@@ -45,7 +49,7 @@ REM      applied per panel; normalize checkbox relabelled.
 REM    - Unified 2D .dat export (single canonical Tecplot writer) and
 REM      case-name-prefixed default filenames for .dat exports.
 REM    - Optional DaVis (.vc7/.vec) vector-file support via lvpyio
-REM      (EXCLUDED from this public build; see TFML build).
+REM      (EXCLUDED from this public build).
 REM    - Neutral-grey control indicators; version read from version.txt.
 REM
 REM  Carried from v0.6.x:
@@ -64,8 +68,9 @@ python -m pip install pyinstaller --quiet
 pyinstaller ^
     --onefile ^
     --windowed ^
-    --name uPrime_v0.7.1 ^
+    --name uPrime_v0.8.0 ^
     --add-data "assets;assets" ^
+    --add-data "version.txt;." ^
     --collect-all matplotlib ^
     --hidden-import matplotlib.backends.backend_qtagg ^
     --hidden-import matplotlib.backends.backend_qt ^
@@ -134,6 +139,6 @@ echo.
 if errorlevel 1 (
     echo BUILD FAILED. Check output above.
 ) else (
-    echo BUILD COMPLETE: dist\uPrime_v0.7.1.exe
+    echo BUILD COMPLETE: dist\uPrime_v0.8.0.exe
 )
 pause

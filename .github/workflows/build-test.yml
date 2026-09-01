@@ -40,7 +40,7 @@ jobs:
       - name: Build with PyInstaller
         run: |
           pyinstaller --onedir --noconfirm --windowed \
-            --name uPrime_v0.2_${{ matrix.os }} \
+            --name uPrime_v0.8.0_${{ matrix.os }} \
             --add-data "gui:gui" \
             --add-data "core:core" \
             --hidden-import "matplotlib.backends.backend_qtagg" \

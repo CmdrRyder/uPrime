@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/1197739784.svg)](https://doi.org/10.5281/zenodo.19376184)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
-![Version](https://img.shields.io/badge/version-0.7.1%20alpha-blue)
+![Version](https://img.shields.io/badge/version-0.8.0%20alpha-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
 ### *Turbulence is complex. Analysis shouldn't be.*
@@ -106,6 +106,7 @@ python main.py
 | DMD Analysis | Frequency–growth rate spectrum, spatial mode viewer | **Yes** |
 | Vortex Identification | ω, Q, λci, λ2, Γ1/Γ2, per-vortex statistics | No |
 | Compare Cases | Standalone viewer: overlay up to 6 datasets (1D profiles + tiled 2D fields) | No |
+| Probability Analysis | PDFs of velocity/fluctuations, forward/reverse flow probability maps, binary space-time maps, Lu & Willmarth quadrant analysis | Binary space-time only |
 
 ---
 
@@ -119,6 +120,7 @@ python main.py
 - **Unit auto-detection**: reads mm/m/s units from `.dat` file headers automatically
 - **PIV + CFD compatible**: any structured velocity data in Tecplot ASCII format
 - **Compare cases**: standalone viewer overlays up to six datasets (1D profiles + tiled 2D fields); per-module CSV overlay inside analysis windows
+- **Probability and quadrant analysis**: velocity PDFs with Gaussian overlay, forward/reverse flow probability maps with detachment-state contours, binary space-time maps, and Lu & Willmarth quadrant decomposition with hole-size sweep
 - **Manual line-coordinate entry**: set profile endpoints numerically (x0, y0, x1, y1) for lines reproduced exactly across datasets
 - **Publication-ready export**: PNG (300 DPI), PDF, SVG with editable text
 
@@ -186,14 +188,13 @@ uPrime can load LaVision **DaVis** vector data — **`.vc7` / `.vec` vector file
 
 - **The public release `.exe` does NOT include DaVis loading.** The **Load from DaVis (.vc7 / .vec)** button is present but disabled.
 - **A separately-installed `lvpyio` will NOT be picked up by the public `.exe`.** A frozen PyInstaller executable only sees packages bundled at build time, not your system's `pip`-installed packages. So `pip install lvpyio` will **not** enable DaVis in the public exe.
-- DaVis support is available **two ways only**:
-  1. **Run uPrime from source** with `lvpyio` installed:
+- DaVis support is available **one way only**: **run uPrime from source** with
+  `lvpyio` installed:
      ```bash
      pip install -r requirements.txt
      pip install -r requirements-lvpyio.txt   # installs lvpyio (restricted licence)
      python main.py
      ```
-  2. Use a **DaVis-enabled build** produced with the `--with-lvpyio` flag (see below).
 - DaVis files: select **multiple `.vc7` / `.vec` files** (one per snapshot); they are stacked in natural filename order (`B0001, B0002, … B0010`). A single file is one snapshot and is rejected, like single-snapshot `.mat` files. All files must share the same grid, axes and components (2D2C/2D3C) or the load aborts naming the offending file.
 
 ---
@@ -230,7 +231,7 @@ Covers all modules with governing equations, step-by-step instructions, and refe
 A pytest suite is included covering all core modules and GUI smoke tests:
 
 ```bash
-py -3.11 -m pytest              # all 30 tests
+py -3.11 -m pytest              # all 68 tests
 py -3.11 -m pytest -k "not GUI" # core modules only
 py -3.11 -m pytest -k "GUI"     # GUI smoke tests only
 ```
@@ -241,7 +242,7 @@ Tests run headlessly (Agg backend + offscreen Qt) with no real `.dat` files requ
 
 ## 🧠 Development Status
 
-uPrime is under active development (**v0.7.1 alpha**).
+uPrime is under active development (**v0.8.0 alpha**).
 Core analysis modules are stable. Performance and usability improvements ongoing.
 
 ---
@@ -263,7 +264,7 @@ Core analysis modules are stable. Performance and usability improvements ongoing
 
 If uPrime contributes to your research, please cite:
 
-> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.7.1-alpha). Zenodo.
+> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.8.0-alpha). Zenodo.
 > https://doi.org/10.5281/zenodo.19376184
 
 ---

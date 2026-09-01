@@ -4,6 +4,87 @@ All notable changes to uPrime are documented here.
 
 ---
 
+## [0.8.0] - 2026-09-01
+
+Adds the Probability Analysis module.
+
+### Added
+- **Probability Analysis module** — a new analysis window (`◔  Probability
+  Analysis`) holding four tabs, three of which work on uncorrelated snapshots:
+  - **PDF** — probability density of `u`, `v`, `w`, `|V|`, or the fluctuations
+    `u'`, `v'`, `w'`, sampled over a picked point, a line (drawn or entered by
+    numeric x0/y0/x1/y1), a dragged ROI, or the whole field. Robust or manual
+    range, density/counts normalisation, optional same-mean/std Gaussian overlay,
+    log-y, and a stats readout (N, mean, std, skewness, and non-excess kurtosis
+    labelled "Gaussian = 3"). CSV export of bin centres/edges/counts/density.
+  - **Flow Direction** — per-point forward/reverse probability map. The
+    forward/reverse convention is explicit everywhere: **FFP** `P(q > 0)` (default)
+    vs **RFP** `P(q < 0)`, surfaced in the title, colorbar, status line and every
+    export header; toggling it re-plots from the same result. Solid 0.5 contour
+    always drawn, optional Simpson 0.01 / 0.20 detachment-state contours, an
+    indeterminate-fraction and valid-samples view, and Tecplot 2D export. A drawn
+    ROI **restricts the computation** to the selected rectangle (only that slice is
+    read); the map keeps the full-domain shape with NaN outside the ROI, shown as
+    grey, and the export records the ROI extent in mm and grid indices.
+  - **Binary Space-Time** (time-resolved only; the tab disables itself with an
+    inline notice on non-TR data) — the classic one-space-coordinate-vs-time map,
+    two-colour by flow direction, along a horizontal or vertical line (free-line
+    mode intentionally unavailable — rotate with Transform first). ± grid-point
+    band averaging on the raw velocity before the sign test, optional normalised
+    axes (`s*`, `t*`), reference lines, and export of both the raw `q(s, t)` and
+    the int8 state array so the map can be replotted at native resolution.
+  - **Quadrant** — Lu & Willmarth quadrant analysis of a fluctuation pair
+    (`u'-v'` default), with per-point time- and stress-fraction maps, a joint PDF
+    with the hole hyperbola, a Q1–Q4 bar chart, Q2/Q4 stress maps, and the
+    hole-size sweep. A drawn ROI **restricts the computation** (maps, joint
+    histogram and hole sweep all read only that slice; the Q2/Q4 maps keep the
+    full domain shape with NaN/grey outside). A visible note states the
+    x-streamwise / y-wall-normal assumption.
+- **Deadband ε** on the direction and binary tabs: ε = 0 is the strict sign test
+  (`q ≥ 0` forward, `q < 0` reverse); ε > 0 adds a third *indeterminate* state
+  (`|q| ≤ ε`). All three probabilities divide by the same per-point valid-sample
+  count, so `p_forward + p_reverse + p_indeterminate = 1` at every valid point.
+- `ProbabilityWorker` (`core/workers.py`) — the probability computations run on the
+  existing background-worker path, so the window stays responsive and reports
+  progress like the other analysis modules.
+- Memmap-safe core (`core/probability.py`): every time-axis walk is chunked
+  (`CHUNK_DEFAULT = 200` frames/block) so datasets above 4 GB are never pulled
+  fully into RAM, and **every accumulator counts valid samples per point** and
+  divides by that count — returning NaN where a point has no valid frames — rather
+  than dividing by `Nt` (which `np.nanmean(field < 0)` would silently do and bias
+  the near-wall probabilities low).
+
+### Changed
+- `LineSelectorWidget` accepts a new `show_free=False` keyword (default `True`, so
+  existing callers are unaffected). When false the Free radio button is not created
+  at all and the widget defaults to Horizontal, so `get_mode()` can never return
+  `"free"`. The PDF and Binary Space-Time tabs pass `show_free=False` because a
+  free, arbitrarily angled line is not physically meaningful for either: the PDF
+  tab samples along grid rows or columns, and the binary map needs a single space
+  coordinate. Rotate the field with Transform first if an angled cut is wanted.
+- `export_2d_tecplot` accepts a new `nan_repr` keyword (default `None`, which keeps
+  the historical behaviour of writing `0` for a non-finite value). The probability
+  maps pass `"NaN"` so a point that was never computed stays distinguishable from a
+  genuine zero in the exported file.
+- A drawn ROI now restricts the computation rather than only the display. The Flow
+  Direction and Quadrant tabs read only the selected slice of the time axis, so a
+  small ROI on a large dataset is correspondingly cheaper. Results keep the
+  full-domain array shape with NaN outside the ROI, and the untouched region is
+  drawn as a distinct grey (`#BFBFBF`) so a restricted map is never mistaken for a
+  full-field one. Exports record the ROI extent in both millimetres and grid
+  indices.
+
+### Fixed
+- **Frozen builds reported the wrong version.** `_read_app_version()` looks for
+  `version.txt` next to the bundle root (`sys._MEIPASS`) when frozen, but no build
+  recipe ever bundled that file, so every packaged executable silently fell back to
+  the hardcoded default and could report a stale version. All three build paths
+  (`build_exe.bat`, `build_exe_TFML.bat`, `build_uprime.py`) now add `version.txt`
+  as bundled data, so a packaged build reports the same version as a source
+  checkout.
+
+---
+
 ## [0.7.1] - 2026-07-26
 
 ### Fixed

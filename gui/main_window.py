@@ -96,7 +96,7 @@ from gui.mean_convergence_tab import MeanConvergenceWindow
 from gui.compare_window import CompareWindow
 
 
-def _read_app_version(default="0.7.1"):
+def _read_app_version(default="0.8.0"):
     """Return the app version string from version.txt (single source of truth).
 
     Handles both a normal source checkout and a PyInstaller bundle
@@ -390,6 +390,7 @@ class MainWindow(PickerMixin, QMainWindow):
             ("◈  POD Analysis",            self._run_pod),
             ("◈  DMD Analysis",            self._run_dmd),
             ("⦾  Vortex Identification",  self._run_vortex),
+            ("◔  Probability Analysis",    self._run_probability),
         ]
         self._analysis_btns = []
         self.btn_dmd = None
@@ -1860,6 +1861,14 @@ class MainWindow(PickerMixin, QMainWindow):
         if not self._check_data(): return
         from gui.vortex_window import VortexWindow
         self._open_window(VortexWindow(self.dataset))
+
+    def _run_probability(self):
+        if not self._check_data(): return
+        from gui.probability_window import ProbabilityWindow
+        self._open_window(ProbabilityWindow(
+            self.dataset,
+            is_time_resolved=self.is_time_resolved(),
+            fs=self.get_fs()))
 
     def _run_masking(self):
         if not self._check_data(): return
