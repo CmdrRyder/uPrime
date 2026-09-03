@@ -1071,3 +1071,100 @@ class TestProbabilityGUI:
         assert win.bin_tab.line_sel.rb_free is None
         assert win.bin_tab.line_sel.get_mode() in ("horizontal", "vertical")
         win.close()
+
+
+class TestAnisotropyManualEntry:
+    """Manual x/y line-coordinate entry, ported from reynolds_window."""
+
+    def test_manual_line_entry_produces_lumley_result(self, qapp, dataset_stereo):
+        from gui.anisotropy_window import AnisotropyWindow
+        win = AnisotropyWindow(dataset_stereo)
+
+        # Opens in line mode: group visible, Draw selected, boxes hidden.
+        assert win.manual_grp.isVisibleTo(win)
+        assert win.rb_draw.isChecked()
+        assert not win._manual_active
+        assert not win.manual_coord_widget.isVisibleTo(win)
+
+        # Ranges come from the data extents in mm.
+        assert win.spin_x0.minimum() == pytest.approx(float(dataset_stereo["x"].min()))
+        assert win.spin_x1.maximum() == pytest.approx(float(dataset_stereo["x"].max()))
+
+        # Switching to Manual reveals the boxes and hides the snap controls.
+        win.rb_manual.setChecked(True)
+        qapp.processEvents()
+        assert win._manual_active
+        assert win.manual_coord_widget.isVisibleTo(win)
+        assert not win.line_sel.isVisibleTo(win)
+
+        # A line spanning the field at mid-height must compute directly.
+        ymid = float(dataset_stereo["y"].mean())
+        win.spin_x0.setValue(float(dataset_stereo["x"].min()))
+        win.spin_x1.setValue(float(dataset_stereo["x"].max()))
+        win.spin_y0.setValue(ymid)
+        win.spin_y1.setValue(ymid)
+        win._on_manual_plot()
+        qapp.processEvents()
+
+        assert win._selection["type"] == "line"
+        res = win._last_result
+        assert res["type"] == "line"
+        assert len(res["neg_II"]) > 0
+        assert len(res["neg_II"]) == len(res["III"]) == len(res["dist"])
+        assert np.all(np.isfinite(res["neg_II"]))
+        win.close()
+
+    def test_too_short_manual_line_does_not_compute(self, qapp, dataset_stereo):
+        from gui.anisotropy_window import AnisotropyWindow
+        win = AnisotropyWindow(dataset_stereo)
+        win.rb_manual.setChecked(True)
+        ymid = float(dataset_stereo["y"].mean())
+        for sp, v in ((win.spin_x0, 5.0), (win.spin_x1, 5.0),
+                      (win.spin_y0, ymid), (win.spin_y1, ymid)):
+            sp.setValue(v)
+        win._on_manual_plot()
+        assert "too short" in win.lbl_hint.text().lower()
+        assert not hasattr(win, "_last_result")
+        win.close()
+
+    def test_rect_mode_hides_line_entry_and_restores_state(self, qapp, dataset_stereo):
+        from gui.anisotropy_window import AnisotropyWindow
+        win = AnisotropyWindow(dataset_stereo)
+        win.show()
+        win.rb_manual.setChecked(True)
+        qapp.processEvents()
+
+        win.rb_rect.setChecked(True)
+        qapp.processEvents()
+        assert not win.manual_grp.isVisibleTo(win)
+        assert not win.line_sel.isVisibleTo(win)
+
+        # Returning to line mode re-applies the remembered Manual state.
+        win.rb_line.setChecked(True)
+        qapp.processEvents()
+        assert win.manual_grp.isVisibleTo(win)
+        assert win._manual_active
+        assert win.manual_coord_widget.isVisibleTo(win)
+        win.close()
+
+    def test_export_records_line_entry_provenance(self, qapp, dataset_stereo, tmp_path,
+                                                  monkeypatch):
+        from gui.anisotropy_window import AnisotropyWindow
+        from PyQt6.QtWidgets import QFileDialog
+        win = AnisotropyWindow(dataset_stereo)
+        win.rb_manual.setChecked(True)
+        ymid = float(dataset_stereo["y"].mean())
+        win.spin_x0.setValue(float(dataset_stereo["x"].min()))
+        win.spin_x1.setValue(float(dataset_stereo["x"].max()))
+        win.spin_y0.setValue(ymid)
+        win.spin_y1.setValue(ymid)
+        win._on_manual_plot()
+
+        out = tmp_path / "aniso.csv"
+        monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                            staticmethod(lambda *a, **k: (str(out), "")))
+        win._on_export()
+        text = out.read_text()
+        assert "Line entry" in text
+        assert "Manual" in text
+        win.close()

@@ -4,6 +4,36 @@ All notable changes to uPrime are documented here.
 
 ---
 
+## [0.8.1] - 2026-09-02
+
+Adds manual line-coordinate entry to the Anisotropy Invariant module.
+
+### Added
+- **Manual x/y line entry in Anisotropy Invariants** — the Lumley-triangle
+  line can now be typed as numeric `x0`/`y0`/`x1`/`y1` instead of dragged,
+  bringing the module in line with Reynolds Stress, TKE Budget and Mean
+  Velocity. A **Line Entry** group offers Draw (unchanged) or Manual; picking
+  Manual reveals four coordinate boxes and a **Plot** button, and hides the
+  LineSelector snap controls, since manual lines are always free
+  point-to-point. Box ranges and defaults initialise from the data extents in
+  mm — a full-width line at mid-height. Unlike the other modules, Plot goes
+  straight through to the Lumley triangle rather than only arming Compute,
+  because Compute is this window's equivalent of plotting.
+- **Line entry provenance in the export** — exported line CSVs now carry a
+  `Line entry` header row reading `Manual` or `Drawn`, spelled identically to
+  the other line-profile modules so exports stay comparable across them.
+
+### Changed
+- **Manual lines sample through `core/line_sample.py`** — a manually entered
+  line is interpolated point-to-point via `sample_along_line`, the same path
+  `reynolds_window._profile_values` takes, so both entry methods sample
+  identically. Drawn lines are untouched and keep the LineSelector free,
+  horizontal and vertical modes exactly as before. Manual entry applies to the
+  Lumley line only; the Barycentric rectangle is unaffected and the Line Entry
+  group hides entirely in Rectangle mode.
+
+---
+
 ## [0.8.0] - 2026-09-01
 
 Adds the Probability Analysis module.

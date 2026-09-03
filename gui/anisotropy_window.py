@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QGroupBox, QPushButton, QRadioButton,
     QSizePolicy, QMessageBox, QSplitter, QTabWidget,
     QSpinBox, QCheckBox, QFileDialog, QApplication,
+    QButtonGroup, QDoubleSpinBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -37,6 +38,7 @@ from core.anisotropy import (
     points_near_line,
 )
 from core.reynolds_stress import extract_line_profile
+from core.line_sample import sample_along_line
 from gui.line_selector import LineSelectorWidget, compute_snapped_line
 
 
@@ -53,6 +55,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
         self._line_artist  = None
         self._rect_patch   = None
         self._selection    = None
+        self._manual_active = False
 
         # Pre-compute Reynolds tensor and anisotropy tensor once
         self._precompute()
@@ -110,6 +113,12 @@ class AnisotropyWindow(PickerMixin, QWidget):
         mode_lay.addWidget(self.rb_line)
         mode_lay.addWidget(self.rb_rect)
         ll.addWidget(mode_grp)
+
+        # Line Entry (Draw / Manual) -> Line Mode, adjacent. The window
+        # opens in line mode, so the group starts visible; the initial
+        # Draw/Manual state is applied at the end of _build_ui.
+        self.manual_grp = self._build_manual_group()
+        ll.addWidget(self.manual_grp)
 
         self.line_sel = LineSelectorWidget(show_avg=False)
         ll.addWidget(self.line_sel)
@@ -191,6 +200,91 @@ class AnisotropyWindow(PickerMixin, QWidget):
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
 
+        self._on_line_entry_changed()
+
+    # ----------------------------------------------------------------------- #
+    # Manual coordinate entry
+    # ----------------------------------------------------------------------- #
+
+    def _build_manual_group(self):
+        grp = QGroupBox("Line Entry")
+        lay = QVBoxLayout(grp)
+
+        row_mode = QHBoxLayout()
+        self.rb_draw   = QRadioButton("Draw")
+        self.rb_manual = QRadioButton("Manual")
+        self.rb_draw.setChecked(True)
+        self._entry_grp = QButtonGroup(grp)
+        self._entry_grp.addButton(self.rb_draw)
+        self._entry_grp.addButton(self.rb_manual)
+        self.rb_draw.toggled.connect(self._on_line_entry_changed)
+        row_mode.addWidget(self.rb_draw)
+        row_mode.addWidget(self.rb_manual)
+        lay.addLayout(row_mode)
+
+        self.manual_coord_widget = QWidget()
+        cl = QHBoxLayout(self.manual_coord_widget)
+        cl.setContentsMargins(0, 0, 0, 0)
+        self.spin_x0 = QDoubleSpinBox(); self.spin_y0 = QDoubleSpinBox()
+        self.spin_x1 = QDoubleSpinBox(); self.spin_y1 = QDoubleSpinBox()
+        for sp in (self.spin_x0, self.spin_y0, self.spin_x1, self.spin_y1):
+            sp.setDecimals(3)
+            sp.setRange(-1e6, 1e6)
+        cl.addWidget(QLabel("x0:")); cl.addWidget(self.spin_x0)
+        cl.addWidget(QLabel("y0:")); cl.addWidget(self.spin_y0)
+        cl.addWidget(QLabel("x1:")); cl.addWidget(self.spin_x1)
+        cl.addWidget(QLabel("y1:")); cl.addWidget(self.spin_y1)
+        lay.addWidget(self.manual_coord_widget)
+
+        self.btn_manual_plot = QPushButton("Plot")
+        self.btn_manual_plot.clicked.connect(self._on_manual_plot)
+        lay.addWidget(self.btn_manual_plot)
+
+        return grp
+
+    def _set_manual_ranges(self):
+        """Set spinbox ranges/defaults from the data extents (mm)."""
+        if getattr(self, "_x", None) is None:
+            return
+        xmin, xmax = float(np.nanmin(self._x)), float(np.nanmax(self._x))
+        ymin, ymax = float(np.nanmin(self._y)), float(np.nanmax(self._y))
+        for sp in (self.spin_x0, self.spin_x1):
+            sp.setRange(xmin, xmax)
+        for sp in (self.spin_y0, self.spin_y1):
+            sp.setRange(ymin, ymax)
+        self.spin_x0.setValue(xmin); self.spin_x1.setValue(xmax)
+        self.spin_y0.setValue((ymin + ymax) / 2.0)
+        self.spin_y1.setValue((ymin + ymax) / 2.0)
+
+    def _on_line_entry_changed(self, *args):
+        self._manual_active = self.rb_manual.isChecked()
+        self.manual_coord_widget.setVisible(self._manual_active)
+        self.btn_manual_plot.setVisible(self._manual_active)
+        # Manual mode uses free point-to-point sampling; hide snap controls.
+        self.line_sel.setVisible(not self._manual_active)
+
+    def _on_manual_plot(self):
+        """Manual entry plots straight through to the Lumley triangle: the
+        anisotropy equivalent of the other modules' 'Plot' is Compute."""
+        p0 = (self.spin_x0.value(), self.spin_y0.value())
+        p1 = (self.spin_x1.value(), self.spin_y1.value())
+        if abs(p1[0] - p0[0]) < 0.1 and abs(p1[1] - p0[1]) < 0.1:
+            self.lbl_hint.setText("Line too short -- adjust coordinates.")
+            return
+        self._clear_graphics()
+        self._line_artist, = self.field_ax.plot(
+            [p0[0], p1[0]], [p0[1], p1[1]], "r-", linewidth=2, zorder=10)
+        self.field_canvas.draw()
+        self._selection = {"type": "line",
+                           "x0": p0[0], "y0": p0[1],
+                           "x1": p1[0], "y1": p1[1]}
+        self.btn_compute.setEnabled(True)
+        self.lbl_hint.setText(
+            f"Line (manual): ({p0[0]:.1f},{p0[1]:.1f}) \u2192 "
+            f"({p1[0]:.1f},{p1[1]:.1f}) mm"
+        )
+        self._on_compute()
+
     # ----------------------------------------------------------------------- #
     # Draw mean speed field on left canvas
     # ----------------------------------------------------------------------- #
@@ -223,6 +317,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
         self._x = x
         self._y = y
         self._last_field_values = speed
+        self._set_manual_ranges()
 
     # ----------------------------------------------------------------------- #
     # Mouse
@@ -241,11 +336,14 @@ class AnisotropyWindow(PickerMixin, QWidget):
         if self.rb_line.isChecked():
             self._mode = "line"
             self.line_sel.setVisible(True)
+            self.manual_grp.setVisible(True)
+            self._on_line_entry_changed()
             self.lbl_hint.setText(
                 "Left-click+drag to draw a line (Lumley triangle).")
         else:
             self._mode = "rect"
             self.line_sel.setVisible(False)
+            self.manual_grp.setVisible(False)
             self.lbl_hint.setText(
                 "Left-click+drag to draw a rectangle (Barycentric map).")
         self._clear_graphics()
@@ -392,7 +490,20 @@ class AnisotropyWindow(PickerMixin, QWidget):
         neg_I2_field, I3_field = self._get_smooth_fields()
         lmode = self.line_sel.get_mode()
 
-        if lmode == "free":
+        if self._manual_active:
+            # The LineSelector is hidden in manual mode, so its snap mode
+            # must not govern sampling: sample free point-to-point, the
+            # same path reynolds_window._profile_values takes.
+            x1d = self._x[0, :]
+            y1d = self._y[:, 0]
+            p0 = (sel["x0"], sel["y0"])
+            p1 = (sel["x1"], sel["y1"])
+            dist,   neg_II = sample_along_line(x1d, y1d, neg_I2_field, p0, p1)
+            _dist2, III    = sample_along_line(x1d, y1d, I3_field,     p0, p1)
+            n = len(dist)
+            xpts = np.linspace(sel["x0"], sel["x1"], n)
+            ypts = np.linspace(sel["y0"], sel["y1"], n)
+        elif lmode == "free":
             rows, cols, dist = points_near_line(
                 self._x, self._y,
                 sel["x0"], sel["y0"], sel["x1"], sel["y1"]
@@ -430,8 +541,10 @@ class AnisotropyWindow(PickerMixin, QWidget):
         self._draw_lumley_boundary(ax)
 
         # Scatter points colored by distance from origin along line
-        cb_label = {"horizontal": "x [mm]",
-                    "vertical":   "y [mm]"}.get(lmode, "Distance from origin [mm]")
+        cb_label = ("Distance from origin [mm]" if self._manual_active else
+                    {"horizontal": "x [mm]",
+                     "vertical":   "y [mm]"}.get(
+                        lmode, "Distance from origin [mm]"))
         sc = ax.scatter(III, neg_II, c=dist, cmap="plasma",
                         s=20, zorder=5, linewidths=0)
         cb = self.lumley_fig.colorbar(sc, ax=ax, label=cb_label)
@@ -641,6 +754,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
                 "Analysis"  : "Anisotropy Invariants - Line (all quantities)",
                 "Snapshots" : self.dataset["Nt"],
                 "Grid"      : f"{self.dataset['nx']} x {self.dataset['ny']}",
+                "Line entry": "Manual" if self._manual_active else "Drawn",
             }
             dist   = res["dist"]
             xpts   = res["xpts"]
