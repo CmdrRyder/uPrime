@@ -680,6 +680,153 @@ class TestCaseIO:
         assert any(ln.startswith("caseA_U,U,") for ln in lines[1:])
 
 
+class TestLumleyCompare:
+    """Lumley-triangle (-II vs III) comparison mode in the 1D tab."""
+
+    @staticmethod
+    def _write_aniso_csv(path, offset=0.0):
+        """Write a synthetic anisotropy line export in the module's own format
+        (core.export.export_line_csv), i.e. with the "mean_" column prefix."""
+        text = (
+            "# uPrime Export\n"
+            "# Analysis                 : Anisotropy Invariants - Line (all quantities)\n"
+            "dist_mm,x_mm,y_mm,mean_-II,mean_III,mean_C1c,mean_C2c,mean_C3c\n"
+            f"0.0,0.0,2.0,{0.05+offset},{0.001+offset},0.1,0.2,0.7\n"
+            f"1.0,1.0,2.0,{0.10+offset},{0.002+offset},0.2,0.3,0.5\n"
+            f"2.0,2.0,2.0,{0.15+offset},{0.003+offset},0.3,0.3,0.4\n"
+        )
+        path.write_text(text, encoding="utf-8")
+
+    # -- pairing logic in _build_series ------------------------------------
+
+    def test_pairing_both_present(self, tmp_path):
+        from core.case_io import read_case_file, LUMLEY_KEY
+        p = tmp_path / "aniso.csv"
+        self._write_aniso_csv(p)
+        rec = read_case_file(str(p))
+        assert rec.error is None
+        keys = {s.quantity_key for s in rec.series}
+        # -II / III still plot on their own vs arc length, ADDED to (not
+        # replaced by) the new Lumley pairing.
+        assert {"mean_-II", "mean_III", LUMLEY_KEY} <= keys
+
+        lum = next(s for s in rec.series if s.quantity_key == LUMLEY_KEY)
+        assert lum.x_label == "III" and lum.y_label == "-II"
+        assert lum.um is None
+        np.testing.assert_allclose(lum.x_data, [0.001, 0.002, 0.003])
+        np.testing.assert_allclose(lum.y_data, [0.05, 0.10, 0.15])
+        np.testing.assert_allclose(lum.c_data, [0.0, 1.0, 2.0])
+        assert lum.c_label == "Distance along line [mm]"
+
+    def test_pairing_missing_column_no_entry(self, tmp_path):
+        from core.case_io import read_case_file, LUMLEY_KEY
+        content = "dist_mm,x_mm,y_mm,mean_-II\n0.0,0.0,2.0,0.05\n1.0,1.0,2.0,0.10\n"
+        p = tmp_path / "partial.csv"
+        p.write_text(content, encoding="utf-8")
+        rec = read_case_file(str(p))
+        assert rec.error is None
+        assert LUMLEY_KEY not in {s.quantity_key for s in rec.series}
+
+    def test_pairing_mismatched_lengths_skipped(self):
+        from core.case_io import _build_series, FileRecord, NEG_II_COL, III_COL, LUMLEY_KEY
+        rec = FileRecord(source_file="x.csv", path="x.csv")
+        rec.x_col = "dist_mm"
+        rec.x_type, rec.x_label, rec.x_units = "arc_length", "s", "mm"
+        rec.columns = ["dist_mm", NEG_II_COL, III_COL]
+        rec._table = {
+            "dist_mm": np.array([0.0, 1.0, 2.0]),
+            NEG_II_COL: np.array([0.05, 0.10, 0.15]),
+            III_COL: np.array([0.001, 0.002]),   # mismatched length -> skip
+        }
+        series = _build_series(rec)
+        assert LUMLEY_KEY not in {s.quantity_key for s in series}
+
+    # -- headless plotting in the compare window -----------------------------
+
+    def test_variable_last_and_checkbox_visibility(self, qapp, tmp_path):
+        from gui.compare_window import CompareWindow
+        from core.case_io import LUMLEY_KEY
+        p = tmp_path / "aniso.csv"
+        self._write_aniso_csv(p)
+        w = CompareWindow()
+        w._load_paths([str(p)])
+        assert w._present_variables()[-1] == LUMLEY_KEY
+        assert w.chk_color_by_distance.isHidden()      # hidden for other vars
+        w.set_variable(LUMLEY_KEY)
+        assert not w.chk_color_by_distance.isHidden()
+        w.set_variable("mean_-II")
+        assert w.chk_color_by_distance.isHidden()
+
+    def test_plot_off_mode_boundary_and_scatter(self, qapp, tmp_path):
+        from gui.compare_window import CompareWindow
+        from core.case_io import LUMLEY_KEY
+        pA, pB = tmp_path / "caseA.csv", tmp_path / "caseB.csv"
+        self._write_aniso_csv(pA, offset=0.0)
+        self._write_aniso_csv(pB, offset=0.01)
+        w = CompareWindow()
+        w._load_paths([str(pA), str(pB)])
+        w.set_variable(LUMLEY_KEY)
+        ax = w.fig.axes[0]
+        # boundary: 2 solid + 1 dashed segment, 3 corner markers, 1 axvline
+        assert len(ax.lines) == 7
+        assert len(ax.collections) == 2            # one scatter per case
+        assert len(w.fig.axes) == 1                # no colorbar by default
+        labels = {t.get_text() for t in ax.get_legend().get_texts()}
+        assert labels == {"caseA", "caseB"}
+
+    def test_plot_colorbar_mode_shared_scale_and_markers(self, qapp, tmp_path):
+        from gui.compare_window import CompareWindow
+        from core.case_io import LUMLEY_KEY
+        pA, pB = tmp_path / "caseA.csv", tmp_path / "caseB.csv"
+        self._write_aniso_csv(pA, offset=0.0)
+        self._write_aniso_csv(pB, offset=0.01)
+        w = CompareWindow()
+        w._load_paths([str(pA), str(pB)])
+        w.set_variable(LUMLEY_KEY)
+        w.chk_color_by_distance.setChecked(True)
+        ax = w.fig.axes[0]
+        assert len(ax.lines) == 7                  # boundary unchanged
+        assert len(ax.collections) == 2             # still one scatter per case
+        assert len(w.fig.axes) == 2                 # + shared colorbar axes
+        labels = {t.get_text() for t in ax.get_legend().get_texts()}
+        assert labels == {"caseA", "caseB"}
+        # legend handles are black marker proxies, not case-colored
+        for h in ax.get_legend().legend_handles:
+            assert h.get_color() == "black"
+
+    def test_checkbox_hidden_for_other_variable_after_lumley(self, qapp, tmp_path):
+        from gui.compare_window import CompareWindow
+        from core.case_io import LUMLEY_KEY
+        p = tmp_path / "aniso.csv"
+        self._write_aniso_csv(p)
+        w = CompareWindow()
+        w._load_paths([str(p)])
+        w.set_variable(LUMLEY_KEY)
+        w.chk_color_by_distance.setChecked(True)
+        w.set_variable("mean_III")
+        assert w.chk_color_by_distance.isHidden()
+        ax = w.fig.axes[0]
+        assert len(w.fig.axes) == 1                 # ordinary plot, no colorbar
+
+    def test_export_lumley_csv_per_case_columns(self, qapp, tmp_path):
+        from gui.compare_window import CompareWindow
+        from core.case_io import LUMLEY_KEY
+        pA, pB = tmp_path / "caseA.csv", tmp_path / "caseB.csv"
+        self._write_aniso_csv(pA, offset=0.0)
+        self._write_aniso_csv(pB, offset=0.01)
+        w = CompareWindow()
+        w._load_paths([str(pA), str(pB)])
+        w.set_variable(LUMLEY_KEY)
+        series = [s for s in w._current_series() if s.enabled]
+        out = tmp_path / "merged.csv"
+        w.write_lumley_csv(str(out), series)
+        lines = out.read_text(encoding="utf-8").splitlines()
+        assert lines[0] == "caseA_III,caseA_-II,caseA_s,caseB_III,caseB_-II,caseB_s"
+        assert len(lines) == 1 + 3                  # header + 3 aligned rows
+        row0 = lines[1].split(",")
+        assert row0[0] == "0.001" and row0[1] == "0.05"
+
+
 # ---------------------------------------------------------------------------
 # Optional DaVis loader (core/davis_io.py) — skips cleanly without lvpyio
 # ---------------------------------------------------------------------------

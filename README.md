@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/1197739784.svg)](https://doi.org/10.5281/zenodo.19376184)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
-![Version](https://img.shields.io/badge/version-0.8.1%20alpha-blue)
+![Version](https://img.shields.io/badge/version-0.8.2%20alpha-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 
 ### *Turbulence is complex. Analysis shouldn't be.*
@@ -242,7 +242,7 @@ Tests run headlessly (Agg backend + offscreen Qt) with no real `.dat` files requ
 
 ## 🧠 Development Status
 
-uPrime is under active development (**v0.8.1 alpha**).
+uPrime is under active development (**v0.8.2 alpha**).
 Core analysis modules are stable. Performance and usability improvements ongoing.
 
 ---
@@ -264,7 +264,7 @@ Core analysis modules are stable. Performance and usability improvements ongoing
 
 If uPrime contributes to your research, please cite:
 
-> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.8.1-alpha). Zenodo.
+> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.8.2-alpha). Zenodo.
 > https://doi.org/10.5281/zenodo.19376184
 
 ---

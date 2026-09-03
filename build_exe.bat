@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  build_exe.bat -- uPrime v0.8.1  (PUBLIC build)
+REM  build_exe.bat -- uPrime v0.8.2  (PUBLIC build)
 REM  Builds a single-file windowed executable via PyInstaller
 REM  Target: Python 3.11
 REM  Usage:  double-click or run from project root
@@ -22,7 +22,13 @@ REM    PIL/Pillow  -- collect-all (image handling)
 REM    openpyxl    -- hidden-import (optional .xlsx reading in Compare
 REM                   Cases; harmless warning if openpyxl is absent)
 REM
-REM  New in v0.8.1 (public build):
+REM  New in v0.8.2 (public build):
+REM    - Lumley triangle comparison mode in Compare Cases (1D tab):
+REM      -II vs III scatter across cases, drawn with the same boundary
+REM      artwork as the Anisotropy Invariant module (shared gui.lumley_plot
+REM      helper), with an optional shared colorbar for distance-along-line.
+REM
+REM  Carried from v0.8.1:
 REM    - Manual x/y line-coordinate entry in the Anisotropy Invariant
 REM      module, matching Reynolds Stress, TKE Budget and Mean Velocity.
 REM
@@ -72,7 +78,7 @@ python -m pip install pyinstaller --quiet
 pyinstaller ^
     --onefile ^
     --windowed ^
-    --name uPrime_v0.8.1 ^
+    --name uPrime_v0.8.2 ^
     --add-data "assets;assets" ^
     --add-data "version.txt;." ^
     --collect-all matplotlib ^
@@ -143,6 +149,6 @@ echo.
 if errorlevel 1 (
     echo BUILD FAILED. Check output above.
 ) else (
-    echo BUILD COMPLETE: dist\uPrime_v0.8.1.exe
+    echo BUILD COMPLETE: dist\uPrime_v0.8.2.exe
 )
 pause

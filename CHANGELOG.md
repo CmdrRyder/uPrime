@@ -4,6 +4,30 @@ All notable changes to uPrime are documented here.
 
 ---
 
+## [0.8.2] - 2026-09-03
+
+Adds a Lumley-triangle comparison mode to Compare Cases.
+
+### Added
+- **Lumley triangle comparison mode in Compare Cases (1D tab)** — anisotropy
+  line exports now pair their `-II` and `III` columns into a new "Lumley
+  (-II vs III)" entry in the Variable dropdown, plotted as a scatter of
+  `-II` vs `III` across cases with the same boundary artwork (limit lines,
+  corner markers, plane-strain line, axis limits) the Anisotropy Invariant
+  module itself draws — factored into a shared `gui/lumley_plot.py` helper
+  so both views stay byte-for-byte identical. A **Color by distance along
+  line** checkbox, visible only for this variable, switches between one
+  scatter per case in its own style color (default) and a single shared
+  plasma colorbar keyed to distance along each case's line, with cases then
+  distinguished by marker symbol instead of color.
+- **Merged CSV export for the Lumley mode** — since each case has its own
+  independent `III` values, Export Merged CSV writes one `<label>_III` /
+  `<label>_-II` (and `<label>_s` when distance data is available) column
+  pair per case for this variable, padded to the longest case, instead of
+  the shared-x long format used by every other quantity.
+
+---
+
 ## [0.8.1] - 2026-09-02
 
 Adds manual line-coordinate entry to the Anisotropy Invariant module.

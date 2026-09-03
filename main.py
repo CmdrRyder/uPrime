@@ -1,7 +1,7 @@
 """
 uPrime - Open-source fluid velocity field analysis
 Because u' matters
-v0.8.1 - alpha
+v0.8.2 - alpha
 
 Developed by Jibu Tom Jose
 Transient Fluid Mechanics Lab, Technion

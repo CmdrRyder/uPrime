@@ -43,11 +43,19 @@ import numpy as np
 # themselves plottable quantities (they describe the sampling path).
 COORD_COLS = {"x_mm", "y_mm"}
 
+# Raw column names of the Lumley-triangle invariants in an anisotropy line
+# export (core.export.export_line_csv always prefixes value columns with
+# "mean_", so these are NOT the bare "-II"/"III" the module computes them as).
+NEG_II_COL = "mean_-II"
+III_COL    = "mean_III"
+LUMLEY_KEY = "Lumley (-II vs III)"
+
 # x-type -> (default axis symbol, default units)
 X_TYPE_META = {
     "arc_length": ("s", "mm"),
     "frequency":  ("f", "Hz"),
     "wavenumber": ("k", "rad/m"),
+    "invariant":  ("III", ""),
 }
 
 # Canonical quantities and the fixed axis metadata they carry.  Anything not
@@ -163,6 +171,10 @@ class CaseSeries:
     style:         dict           # {"color", "linestyle", "marker"}
     enabled:       bool = True
     source_kind:   str = "csv"    # "csv" (imported) or "extracted" (2D line)
+    # Optional per-point colour-by data (e.g. distance along line), used by
+    # the Lumley-triangle comparison mode's "color by distance" sub-mode.
+    c_data:        Optional[np.ndarray] = None
+    c_label:       str = ""
 
 
 @dataclass
@@ -569,6 +581,33 @@ def _build_series(record):
             style={"color": None, "linestyle": "-", "marker": ""},
             enabled=True,
         ))
+
+    # Lumley-triangle pairing: when both invariant columns are present, add
+    # ONE extra series plotting -II vs III directly (in addition to, not
+    # instead of, their ordinary vs-arc-length series built above).
+    if NEG_II_COL in record._table and III_COL in record._table:
+        neg_ii = record._table[NEG_II_COL]
+        iii = record._table[III_COL]
+        if (len(neg_ii) == len(iii)
+                and np.isfinite(neg_ii).any() and np.isfinite(iii).any()):
+            series.append(CaseSeries(
+                source_file=record.source_file,
+                source_module=module,
+                quantity_key=LUMLEY_KEY,
+                x_type="invariant",
+                x_label="III",
+                x_units="",
+                x_data=iii,
+                y_label="-II",
+                y_units="",
+                y_data=neg_ii,
+                um=None,
+                label=base,
+                style={"color": None, "linestyle": "-", "marker": ""},
+                enabled=True,
+                c_data=x_data,
+                c_label="Distance along line [mm]",
+            ))
     return series
 
 

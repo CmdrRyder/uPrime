@@ -16,6 +16,7 @@ Reuses existing infrastructure rather than duplicating it:
   * gui.arrow_toolbar       -> DrawAwareToolbar (300 DPI PNG + PDF/SVG export)
 """
 
+import csv
 import os
 
 import numpy as np
@@ -34,15 +35,17 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib import cm
 from matplotlib.colors import Normalize
+from matplotlib.lines import Line2D
 
 from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
 from gui.case_manager_dialog import CaseManagerDialog
 from gui.comparison_mixin import _TAB10, _SimpleDF, _concat_to_csv
 from gui.line_selector import LineSelectorWidget, compute_snapped_line
+from gui.lumley_plot import draw_lumley_boundary
 from core.reynolds_stress import extract_line_profile
 from core.line_sample import sample_along_line
 from core.case_io import (
-    read_case_file, CaseSeries, QUANTITY_INFO, is_signed_component,
+    read_case_file, CaseSeries, QUANTITY_INFO, is_signed_component, LUMLEY_KEY,
 )
 
 _FONT_AX   = 9
@@ -138,6 +141,12 @@ class CompareWindow(QWidget):
         self.var_combo.currentIndexChanged.connect(self._on_variable_changed)
         var_row.addWidget(self.var_combo, stretch=1)
         ll.addLayout(var_row)
+
+        self.chk_color_by_distance = QCheckBox("Color by distance along line")
+        self.chk_color_by_distance.setChecked(False)
+        self.chk_color_by_distance.setVisible(False)
+        self.chk_color_by_distance.toggled.connect(lambda _: self._on_plot())
+        ll.addWidget(self.chk_color_by_distance)
 
         basket_grp = QGroupBox("Cases")
         bg = QVBoxLayout(basket_grp)
@@ -278,8 +287,11 @@ class CompareWindow(QWidget):
     def _present_variables(self):
         keys = {s.quantity_key for s in self._all_series()}
         ordered = [k for k in _VAR_ORDER if k in keys]
-        rest = sorted(k for k in keys if k not in _VAR_ORDER)
-        return ordered + rest
+        rest = sorted(k for k in keys if k not in _VAR_ORDER and k != LUMLEY_KEY)
+        result = ordered + rest
+        if LUMLEY_KEY in keys:
+            result.append(LUMLEY_KEY)
+        return result
 
     def _refresh_variable_combo(self):
         prev = self.var_combo.currentData()
@@ -303,6 +315,10 @@ class CompareWindow(QWidget):
         return [s for s in self._all_series() if s.quantity_key == var]
 
     def _on_variable_changed(self):
+        var = self._current_variable()
+        self.chk_color_by_distance.blockSignals(True)
+        self.chk_color_by_distance.setVisible(var == LUMLEY_KEY)
+        self.chk_color_by_distance.blockSignals(False)
         self._rebuild_tree()
         self._on_plot()
 
@@ -363,6 +379,15 @@ class CompareWindow(QWidget):
             ax = self.fig.add_subplot(111)
 
             series = [s for s in self._current_series() if s.enabled]
+
+            if var == LUMLEY_KEY:
+                self._plot_lumley(ax, series)
+                self.fig.tight_layout(pad=0.5)
+                self.canvas.draw()
+                self.toolbar.set_home_limits()
+                self._update_status(var, len(series))
+                return
+
             x_label = x_units = y_label = y_units = ""
             for s in series:
                 st = s.style
@@ -397,9 +422,99 @@ class CompareWindow(QWidget):
         finally:
             QApplication.processEvents()
 
+    _LUMLEY_MARKERS = ("o", "s", "^", "D", "v", "P")
+
+    def _plot_lumley(self, ax, series):
+        """Lumley-triangle comparison: -II vs III, boundary drawn first.
+
+        Two sub-modes selected by ``chk_color_by_distance``:
+          * off (default): one scatter per case, colored by its own style
+            color, legend by case label.
+          * on: all cases share one plasma colorbar driven by c_data
+            (distance along line), so cases are distinguished by marker
+            symbol instead of color; legend shows black marker proxies.
+        """
+        draw_lumley_boundary(ax, legend=False, set_limits=True)
+
+        by_distance = self.chk_color_by_distance.isChecked()
+        n_points = sum(len(s.x_data) for s in series)
+        self._lumley_fallback_note = ""
+
+        if by_distance and series:
+            have_c = [s for s in series if s.c_data is not None]
+            missing_c = [s for s in series if s.c_data is None]
+            if missing_c:
+                self._lumley_fallback_note = (
+                    f"  (⚠ {len(missing_c)} case(s) lack distance data "
+                    "— shown in their own color instead)")
+
+            norm = None
+            if have_c:
+                vmin = min(float(np.nanmin(s.c_data)) for s in have_c)
+                vmax = max(float(np.nanmax(s.c_data)) for s in have_c)
+                if not np.isfinite(vmin) or not np.isfinite(vmax):
+                    vmin, vmax = 0.0, 1.0
+                elif vmin == vmax:
+                    vmin, vmax = vmin - 0.5, vmin + 0.5
+                norm = Normalize(vmin=vmin, vmax=vmax)
+
+            sc = None
+            legend_handles = []
+            for i, s in enumerate(series):
+                marker = s.style.get("marker") or self._LUMLEY_MARKERS[
+                    i % len(self._LUMLEY_MARKERS)]
+                if s.c_data is not None:
+                    sc = ax.scatter(s.x_data, s.y_data, c=s.c_data,
+                                    cmap="plasma", norm=norm, marker=marker,
+                                    s=20, linewidths=0, zorder=8)
+                    handle_color = "black"
+                else:
+                    ax.scatter(s.x_data, s.y_data, color=s.style.get("color"),
+                              marker=marker, s=20, linewidths=0, zorder=8)
+                    handle_color = s.style.get("color") or "black"
+                legend_handles.append(Line2D(
+                    [], [], color=handle_color, marker=marker,
+                    linestyle="none", markersize=6, label=s.label))
+            if sc is not None:
+                cb_label = next((s.c_label for s in have_c if s.c_label), "")
+                self.fig.colorbar(sc, ax=ax, label=cb_label)
+            if legend_handles:
+                ax.legend(handles=legend_handles, fontsize=_FONT_LEG)
+        else:
+            for s in series:
+                st = s.style
+                marker = st.get("marker") or "o"
+                ax.scatter(s.x_data, s.y_data, color=st.get("color"),
+                          marker=marker, s=20, linewidths=0, zorder=8,
+                          label=s.label)
+            if series:
+                ax.legend(fontsize=_FONT_LEG)
+
+        ax.set_xlabel("III  (third invariant)", fontsize=_FONT_AX)
+        ax.set_ylabel("-II  (second invariant)", fontsize=_FONT_AX)
+        ax.set_title(f"Lumley Triangle  ({len(series)} case(s))")
+        ax.grid(True, alpha=0.3)
+        ax.set_aspect("auto")
+        ax.tick_params(labelsize=_FONT_TICK)
+        self._lumley_n_points = n_points
+
+        if not series:
+            ax.text(0.5, 0.5,
+                    "No enabled cases for this variable.\n"
+                    "Add files and pick a Variable.",
+                    transform=ax.transAxes, ha="center", va="center",
+                    color="gray")
+
     def _update_status(self, var, n_plotted):
         if var is None:
             self._set_status("No plottable series loaded yet.")
+            return
+        if var == LUMLEY_KEY:
+            n_points = getattr(self, "_lumley_n_points", 0)
+            note = getattr(self, "_lumley_fallback_note", "")
+            self._set_status(
+                f"Plotting {n_plotted} case(s), {n_points} point(s) total "
+                f"for {var}.{note}")
             return
         msg = f"Plotting {n_plotted} case(s) for {var}."
         # Um-normalization mismatch across the enabled series of this variable.
@@ -492,6 +607,33 @@ class CompareWindow(QWidget):
             frames.append(_SimpleDF(cols, rows))
         _concat_to_csv(frames, path)
 
+    def write_lumley_csv(self, path, series):
+        """Write Lumley-triangle series as per-case wide column pairs.
+
+        Each case has its own III values that are not aligned to a shared x
+        column (unlike the other quantities' merged export), so this writes
+        one "<label>_III" / "<label>_-II" pair per case — plus a
+        "<label>_s" distance column when available — padded with blanks to
+        the longest case rather than emitting misaligned rows.
+        """
+        header = []
+        columns = []
+        for s in series:
+            header.append(f"{s.label}_III")
+            columns.append(s.x_data)
+            header.append(f"{s.label}_-II")
+            columns.append(s.y_data)
+            if s.c_data is not None:
+                header.append(f"{s.label}_s")
+                columns.append(s.c_data)
+        n = max((len(col) for col in columns), default=0)
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh)
+            writer.writerow(header)
+            for i in range(n):
+                writer.writerow(
+                    [col[i] if i < len(col) else "" for col in columns])
+
     def _on_export_csv(self):
         var = self._current_variable()
         series = [s for s in self._current_series() if s.enabled]
@@ -506,7 +648,10 @@ class CompareWindow(QWidget):
         if not path:
             return
         try:
-            self.write_merged_csv(path, series)
+            if var == LUMLEY_KEY:
+                self.write_lumley_csv(path, series)
+            else:
+                self.write_merged_csv(path, series)
         except Exception as exc:
             QMessageBox.critical(self, "Export Failed", str(exc))
             return
