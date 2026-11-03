@@ -37,14 +37,14 @@ from matplotlib import cm
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
 
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from gui.case_manager_dialog import CaseManagerDialog
-from gui.comparison_mixin import _TAB10, _SimpleDF, _concat_to_csv
-from gui.line_selector import LineSelectorWidget, compute_snapped_line
-from gui.lumley_plot import draw_lumley_boundary
-from core.reynolds_stress import extract_line_profile
-from core.line_sample import sample_along_line
-from core.case_io import (
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.gui.case_manager_dialog import CaseManagerDialog
+from uprime.gui.comparison_mixin import _TAB10, _SimpleDF, _concat_to_csv
+from uprime.gui.line_selector import LineSelectorWidget, compute_snapped_line
+from uprime.gui.lumley_plot import draw_lumley_boundary
+from uprime.core.reynolds_stress import extract_line_profile
+from uprime.core.line_sample import sample_along_line
+from uprime.core.case_io import (
     read_case_file, CaseSeries, QUANTITY_INFO, is_signed_component, LUMLEY_KEY,
 )
 

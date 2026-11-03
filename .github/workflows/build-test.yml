@@ -41,8 +41,7 @@ jobs:
         run: |
           pyinstaller --onedir --noconfirm --windowed \
             --name uPrime_v0.8.2_${{ matrix.os }} \
-            --add-data "gui:gui" \
-            --add-data "core:core" \
+            --add-data "uprime:uprime" \
             --hidden-import "matplotlib.backends.backend_qtagg" \
             --hidden-import "PyQt6.QtCore" \
             --hidden-import "PyQt6.QtWidgets" \

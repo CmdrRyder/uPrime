@@ -23,13 +23,13 @@ import matplotlib
 matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 
-from core.spectral import psd_at_point, psd_in_region, nearest_grid_point
-from core.export import export_spectra_csv
+from uprime.core.spectral import psd_at_point, psd_in_region, nearest_grid_point
+from uprime.core.export import export_spectra_csv
 
 
 class SpectralWindow(PickerMixin, QWidget):
@@ -215,7 +215,7 @@ class SpectralWindow(PickerMixin, QWidget):
         ds = self.dataset
         x  = ds["x"]
         y  = ds["y"]
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(ds, "U")
         V = get_masked(ds, "V")
         W = get_masked(ds, "W")
@@ -361,7 +361,7 @@ class SpectralWindow(PickerMixin, QWidget):
         try:
             sel = self._selection
 
-            from core.dataset_utils import get_masked
+            from uprime.core.dataset_utils import get_masked
             _U = get_masked(ds, "U"); _V = get_masked(ds, "V"); _W = get_masked(ds, "W")
             if sel["type"] == "point":
                 freq, psd = psd_at_point(

@@ -36,8 +36,8 @@ matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from core.transform import (apply_rotation, apply_shift,
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.core.transform import (apply_rotation, apply_shift,
                             apply_mirror_x, apply_mirror_y,
                             transform_status_string)
 
@@ -423,7 +423,7 @@ class TransformWindow(PickerMixin, QWidget):
     def _draw_preview(self):
         ds = self.dataset
         x, y = ds["x"], ds["y"]
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         U_mean = np.nanmean(get_masked(ds, "U"), axis=2)
         U_mean[~ds["MASK"]] = np.nan
 

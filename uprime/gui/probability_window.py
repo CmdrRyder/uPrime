@@ -35,11 +35,11 @@ from matplotlib.patches import Rectangle as MplRect
 from matplotlib.colors import ListedColormap, BoundaryNorm
 import matplotlib.patches as mpatches
 
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from gui.line_selector import LineSelectorWidget, compute_snapped_line
-from core.export import (export_2d_tecplot, _settings_header)
-from core import probability as prob
-from core.workers import ProbabilityWorker
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.gui.line_selector import LineSelectorWidget, compute_snapped_line
+from uprime.core.export import (export_2d_tecplot, _settings_header)
+from uprime.core import probability as prob
+from uprime.core.workers import ProbabilityWorker
 
 _FONT_AX   = 9
 _FONT_TICK = 8

@@ -29,12 +29,12 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle as MplRect
 
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from gui.comparison_mixin import ComparisonMixin
-from core.reynolds_stress import extract_line_profile
-from core.export import export_2d_tecplot, export_line_csv
-from core.line_sample import sample_along_line
-from gui.line_selector import LineSelectorWidget, compute_snapped_line
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.gui.comparison_mixin import ComparisonMixin
+from uprime.core.reynolds_stress import extract_line_profile
+from uprime.core.export import export_2d_tecplot, export_line_csv
+from uprime.core.line_sample import sample_along_line
+from uprime.gui.line_selector import LineSelectorWidget, compute_snapped_line
 
 
 COMP_LABELS = {
@@ -98,8 +98,8 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _start_stress_computation(self):
-        from core.workers import ReynoldsWorker
-        from core.dataset_utils import get_masked
+        from uprime.core.workers import ReynoldsWorker
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(self.dataset, "U")
         V = get_masked(self.dataset, "V")
         W = get_masked(self.dataset, "W")
@@ -135,7 +135,7 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _build_ui(self):
-        from core.constants import CONVERGENCE_WARNING_N
+        from uprime.core.constants import CONVERGENCE_WARNING_N
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -304,7 +304,7 @@ class ReynoldsWindow(PickerMixin, ComparisonMixin, QWidget):
     def _draw_field(self):
         ds = self.dataset
         x, y = ds["x"], ds["y"]
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         _U = get_masked(ds, "U"); _V = get_masked(ds, "V"); _W = get_masked(ds, "W")
         speed = np.sqrt(np.nanmean(_U, axis=2)**2 + np.nanmean(_V, axis=2)**2)
         if _W is not None:

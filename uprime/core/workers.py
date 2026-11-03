@@ -33,7 +33,7 @@ class PODWorker(BaseWorker):
         self.n_modes = n_modes
 
     def compute(self):
-        from core.pod import compute_pod
+        from uprime.core.pod import compute_pod
         return compute_pod(self.U, self.V, self.W, n_modes=self.n_modes)
 
 
@@ -48,7 +48,7 @@ class DMDWorker(BaseWorker):
         self.fs = fs
 
     def compute(self):
-        from core.dmd import build_snapshot_matrix, compute_dmd, scale_to_physical
+        from uprime.core.dmd import build_snapshot_matrix, compute_dmd, scale_to_physical
         U = self.U.copy()
         V = self.V.copy()
         W = self.W.copy() if self.W is not None else None
@@ -81,7 +81,7 @@ class TKEBudgetWorker(BaseWorker):
         self.compute_dkdt = compute_dkdt
 
     def compute(self):
-        from core.tke_budget import compute_tke_budget
+        from uprime.core.tke_budget import compute_tke_budget
         return compute_tke_budget(self.U, self.V, self.W,
                                    self.x, self.y,
                                    mask=self.mask,
@@ -106,7 +106,7 @@ class CorrelationWorker(BaseWorker):
         self.roi_coords = roi_coords
 
     def compute(self):
-        from core.two_point_corr import (
+        from uprime.core.two_point_corr import (
             compute_spatial_correlation_point,
             compute_spatial_correlation_roi,
             compute_temporal_correlation,
@@ -157,7 +157,7 @@ class SpectraWorker(BaseWorker):
         self.kwargs = kwargs
 
     def compute(self):
-        from core.spectra import compute_spectra
+        from uprime.core.spectra import compute_spectra
         return compute_spectra(**self.kwargs)
 
 
@@ -172,7 +172,7 @@ class VortexWorker(BaseWorker):
         self.S = S
 
     def compute(self):
-        from core.vortex_id import (compute_gradients, compute_vortex_fields,
+        from uprime.core.vortex_id import (compute_gradients, compute_vortex_fields,
                                      compute_gamma)
         U, V = self.U, self.V
         if self.field_key == 'gamma1':
@@ -195,7 +195,7 @@ class ProbabilityWorker(BaseWorker):
         self.kwargs = kwargs
 
     def compute(self):
-        from core import probability as prob
+        from uprime.core import probability as prob
         cb = self.progress.emit
         task = self.task
         kw = self.kwargs
@@ -243,7 +243,7 @@ class ReynoldsWorker(BaseWorker):
         self.U, self.V, self.W = U, V, W
 
     def compute(self):
-        from core.reynolds_stress import (compute_reynolds_stresses,
+        from uprime.core.reynolds_stress import (compute_reynolds_stresses,
                                            compute_reynolds_stress_std)
         stresses, k = compute_reynolds_stresses(self.U, self.V, self.W)
         std = compute_reynolds_stress_std(self.U, self.V, self.W)

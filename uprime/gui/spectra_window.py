@@ -28,18 +28,18 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle as MplRect
 
-from core.spatial_spectra import spatial_psd_line, spatial_psd_roi
+from uprime.core.spatial_spectra import spatial_psd_line, spatial_psd_roi
 try:
-    from core.spatial_spectra_fft import compute_spectra_from_fluctuations, subtract_temporal_mean
+    from uprime.core.spatial_spectra_fft import compute_spectra_from_fluctuations, subtract_temporal_mean
     PYFFTW_AVAILABLE = True
 except ImportError:
     PYFFTW_AVAILABLE = False
-from core.spatiotemporal_spectra import compute_st_spectra
-from core.spectral import psd_at_point, psd_in_region, nearest_grid_point
-from core.export import export_spectra_csv
-from gui.line_selector import compute_snapped_line
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from gui.comparison_mixin import ComparisonMixin
+from uprime.core.spatiotemporal_spectra import compute_st_spectra
+from uprime.core.spectral import psd_at_point, psd_in_region, nearest_grid_point
+from uprime.core.export import export_spectra_csv
+from uprime.gui.line_selector import compute_snapped_line
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.gui.comparison_mixin import ComparisonMixin
 
 
 class SpectraWindow(PickerMixin, ComparisonMixin, QWidget):
@@ -84,7 +84,7 @@ class SpectraWindow(PickerMixin, ComparisonMixin, QWidget):
         return True
 
     def _build_ui(self):
-        from core.constants import CONVERGENCE_WARNING_N
+        from uprime.core.constants import CONVERGENCE_WARNING_N
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -414,7 +414,7 @@ class SpectraWindow(PickerMixin, ComparisonMixin, QWidget):
 
     def _draw_field(self):
         ds = self.dataset; x, y = ds["x"], ds["y"]
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         speed = np.sqrt(np.nanmean(get_masked(ds,"U"),axis=2)**2 +
                         np.nanmean(get_masked(ds,"V"),axis=2)**2)
         speed[~ds["MASK"]] = np.nan
@@ -608,8 +608,8 @@ class SpectraWindow(PickerMixin, ComparisonMixin, QWidget):
         if self._selection is None and tab != 1:
             return
 
-        from core.dataset_utils import get_masked
-        from core.workers import SpectraWorker
+        from uprime.core.dataset_utils import get_masked
+        from uprime.core.workers import SpectraWorker
 
         if hasattr(self, '_worker') and self._worker.isRunning():
             self._worker.terminate()

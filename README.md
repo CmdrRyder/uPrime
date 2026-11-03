@@ -9,9 +9,9 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo_dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="assets/logo.png">
-    <img src="assets/logo.png" width="200">
+    <source media="(prefers-color-scheme: dark)" srcset="uprime/assets/logo_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="uprime/assets/logo.png">
+    <img src="uprime/assets/logo.png" width="200">
   </picture>
 </p>
 
@@ -48,9 +48,14 @@ git clone https://github.com/CmdrRyder/uPrime.git
 cd uPrime
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
-python main.py
+pip install -e .
+uprime
 ```
+
+> `python main.py` still works too, if you prefer not to use the `uprime` command.
+>
+> For the optional FFTW speedup in the 3-D spatial spectra module:
+> `pip install -e ".[fftw]"`
 
 > If you see a Qt platform plugin error on first run, try: `pip install PyQt6`
 
@@ -64,9 +69,14 @@ git clone https://github.com/CmdrRyder/uPrime.git
 cd uPrime
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
-python main.py
+pip install -e .
+uprime
 ```
+
+> `python main.py` still works too, if you prefer not to use the `uprime` command.
+>
+> For the optional FFTW speedup in the 3-D spatial spectra module:
+> `pip install -e ".[fftw]"`
 
 > If pyfftw fails to install, uPrime falls back to numpy FFT automatically. Install everything else and skip it if needed.
 
@@ -75,9 +85,14 @@ python main.py
 ```bash
 git clone https://github.com/CmdrRyder/uPrime.git
 cd uPrime
-pip install -r requirements.txt
-python main.py
+pip install -e .
+uprime
 ```
+
+> `python main.py` still works too, if you prefer not to use the `uprime` command.
+>
+> For the optional FFTW speedup in the 3-D spatial spectra module:
+> `pip install -e ".[fftw]"`
 
 ---
 

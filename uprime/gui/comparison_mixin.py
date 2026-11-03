@@ -410,7 +410,7 @@ class ComparisonMixin:
                     "No common data columns found across the imported cases.")
                 return
             module_name = getattr(self, "_module_name", type(self).__name__)
-            from gui.quantity_selector_dialog import QuantitySelectorDialog
+            from uprime.gui.quantity_selector_dialog import QuantitySelectorDialog
             dlg = QuantitySelectorDialog(quantity_names, module_name, parent=self)
             if not dlg.exec():
                 return
@@ -432,7 +432,7 @@ class ComparisonMixin:
     # ------------------------------------------------------------------ #
 
     def _open_case_manager(self):
-        from gui.case_manager_dialog import CaseManagerDialog
+        from uprime.gui.case_manager_dialog import CaseManagerDialog
         if self._comparison_case_mgr_dlg is None:
             self._comparison_case_mgr_dlg = CaseManagerDialog(
                 parent=self, cases=self._cases)

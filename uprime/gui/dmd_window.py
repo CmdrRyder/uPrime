@@ -25,11 +25,11 @@ matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from core.dmd import (
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.core.dmd import (
     build_snapshot_matrix, compute_dmd, scale_to_physical, get_mode_components
 )
-from core.export import export_2d_tecplot
+from uprime.core.export import export_2d_tecplot
 
 _FONT_AX   = 9
 _FONT_TICK = 8
@@ -345,8 +345,8 @@ class DmdWindow(PickerMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _on_compute(self):
-        from core.dataset_utils import get_masked
-        from core.workers import DMDWorker
+        from uprime.core.dataset_utils import get_masked
+        from uprime.core.workers import DMDWorker
 
         if hasattr(self, '_worker') and self._worker.isRunning():
             self._worker.terminate()

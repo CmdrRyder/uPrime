@@ -15,7 +15,7 @@ def compute_spectra(**kw):
     # Spatial  E(k) along a line
     # ------------------------------------------------------------------
     if tab == 'spatial':
-        from core.spatial_spectra import spatial_psd_line
+        from uprime.core.spatial_spectra import spatial_psd_line
         k, psds = spatial_psd_line(
             kw['U'], kw['V'], kw['W'],
             kw['x'], kw['y'],
@@ -29,7 +29,7 @@ def compute_spectra(**kw):
     # 3-D spatial  E(k) via FFT inside an ROI
     # ------------------------------------------------------------------
     elif tab == '3d_spatial':
-        from core.spatial_spectra_fft import (compute_spectra_from_fluctuations,
+        from uprime.core.spatial_spectra_fft import (compute_spectra_from_fluctuations,
                                                subtract_temporal_mean)
         U_roi = kw['U_roi']
         V_roi = kw['V_roi']
@@ -88,7 +88,7 @@ def compute_spectra(**kw):
     # Temporal  E(f) at a point or rectangle
     # ------------------------------------------------------------------
     elif tab == 'temporal':
-        from core.spectral import psd_at_point, psd_in_region
+        from uprime.core.spectral import psd_at_point, psd_in_region
         sel_type = kw['sel_type']
         if sel_type == 'temp_point':
             freq, psds = psd_at_point(
@@ -111,7 +111,7 @@ def compute_spectra(**kw):
     # Spatiotemporal  E(k, f)
     # ------------------------------------------------------------------
     elif tab == 'st':
-        from core.spatiotemporal_spectra import compute_st_spectra
+        from uprime.core.spatiotemporal_spectra import compute_st_spectra
         k, f, psds = compute_st_spectra(
             kw['U'], kw['V'], kw['W'],
             kw['x'], kw['y'],

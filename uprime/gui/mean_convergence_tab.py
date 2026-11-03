@@ -34,13 +34,13 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle as MplRect
 
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from gui.comparison_mixin import ComparisonMixin
-from gui.line_selector import LineSelectorWidget, compute_snapped_line
-from core.reynolds_stress import extract_line_profile
-from core.line_sample import sample_along_line
-from core.export import export_line_csv, _settings_header
-from core.mean_convergence_core import (
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.gui.comparison_mixin import ComparisonMixin
+from uprime.gui.line_selector import LineSelectorWidget, compute_snapped_line
+from uprime.core.reynolds_stress import extract_line_profile
+from uprime.core.line_sample import sample_along_line
+from uprime.core.export import export_line_csv, _settings_header
+from uprime.core.mean_convergence_core import (
     compute_mean_fields, compute_convergence, find_convergence_n,
 )
 

@@ -31,9 +31,9 @@ matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-from gui.arrow_toolbar import DrawAwareToolbar
-from core.export import export_2d_tecplot
-from core.pod import compute_pod, reconstruct_snapshot
+from uprime.gui.arrow_toolbar import DrawAwareToolbar
+from uprime.core.export import export_2d_tecplot
+from uprime.core.pod import compute_pod, reconstruct_snapshot
 
 _CMAP_DIV   = "RdBu_r"
 _FONT_AX    = 9
@@ -107,7 +107,7 @@ class PODWindow(QWidget):
 
         self._x        = dataset["x"]
         self._y        = dataset["y"]
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         self.U = get_masked(dataset, "U")
         self.V = get_masked(dataset, "V")
         self.W = get_masked(dataset, "W")
@@ -405,7 +405,7 @@ class PODWindow(QWidget):
             self._worker.terminate()
             self._worker.wait()
 
-        from core.workers import PODWorker
+        from uprime.core.workers import PODWorker
         n_modes = self.spin_n_modes.value()
         W = self.W if self.is_stereo else None
 

@@ -14,7 +14,7 @@
 # for more details. <https://www.gnu.org/licenses/>.
 
 import numpy as np
-from core.dataset_utils import get_masked
+from uprime.core.dataset_utils import get_masked
 
 
 def compute_mean_fields(dataset):

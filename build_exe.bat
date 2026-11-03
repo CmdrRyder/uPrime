@@ -79,8 +79,8 @@ pyinstaller ^
     --onefile ^
     --windowed ^
     --name uPrime_v0.8.2 ^
-    --add-data "assets;assets" ^
-    --add-data "version.txt;." ^
+    --add-data "uprime/assets;assets" ^
+    --add-data "uprime/version.txt;." ^
     --collect-all matplotlib ^
     --hidden-import matplotlib.backends.backend_qtagg ^
     --hidden-import matplotlib.backends.backend_qt ^

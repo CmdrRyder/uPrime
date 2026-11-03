@@ -25,12 +25,12 @@ import matplotlib
 matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
 from matplotlib.figure import Figure
 
-from core.reynolds_stress import compute_reynolds_stresses, extract_line_profile, compute_tke_std
-from gui.line_selector import LineSelectorWidget, compute_snapped_line
-from core.export import export_2d_tecplot, export_line_csv
+from uprime.core.reynolds_stress import compute_reynolds_stresses, extract_line_profile, compute_tke_std
+from uprime.gui.line_selector import LineSelectorWidget, compute_snapped_line
+from uprime.core.export import export_2d_tecplot, export_line_csv
 
 
 class TKEWindow(PickerMixin, QWidget):
@@ -48,7 +48,7 @@ class TKEWindow(PickerMixin, QWidget):
         self._selection   = None
 
         # Pre-compute stresses
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         _U = get_masked(dataset, "U")
         _V = get_masked(dataset, "V")
         _W = get_masked(dataset, "W")
@@ -197,7 +197,7 @@ class TKEWindow(PickerMixin, QWidget):
     def _draw_field(self):
         ds    = self.dataset
         x, y  = ds["x"], ds["y"]
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         speed = np.sqrt(np.nanmean(get_masked(ds, "U"), axis=2)**2 +
                         np.nanmean(get_masked(ds, "V"), axis=2)**2)
         speed[~ds["MASK"]] = np.nan

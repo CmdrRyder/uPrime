@@ -61,29 +61,29 @@ def dataset_stereo(dataset):
 
 class TestDatasetUtils:
     def test_get_masked_applies_mask(self, dataset):
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         assert np.all(np.isnan(U[0, :, :]))
         assert np.all(np.isnan(U[-1, :, :]))
         assert not np.any(np.isnan(U[1:-1, :, :]))
 
     def test_get_masked_inactive(self, dataset):
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         dataset["mask_active"] = False
         U = get_masked(dataset, "U")
         assert not np.any(np.isnan(U))
         dataset["mask_active"] = True
 
     def test_get_masked_none(self, dataset):
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         W = get_masked(dataset, "W")
         assert W is None
 
 
 class TestTKEBudget:
     def test_budget_runs(self, dataset):
-        from core.tke_budget import compute_tke_budget
-        from core.dataset_utils import get_masked
+        from uprime.core.tke_budget import compute_tke_budget
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         result = compute_tke_budget(U, V, None,
@@ -96,8 +96,8 @@ class TestTKEBudget:
         assert "R" in result
 
     def test_k_positive(self, dataset):
-        from core.tke_budget import compute_tke_budget
-        from core.dataset_utils import get_masked
+        from uprime.core.tke_budget import compute_tke_budget
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         result = compute_tke_budget(U, V, None,
@@ -108,8 +108,8 @@ class TestTKEBudget:
 
     def test_k_units_order_of_magnitude(self, dataset):
         """k should be O(u'^2) ~ 0.01 m^2/s^2 for 10% turbulence intensity."""
-        from core.tke_budget import compute_tke_budget
-        from core.dataset_utils import get_masked
+        from uprime.core.tke_budget import compute_tke_budget
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         result = compute_tke_budget(U, V, None,
@@ -121,8 +121,8 @@ class TestTKEBudget:
 
 class TestCorrelation:
     def test_spatial_correlation_point_returns_one_at_zero(self, dataset):
-        from core.two_point_corr import compute_spatial_correlation_point
-        from core.dataset_utils import get_masked
+        from uprime.core.two_point_corr import compute_spatial_correlation_point
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         # Returns (R_norm, R_x, R_y)
@@ -131,8 +131,8 @@ class TestCorrelation:
         assert abs(R_norm[7, 10] - 1.0) < 0.05
 
     def test_spatial_correlation_bounded(self, dataset):
-        from core.two_point_corr import compute_spatial_correlation_point
-        from core.dataset_utils import get_masked
+        from uprime.core.two_point_corr import compute_spatial_correlation_point
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         R_norm, R_x, R_y = compute_spatial_correlation_point(
@@ -143,8 +143,8 @@ class TestCorrelation:
 
 class TestVortexID:
     def test_gradients_shape(self, dataset):
-        from core.vortex_id import compute_gradients
-        from core.dataset_utils import get_masked
+        from uprime.core.vortex_id import compute_gradients
+        from uprime.core.dataset_utils import get_masked
         U_mean = np.nanmean(get_masked(dataset, "U"), axis=2)
         V_mean = np.nanmean(get_masked(dataset, "V"), axis=2)
         grads = compute_gradients(U_mean, V_mean,
@@ -155,8 +155,8 @@ class TestVortexID:
             assert grads[key].shape == (ny, nx), f"{key} wrong shape"
 
     def test_vortex_fields_keys(self, dataset):
-        from core.vortex_id import compute_gradients, compute_vortex_fields
-        from core.dataset_utils import get_masked
+        from uprime.core.vortex_id import compute_gradients, compute_vortex_fields
+        from uprime.core.dataset_utils import get_masked
         U_mean = np.nanmean(get_masked(dataset, "U"), axis=2)
         V_mean = np.nanmean(get_masked(dataset, "V"), axis=2)
         grads = compute_gradients(U_mean, V_mean,
@@ -167,8 +167,8 @@ class TestVortexID:
             assert key in fields, f"Missing field: {key}"
 
     def test_lambda_ci_not_all_nan(self, dataset):
-        from core.vortex_id import compute_gradients, compute_vortex_fields
-        from core.dataset_utils import get_masked
+        from uprime.core.vortex_id import compute_gradients, compute_vortex_fields
+        from uprime.core.dataset_utils import get_masked
         U_mean = np.nanmean(get_masked(dataset, "U"), axis=2)
         V_mean = np.nanmean(get_masked(dataset, "V"), axis=2)
         grads = compute_gradients(U_mean, V_mean,
@@ -180,9 +180,9 @@ class TestVortexID:
         assert finite.size > 0, "lambda_ci is all NaN"
 
     def test_detect_vortices_returns_list(self, dataset):
-        from core.vortex_id import (compute_gradients, compute_vortex_fields,
+        from uprime.core.vortex_id import (compute_gradients, compute_vortex_fields,
                                     detect_vortices)
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         U_mean = np.nanmean(get_masked(dataset, "U"), axis=2)
         V_mean = np.nanmean(get_masked(dataset, "V"), axis=2)
         grads = compute_gradients(U_mean, V_mean,
@@ -207,8 +207,8 @@ class TestPOD:
     # returns: energy_frac, modes shape (n_modes, ny, nx, Nc), eigenvalues
 
     def test_pod_runs_and_energy_sums_to_one(self, dataset):
-        from core.pod import compute_pod
-        from core.dataset_utils import get_masked
+        from uprime.core.pod import compute_pod
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         result = compute_pod(U, V, None, n_modes=10)
@@ -219,8 +219,8 @@ class TestPOD:
         assert abs(total - 1.0) < 0.01, f"energy_frac sums to {total}, expected 1.0"
 
     def test_pod_mode_shapes(self, dataset):
-        from core.pod import compute_pod
-        from core.dataset_utils import get_masked
+        from uprime.core.pod import compute_pod
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         result = compute_pod(U, V, None, n_modes=5)
@@ -230,8 +230,8 @@ class TestPOD:
         assert result["modes"].shape[1:3] == (ny, nx)
 
     def test_pod_energy_descending(self, dataset):
-        from core.pod import compute_pod
-        from core.dataset_utils import get_masked
+        from uprime.core.pod import compute_pod
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         result = compute_pod(U, V, None, n_modes=10)
@@ -241,8 +241,8 @@ class TestPOD:
 
 class TestDMD:
     def test_dmd_runs(self, dataset):
-        from core.dmd import build_snapshot_matrix, compute_dmd, scale_to_physical
-        from core.dataset_utils import get_masked
+        from uprime.core.dmd import build_snapshot_matrix, compute_dmd, scale_to_physical
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U").astype(float)
         V = get_masked(dataset, "V").astype(float)
         U -= np.nanmean(U, axis=2, keepdims=True)
@@ -260,8 +260,8 @@ class TestDMD:
         assert result["modes"].shape[1] == result["rank"]
 
     def test_dmd_frequencies_finite(self, dataset):
-        from core.dmd import build_snapshot_matrix, compute_dmd, scale_to_physical
-        from core.dataset_utils import get_masked
+        from uprime.core.dmd import build_snapshot_matrix, compute_dmd, scale_to_physical
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U").astype(float)
         V = get_masked(dataset, "V").astype(float)
         U -= np.nanmean(U, axis=2, keepdims=True)
@@ -277,14 +277,14 @@ class TestDMD:
 
 class TestLoader:
     def test_estimate_dataset_size(self):
-        from core.loader import estimate_dataset_size
+        from uprime.core.loader import estimate_dataset_size
         header = {"ny": 50, "nx": 40, "is_stereo": False}
         size = estimate_dataset_size(["f"] * 100, header, stride=1)
         expected = 50 * 40 * 100 * 2 * 4
         assert size == expected
 
     def test_estimate_dataset_size_stride(self):
-        from core.loader import estimate_dataset_size
+        from uprime.core.loader import estimate_dataset_size
         header = {"ny": 50, "nx": 40, "is_stereo": False}
         size_stride1 = estimate_dataset_size(["f"] * 100, header, stride=1)
         size_stride2 = estimate_dataset_size(["f"] * 100, header, stride=2)
@@ -297,7 +297,7 @@ class TestLoader:
 
 class TestGUISmoke:
     def test_main_window_opens(self, qapp):
-        from gui.main_window import MainWindow
+        from uprime.gui.main_window import MainWindow
         win = MainWindow()
         win.show()
         qapp.processEvents()
@@ -305,7 +305,7 @@ class TestGUISmoke:
         win.close()
 
     def test_reynolds_window_opens(self, qapp, dataset):
-        from gui.reynolds_window import ReynoldsWindow
+        from uprime.gui.reynolds_window import ReynoldsWindow
         win = ReynoldsWindow(dataset)
         win.show()
         qapp.processEvents()
@@ -313,7 +313,7 @@ class TestGUISmoke:
         win.close()
 
     def test_tke_window_opens(self, qapp, dataset):
-        from gui.tke_budget_window import TKEBudgetWindow
+        from uprime.gui.tke_budget_window import TKEBudgetWindow
         win = TKEBudgetWindow(dataset)
         win.show()
         qapp.processEvents()
@@ -321,7 +321,7 @@ class TestGUISmoke:
         win.close()
 
     def test_correlation_window_opens(self, qapp, dataset):
-        from gui.correlation_window import CorrelationWindow
+        from uprime.gui.correlation_window import CorrelationWindow
         win = CorrelationWindow(dataset)
         win.show()
         qapp.processEvents()
@@ -329,7 +329,7 @@ class TestGUISmoke:
         win.close()
 
     def test_pod_window_opens(self, qapp, dataset):
-        from gui.pod_window import PODWindow
+        from uprime.gui.pod_window import PODWindow
         win = PODWindow(dataset)
         win.show()
         qapp.processEvents()
@@ -337,7 +337,7 @@ class TestGUISmoke:
         win.close()
 
     def test_vortex_window_opens(self, qapp, dataset):
-        from gui.vortex_window import VortexWindow
+        from uprime.gui.vortex_window import VortexWindow
         win = VortexWindow(dataset)
         win.show()
         qapp.processEvents()
@@ -346,7 +346,7 @@ class TestGUISmoke:
 
     def test_dmd_window_does_not_crash(self, qapp, dataset):
         """DMD window should open or gracefully reject the dataset -- no crash."""
-        from gui.dmd_window import DmdWindow
+        from uprime.gui.dmd_window import DmdWindow
         try:
             win = DmdWindow(dataset, fs=1000.0)
             qapp.processEvents()
@@ -355,7 +355,7 @@ class TestGUISmoke:
             pass
 
     def test_spatial_spectra_window_opens(self, qapp, dataset):
-        from gui.spatial_spectra_window import SpatialSpectraWindow
+        from uprime.gui.spatial_spectra_window import SpatialSpectraWindow
         win = SpatialSpectraWindow(dataset, is_time_resolved=False, fs=1000.0)
         win.show()
         qapp.processEvents()
@@ -370,8 +370,8 @@ class TestGUISmoke:
 class TestNumericalRegression:
     def test_tke_equals_half_variance_sum(self, dataset):
         """k = 0.5*(uu + vv) for 2D2C data."""
-        from core.tke_budget import compute_tke_budget
-        from core.dataset_utils import get_masked
+        from uprime.core.tke_budget import compute_tke_budget
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         result = compute_tke_budget(U, V, None,
@@ -392,8 +392,8 @@ class TestNumericalRegression:
 
     def test_pod_reconstruction_improves_with_modes(self, dataset):
         """Adding more POD modes should capture more energy."""
-        from core.pod import compute_pod
-        from core.dataset_utils import get_masked
+        from uprime.core.pod import compute_pod
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(dataset, "U")
         V = get_masked(dataset, "V")
         result = compute_pod(U, V, None, n_modes=20)
@@ -404,8 +404,8 @@ class TestNumericalRegression:
 
     def test_spatial_gradient_units(self, dataset):
         """dU/dx should be O(100) 1/s for U~2 m/s over x~10 mm."""
-        from core.vortex_id import compute_gradients
-        from core.dataset_utils import get_masked
+        from uprime.core.vortex_id import compute_gradients
+        from uprime.core.dataset_utils import get_masked
         U_mean = np.nanmean(get_masked(dataset, "U"), axis=2)
         V_mean = np.nanmean(get_masked(dataset, "V"), axis=2)
         grads = compute_gradients(U_mean, V_mean,
@@ -470,7 +470,7 @@ def _write_velocity_dat(path, nx, ny, scale=1.0, nan_at=None):
 
 class TestCaseIO:
     def test_parse_line_csv_header_and_series(self, tmp_path):
-        from core.case_io import read_case_file
+        from uprime.core.case_io import read_case_file
         p = tmp_path / "rey_line.csv"
         p.write_text(_LINE_CSV, encoding="utf-8")
 
@@ -505,7 +505,7 @@ class TestCaseIO:
         np.testing.assert_allclose(s.y_data, [1.0, 1.5, 2.0])
 
     def test_quantity_key_detection(self):
-        from core.case_io import detect_quantity_key
+        from uprime.core.case_io import detect_quantity_key
         assert detect_quantity_key("mean_u") == "U"
         assert detect_quantity_key("mean_v") == "V"
         assert detect_quantity_key("mean_w") == "W"
@@ -520,7 +520,7 @@ class TestCaseIO:
         assert detect_quantity_key("PSD_u_m2s2_per_Hz") == "PSD_u_m2s2_per_Hz"
 
     def test_frequency_detection_and_um(self, tmp_path):
-        from core.case_io import read_case_file
+        from uprime.core.case_io import read_case_file
         content = (
             "# uPrime Export\n"
             "# ==================================================\n"
@@ -543,7 +543,7 @@ class TestCaseIO:
         assert s.y_units == "m²/s²/Hz"
 
     def test_tecplot_dat_flagged_2d_with_metadata(self, tmp_path):
-        from core.case_io import read_case_file
+        from uprime.core.case_io import read_case_file
         p = tmp_path / "field.dat"
         p.write_text(_TECPLOT_DAT, encoding="utf-8")
         rec = read_case_file(str(p))
@@ -554,7 +554,7 @@ class TestCaseIO:
         assert rec.twod_quantities == ["<u'u'>"]
 
     def test_unknown_x_then_manual_override(self, tmp_path):
-        from core.case_io import read_case_file
+        from uprime.core.case_io import read_case_file
         content = "col_a,col_b\n0.0,1.0\n1.0,2.0\n2.0,3.0\n"
         p = tmp_path / "custom.csv"
         p.write_text(content, encoding="utf-8")
@@ -568,7 +568,7 @@ class TestCaseIO:
         np.testing.assert_allclose(series[0].x_data, [0.0, 1.0, 2.0])
 
     def test_nan_safe_blank_cells(self, tmp_path):
-        from core.case_io import read_case_file
+        from uprime.core.case_io import read_case_file
         content = (
             "# Analysis                 : Mean Velocity - Line Profile\n"
             "dist_mm,x_mm,y_mm,mean_u\n"
@@ -584,7 +584,7 @@ class TestCaseIO:
         assert np.isfinite(s.y_data[0]) and np.isfinite(s.y_data[2])
 
     def test_load_2d_velocity_field(self, tmp_path):
-        from core.case_io import read_case_file
+        from uprime.core.case_io import read_case_file
         nx, ny = 4, 3
         p = tmp_path / "vel.dat"
         _write_velocity_dat(p, nx, ny, scale=1.0, nan_at=(ny - 1, 0))
@@ -609,7 +609,7 @@ class TestCaseIO:
         assert "U" in rec.value_ranges
 
     def test_extract_all_components_routing(self, qapp, tmp_path):
-        from gui.compare_window import CompareWindow
+        from uprime.gui.compare_window import CompareWindow
         pA = tmp_path / "caseA.dat"
         pB = tmp_path / "caseB.dat"
         _write_velocity_dat(pA, 8, 5, scale=1.0)
@@ -647,7 +647,7 @@ class TestCaseIO:
         assert len(w._current_series()) == 2
 
     def test_extract_save_writes_merged_csv(self, qapp, tmp_path, monkeypatch):
-        from gui.compare_window import CompareWindow
+        from uprime.gui.compare_window import CompareWindow
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
         pA = tmp_path / "caseA.dat"
         _write_velocity_dat(pA, 8, 5, scale=1.0)
@@ -700,7 +700,7 @@ class TestLumleyCompare:
     # -- pairing logic in _build_series ------------------------------------
 
     def test_pairing_both_present(self, tmp_path):
-        from core.case_io import read_case_file, LUMLEY_KEY
+        from uprime.core.case_io import read_case_file, LUMLEY_KEY
         p = tmp_path / "aniso.csv"
         self._write_aniso_csv(p)
         rec = read_case_file(str(p))
@@ -719,7 +719,7 @@ class TestLumleyCompare:
         assert lum.c_label == "Distance along line [mm]"
 
     def test_pairing_missing_column_no_entry(self, tmp_path):
-        from core.case_io import read_case_file, LUMLEY_KEY
+        from uprime.core.case_io import read_case_file, LUMLEY_KEY
         content = "dist_mm,x_mm,y_mm,mean_-II\n0.0,0.0,2.0,0.05\n1.0,1.0,2.0,0.10\n"
         p = tmp_path / "partial.csv"
         p.write_text(content, encoding="utf-8")
@@ -728,7 +728,7 @@ class TestLumleyCompare:
         assert LUMLEY_KEY not in {s.quantity_key for s in rec.series}
 
     def test_pairing_mismatched_lengths_skipped(self):
-        from core.case_io import _build_series, FileRecord, NEG_II_COL, III_COL, LUMLEY_KEY
+        from uprime.core.case_io import _build_series, FileRecord, NEG_II_COL, III_COL, LUMLEY_KEY
         rec = FileRecord(source_file="x.csv", path="x.csv")
         rec.x_col = "dist_mm"
         rec.x_type, rec.x_label, rec.x_units = "arc_length", "s", "mm"
@@ -744,8 +744,8 @@ class TestLumleyCompare:
     # -- headless plotting in the compare window -----------------------------
 
     def test_variable_last_and_checkbox_visibility(self, qapp, tmp_path):
-        from gui.compare_window import CompareWindow
-        from core.case_io import LUMLEY_KEY
+        from uprime.gui.compare_window import CompareWindow
+        from uprime.core.case_io import LUMLEY_KEY
         p = tmp_path / "aniso.csv"
         self._write_aniso_csv(p)
         w = CompareWindow()
@@ -758,8 +758,8 @@ class TestLumleyCompare:
         assert w.chk_color_by_distance.isHidden()
 
     def test_plot_off_mode_boundary_and_scatter(self, qapp, tmp_path):
-        from gui.compare_window import CompareWindow
-        from core.case_io import LUMLEY_KEY
+        from uprime.gui.compare_window import CompareWindow
+        from uprime.core.case_io import LUMLEY_KEY
         pA, pB = tmp_path / "caseA.csv", tmp_path / "caseB.csv"
         self._write_aniso_csv(pA, offset=0.0)
         self._write_aniso_csv(pB, offset=0.01)
@@ -775,8 +775,8 @@ class TestLumleyCompare:
         assert labels == {"caseA", "caseB"}
 
     def test_plot_colorbar_mode_shared_scale_and_markers(self, qapp, tmp_path):
-        from gui.compare_window import CompareWindow
-        from core.case_io import LUMLEY_KEY
+        from uprime.gui.compare_window import CompareWindow
+        from uprime.core.case_io import LUMLEY_KEY
         pA, pB = tmp_path / "caseA.csv", tmp_path / "caseB.csv"
         self._write_aniso_csv(pA, offset=0.0)
         self._write_aniso_csv(pB, offset=0.01)
@@ -795,8 +795,8 @@ class TestLumleyCompare:
             assert h.get_color() == "black"
 
     def test_checkbox_hidden_for_other_variable_after_lumley(self, qapp, tmp_path):
-        from gui.compare_window import CompareWindow
-        from core.case_io import LUMLEY_KEY
+        from uprime.gui.compare_window import CompareWindow
+        from uprime.core.case_io import LUMLEY_KEY
         p = tmp_path / "aniso.csv"
         self._write_aniso_csv(p)
         w = CompareWindow()
@@ -809,8 +809,8 @@ class TestLumleyCompare:
         assert len(w.fig.axes) == 1                 # ordinary plot, no colorbar
 
     def test_export_lumley_csv_per_case_columns(self, qapp, tmp_path):
-        from gui.compare_window import CompareWindow
-        from core.case_io import LUMLEY_KEY
+        from uprime.gui.compare_window import CompareWindow
+        from uprime.core.case_io import LUMLEY_KEY
         pA, pB = tmp_path / "caseA.csv", tmp_path / "caseB.csv"
         self._write_aniso_csv(pA, offset=0.0)
         self._write_aniso_csv(pB, offset=0.01)
@@ -850,12 +850,12 @@ def _write_davis_vc7(path, ny, nx, scale=1.0, stereo=False, mask_corner=True):
 class TestDavisIO:
     def test_has_lvpyio_flag_importable(self):
         # Import must always succeed (guarded); the flag reflects availability.
-        from core.davis_io import HAS_LVPYIO
+        from uprime.core.davis_io import HAS_LVPYIO
         assert isinstance(HAS_LVPYIO, bool)
 
     def test_load_davis_2c_contract(self, tmp_path):
         pytest.importorskip("lvpyio")
-        from core.davis_io import load_davis
+        from uprime.core.davis_io import load_davis
         ny, nx, nt = 4, 5, 3
         paths = []
         for k in range(nt):
@@ -887,7 +887,7 @@ class TestDavisIO:
 
     def test_load_davis_3c_is_stereo(self, tmp_path):
         pytest.importorskip("lvpyio")
-        from core.davis_io import load_davis
+        from uprime.core.davis_io import load_davis
         paths = []
         for k in range(2):
             p = tmp_path / f"B{k:04d}.vc7"
@@ -899,7 +899,7 @@ class TestDavisIO:
 
     def test_reject_set_selection(self, tmp_path):
         pytest.importorskip("lvpyio")
-        from core.davis_io import load_davis
+        from uprime.core.davis_io import load_davis
         # .set is no longer supported — rejected by extension (no read needed).
         with pytest.raises(ValueError) as exc:
             load_davis(str(tmp_path / "recording.set"))
@@ -907,13 +907,13 @@ class TestDavisIO:
 
     def test_reject_image_extension(self, tmp_path):
         pytest.importorskip("lvpyio")
-        from core.davis_io import load_davis
+        from uprime.core.davis_io import load_davis
         with pytest.raises(ValueError):
             load_davis(str(tmp_path / "frame.im7"))
 
     def test_load_multi_vc7_stacks_and_orders(self, tmp_path):
         pytest.importorskip("lvpyio")
-        from core.davis_io import load_davis, davis_snapshot_count
+        from uprime.core.davis_io import load_davis, davis_snapshot_count
         ny, nx = 4, 5
         # Deliberately provide the files out of order with names that would sort
         # WRONG lexically if not zero-padded-aware; each file's scalar = index.
@@ -941,7 +941,7 @@ class TestDavisIO:
 
     def test_multi_vc7_subset(self, tmp_path):
         pytest.importorskip("lvpyio")
-        from core.davis_io import load_davis
+        from uprime.core.davis_io import load_davis
         paths = []
         for k in range(4):
             p = tmp_path / f"B{k:04d}.vc7"
@@ -952,7 +952,7 @@ class TestDavisIO:
 
     def test_multi_vc7_grid_mismatch_named(self, tmp_path):
         pytest.importorskip("lvpyio")
-        from core.davis_io import load_davis
+        from uprime.core.davis_io import load_davis
         good1 = tmp_path / "B0001.vc7"; _write_davis_vc7(good1, 4, 5, scale=1.0)
         good2 = tmp_path / "B0002.vc7"; _write_davis_vc7(good2, 4, 5, scale=2.0)
         bad   = tmp_path / "B0003.vc7"; _write_davis_vc7(bad, 6, 5, scale=3.0)
@@ -962,7 +962,7 @@ class TestDavisIO:
 
     def test_reject_single_vc7(self, tmp_path):
         pytest.importorskip("lvpyio")
-        from core.davis_io import load_davis
+        from uprime.core.davis_io import load_davis
         p = tmp_path / "B0001.vc7"
         _write_davis_vc7(p, 3, 3)
         with pytest.raises(ValueError):           # lone .vc7 = single snapshot
@@ -970,7 +970,7 @@ class TestDavisIO:
 
     def test_reject_set_mixed_with_vc7(self, tmp_path):
         pytest.importorskip("lvpyio")
-        from core.davis_io import load_davis
+        from uprime.core.davis_io import load_davis
         # Any selection containing a .set is rejected (no .set support at all).
         v = tmp_path / "B0001.vc7"
         _write_davis_vc7(v, 4, 5)
@@ -984,7 +984,7 @@ class TestDavisIO:
 
 class TestProbability:
     def test_direction_known_sign_pattern(self):
-        from core.probability import compute_direction_probability
+        from uprime.core.probability import compute_direction_probability
         ny, nx, Nt = 3, 4, 12
         f = np.ones((ny, nx, Nt))
         f[0, 0, :] = -1.0                 # all reverse
@@ -995,14 +995,14 @@ class TestProbability:
         assert r["p_forward"][2, 2] == 1.0
 
     def test_nan_counted_against_valid_only(self):
-        from core.probability import compute_direction_probability
+        from uprime.core.probability import compute_direction_probability
         g = np.ones((1, 1, 10)); g[0, 0, 5:] = np.nan   # 5 valid, all forward
         r = compute_direction_probability(g, None, 0.0)
         assert r["n_valid"][0, 0] == 5
         assert r["p_forward"][0, 0] == 1.0             # not 0.5 (would be /Nt)
 
     def test_fully_invalid_point_is_nan(self):
-        from core.probability import compute_direction_probability
+        from uprime.core.probability import compute_direction_probability
         import warnings
         h = np.full((1, 1, 8), np.nan)
         with warnings.catch_warnings():
@@ -1013,7 +1013,7 @@ class TestProbability:
         assert r["p_forward"][0, 0] != 0.0 or np.isnan(r["p_forward"][0, 0])
 
     def test_deadband_zero_is_strict_sign_bitforbit_and_sums_to_one(self):
-        from core.probability import compute_direction_probability
+        from uprime.core.probability import compute_direction_probability
         rng = np.random.default_rng(3)
         fld = rng.standard_normal((6, 7, 40))
         d0 = compute_direction_probability(fld, None, 0.0)
@@ -1025,7 +1025,7 @@ class TestProbability:
             assert np.allclose(s, 1.0)
 
     def test_chunk_invariance(self):
-        from core.probability import compute_direction_probability
+        from uprime.core.probability import compute_direction_probability
         rng = np.random.default_rng(4)
         fld = rng.standard_normal((5, 5, 37))
         base = compute_direction_probability(fld, None, 0.2, chunk=10_000)
@@ -1035,7 +1035,7 @@ class TestProbability:
             assert np.allclose(d["p_reverse"], base["p_reverse"], equal_nan=True)
 
     def test_extract_space_time_row_and_band(self):
-        from core.probability import extract_space_time
+        from uprime.core.probability import extract_space_time
         ny, nx, Nt = 6, 8, 10
         x = np.tile(np.linspace(0, 10, nx), (ny, 1))
         y = np.tile(np.linspace(0, 6, ny), (nx, 1)).T
@@ -1046,7 +1046,7 @@ class TestProbability:
         assert np.allclose(q2, np.nanmean(fld[1:4, :, :], axis=0))
 
     def test_binarize_codes_and_nan_never_forward(self):
-        from core.probability import binarize_space_time
+        from uprime.core.probability import binarize_space_time
         q = np.array([[1.0, -1.0, np.nan, 0.0, -0.05, 0.05]])
         st = binarize_space_time(q, 0.0)
         assert st.tolist() == [[1, 0, 3, 1, 0, 1]]
@@ -1057,7 +1057,7 @@ class TestProbability:
         assert st2[0, 2] == 3 and st2[0, 3] == 2
 
     def test_quadrant_q2_dominant(self):
-        from core.probability import compute_quadrant
+        from uprime.core.probability import compute_quadrant
         # one large Q2 event balanced by many small Q4 events -> zero mean,
         # covariance concentrated in Q2 (fraction (Nt-1)/Nt).
         Nt = 500; ny = nx = 2
@@ -1071,7 +1071,7 @@ class TestProbability:
         assert abs(sf[0]) < 1e-9 and abs(sf[2]) < 1e-9
 
     def test_quadrant_time_fractions_sum_to_one(self):
-        from core.probability import compute_quadrant
+        from uprime.core.probability import compute_quadrant
         rng = np.random.default_rng(7)
         ny = nx = 3; Nt = 240
         a = rng.normal(size=(ny, nx, Nt)); b = rng.normal(size=(ny, nx, Nt))
@@ -1084,7 +1084,7 @@ class TestProbability:
         assert np.allclose(tot[valid], 1.0, atol=1e-12)
 
     def test_quadrant_hole_zero_is_plain_decomposition(self):
-        from core.probability import compute_quadrant
+        from uprime.core.probability import compute_quadrant
         rng = np.random.default_rng(11)
         ny = nx = 2; Nt = 300
         a = rng.normal(size=(ny, nx, Nt)); b = rng.normal(size=(ny, nx, Nt))
@@ -1101,7 +1101,7 @@ class TestProbability:
             assert np.allclose(r["time_frac"][i], expect[i], atol=1e-12)
 
     def test_histogram_stats_recovers_gaussian(self):
-        from core.probability import histogram_stats
+        from uprime.core.probability import histogram_stats
         rng = np.random.default_rng(5)
         samp = rng.normal(2.0, 1.5, size=200_000)
         edges = np.linspace(-6, 10, 401)
@@ -1112,7 +1112,7 @@ class TestProbability:
         assert hs["kurtosis"] == pytest.approx(3.0, abs=0.15)   # non-excess
 
     def test_accumulate_histogram_region_and_mask(self):
-        from core.probability import estimate_bin_edges, accumulate_histogram
+        from uprime.core.probability import estimate_bin_edges, accumulate_histogram
         rng = np.random.default_rng(6)
         fld = rng.standard_normal((4, 5, 30))
         mask = np.ones((4, 5), dtype=bool); mask[0, :] = False
@@ -1124,7 +1124,7 @@ class TestProbability:
 
 class TestProbabilityRegion:
     def test_direction_roi_restricts_and_embeds_full_size(self):
-        from core.probability import compute_direction_probability
+        from uprime.core.probability import compute_direction_probability
         rng = np.random.default_rng(0)
         ny, nx, Nt = 10, 12, 40
         fld = rng.standard_normal((ny, nx, Nt))
@@ -1141,7 +1141,7 @@ class TestProbabilityRegion:
         assert r["region"] == ("roi", *roi)
 
     def test_direction_whole_domain_unchanged(self):
-        from core.probability import compute_direction_probability
+        from uprime.core.probability import compute_direction_probability
         rng = np.random.default_rng(1)
         fld = rng.standard_normal((6, 7, 30))
         r = compute_direction_probability(fld, None, 0.0)          # region=None
@@ -1149,7 +1149,7 @@ class TestProbabilityRegion:
         assert r["region"] is None
 
     def test_direction_single_row_col_and_clamp(self):
-        from core.probability import compute_direction_probability
+        from uprime.core.probability import compute_direction_probability
         rng = np.random.default_rng(2)
         ny, nx, Nt = 8, 9, 20
         fld = rng.standard_normal((ny, nx, Nt))
@@ -1165,7 +1165,7 @@ class TestProbabilityRegion:
         assert np.isfinite(cl["p_forward"]).all()
 
     def test_quadrant_roi_maps_nan_outside(self):
-        from core.probability import compute_quadrant, quadrant_hole_sweep
+        from uprime.core.probability import compute_quadrant, quadrant_hole_sweep
         rng = np.random.default_rng(3)
         ny, nx, Nt = 10, 12, 40
         a = rng.standard_normal((ny, nx, Nt)); b = rng.standard_normal((ny, nx, Nt))
@@ -1183,7 +1183,7 @@ class TestProbabilityRegion:
         assert abs(np.nansum(sf[:, 0]) - 1.0) < 1e-6
 
     def test_export_2d_nan_repr(self, tmp_path):
-        from core.export import export_2d_tecplot
+        from uprime.core.export import export_2d_tecplot
         x = np.tile(np.linspace(0, 1, 3), (2, 1))
         y = np.tile(np.linspace(0, 1, 2), (3, 1)).T
         fld = np.array([[1.0, np.nan, 3.0], [4.0, 5.0, np.nan]])
@@ -1198,7 +1198,7 @@ class TestProbabilityRegion:
 
 class TestProbabilityGUI:
     def test_probability_window_smoke(self, qapp, dataset):
-        from gui.probability_window import ProbabilityWindow
+        from uprime.gui.probability_window import ProbabilityWindow
         win = ProbabilityWindow(dataset, is_time_resolved=False, fs=1.0)
         assert win.tabs.count() == 4
         # Binary tab disabled without time-resolved data
@@ -1211,7 +1211,7 @@ class TestProbabilityGUI:
         win.close()
 
     def test_binary_tab_enabled_when_tr(self, qapp, dataset):
-        from gui.probability_window import ProbabilityWindow
+        from uprime.gui.probability_window import ProbabilityWindow
         win = ProbabilityWindow(dataset, is_time_resolved=True, fs=100.0)
         assert win.tabs.isTabEnabled(2)
         # free-line mode is not offered on the binary tab (only H/V)
@@ -1224,7 +1224,7 @@ class TestAnisotropyManualEntry:
     """Manual x/y line-coordinate entry, ported from reynolds_window."""
 
     def test_manual_line_entry_produces_lumley_result(self, qapp, dataset_stereo):
-        from gui.anisotropy_window import AnisotropyWindow
+        from uprime.gui.anisotropy_window import AnisotropyWindow
         win = AnisotropyWindow(dataset_stereo)
 
         # Opens in line mode: group visible, Draw selected, boxes hidden.
@@ -1262,7 +1262,7 @@ class TestAnisotropyManualEntry:
         win.close()
 
     def test_too_short_manual_line_does_not_compute(self, qapp, dataset_stereo):
-        from gui.anisotropy_window import AnisotropyWindow
+        from uprime.gui.anisotropy_window import AnisotropyWindow
         win = AnisotropyWindow(dataset_stereo)
         win.rb_manual.setChecked(True)
         ymid = float(dataset_stereo["y"].mean())
@@ -1275,7 +1275,7 @@ class TestAnisotropyManualEntry:
         win.close()
 
     def test_rect_mode_hides_line_entry_and_restores_state(self, qapp, dataset_stereo):
-        from gui.anisotropy_window import AnisotropyWindow
+        from uprime.gui.anisotropy_window import AnisotropyWindow
         win = AnisotropyWindow(dataset_stereo)
         win.show()
         win.rb_manual.setChecked(True)
@@ -1296,7 +1296,7 @@ class TestAnisotropyManualEntry:
 
     def test_export_records_line_entry_provenance(self, qapp, dataset_stereo, tmp_path,
                                                   monkeypatch):
-        from gui.anisotropy_window import AnisotropyWindow
+        from uprime.gui.anisotropy_window import AnisotropyWindow
         from PyQt6.QtWidgets import QFileDialog
         win = AnisotropyWindow(dataset_stereo)
         win.rb_manual.setChecked(True)

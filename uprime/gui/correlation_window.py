@@ -38,10 +38,10 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from core.export import export_2d_tecplot, export_line_csv
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.core.export import export_2d_tecplot, export_line_csv
 
-from core.two_point_corr import (
+from uprime.core.two_point_corr import (
     nearest_grid_point,
     compute_spatial_correlation_point,
     compute_spatial_scales_point,
@@ -126,7 +126,7 @@ class CorrelationWindow(PickerMixin, QWidget):
 
         self._x        = dataset["x"]
         self._y        = dataset["y"]
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         self.U = get_masked(dataset, "U")
         self.V = get_masked(dataset, "V")
         self.W = get_masked(dataset, "W")
@@ -621,7 +621,7 @@ class CorrelationWindow(PickerMixin, QWidget):
                 "Please draw an ROI first (left-click drag in ROI mode).")
             return
 
-        from core.workers import CorrelationWorker
+        from uprime.core.workers import CorrelationWorker
 
         if hasattr(self, '_worker') and self._worker.isRunning():
             self._worker.terminate()
@@ -959,7 +959,7 @@ class CorrelationWindow(PickerMixin, QWidget):
         if self._pick_mode == "point" and self._ref_row is None:
             return
 
-        from core.workers import CorrelationWorker
+        from uprime.core.workers import CorrelationWorker
 
         if hasattr(self, '_worker') and self._worker.isRunning():
             self._worker.terminate()

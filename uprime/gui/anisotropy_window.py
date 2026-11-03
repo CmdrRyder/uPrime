@@ -24,23 +24,23 @@ import matplotlib
 matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from gui.lumley_plot import draw_lumley_boundary
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.gui.lumley_plot import draw_lumley_boundary
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 from matplotlib.lines import Line2D
 
-from core.export import export_2d_tecplot, export_line_csv
-from core.anisotropy import (
+from uprime.core.export import export_2d_tecplot, export_line_csv
+from uprime.core.anisotropy import (
     compute_reynolds_tensor,
     compute_anisotropy_tensor,
     compute_invariants_fast,
     compute_barycentric,
     points_near_line,
 )
-from core.reynolds_stress import extract_line_profile
-from core.line_sample import sample_along_line
-from gui.line_selector import LineSelectorWidget, compute_snapped_line
+from uprime.core.reynolds_stress import extract_line_profile
+from uprime.core.line_sample import sample_along_line
+from uprime.gui.line_selector import LineSelectorWidget, compute_snapped_line
 
 
 class AnisotropyWindow(PickerMixin, QWidget):
@@ -73,7 +73,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
 
     def _precompute(self):
         ds = self.dataset
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         self._R, self._k = compute_reynolds_tensor(
             get_masked(ds, "U"), get_masked(ds, "V"), get_masked(ds, "W"))
         self._b           = compute_anisotropy_tensor(self._R, self._k)
@@ -295,7 +295,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
         x  = ds["x"]
         y  = ds["y"]
 
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         speed = np.sqrt(
             np.nanmean(get_masked(ds, "U"), axis=2)**2 +
             np.nanmean(get_masked(ds, "V"), axis=2)**2 +
@@ -604,7 +604,7 @@ class AnisotropyWindow(PickerMixin, QWidget):
         RGB[~mask_sub] = 1.0
 
         # Also show mean speed as background context
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         _ds = self.dataset
         speed = np.sqrt(
             np.nanmean(get_masked(_ds, "U"), axis=2)**2 +

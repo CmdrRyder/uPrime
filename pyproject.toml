@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uprime"
+dynamic = ["version"]
+description = "Open-source velocity field and turbulence analysis for PIV and CFD data"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Jibu Tom Jose", email = "jibu.jose@campus.technion.ac.il" },
+    { name = "Omri Ram" },
+]
+keywords = [
+    "particle image velocimetry",
+    "PIV",
+    "CFD",
+    "turbulence",
+    "fluid mechanics",
+    "POD",
+    "DMD",
+    "vortex identification",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "PyQt6>=6.5",
+    "h5py>=3.8",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+# Optional FFTW-backed speedup for the 3-D spatial spectra module.
+# uprime.core.spatial_spectra_fft is imported behind try/except, so the app
+# runs fine without it -- the FFT tab simply falls back / is disabled.
+fftw = ["pyfftw>=0.13"]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://cmdrryder.github.io/uPrime/"
+Repository = "https://github.com/CmdrRyder/uPrime"
+Documentation = "https://cmdrryder.github.io/uPrime/"
+Issues = "https://github.com/CmdrRyder/uPrime/issues"
+
+[project.scripts]
+uprime = "uprime.app:main"
+
+[tool.setuptools.dynamic]
+version = { file = "uprime/version.txt" }
+
+[tool.setuptools.packages.find]
+include = ["uprime*"]
+
+[tool.setuptools.package-data]
+uprime = ["version.txt", "assets/*"]

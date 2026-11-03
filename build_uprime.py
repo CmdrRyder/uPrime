@@ -32,7 +32,7 @@ import sys
 def _read_version():
     here = os.path.dirname(os.path.abspath(__file__))
     try:
-        with open(os.path.join(here, "version.txt"), encoding="utf-8") as f:
+        with open(os.path.join(here, "uprime", "version.txt"), encoding="utf-8") as f:
             return f.read().strip() or "0.8.2"
     except OSError:
         return "0.8.2"
@@ -45,8 +45,8 @@ def _module_available(name):
 # PyInstaller args shared by both recipes (ported from build_exe.bat).
 _BASE_ARGS = [
     "--onefile", "--windowed",
-    "--add-data", "assets%sassets" % os.pathsep,
-    "--add-data", "version.txt%s." % os.pathsep,
+    "--add-data", "uprime/assets%sassets" % os.pathsep,
+    "--add-data", "uprime/version.txt%s." % os.pathsep,
     "--collect-all", "matplotlib",
     "--hidden-import", "matplotlib.backends.backend_qtagg",
     "--hidden-import", "matplotlib.backends.backend_qt",

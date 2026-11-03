@@ -38,14 +38,14 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
-from core.vortex_id import (
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.core.vortex_id import (
     compute_gradients, compute_vortex_fields,
     compute_gamma, detect_vortices,
     compute_spatial_probability, export_vortex_csv,
 )
-from core.dataset_utils import get_masked
-from core.export import export_2d_tecplot
+from uprime.core.dataset_utils import get_masked
+from uprime.core.export import export_2d_tecplot
 
 _FONT_AX   = 9
 _FONT_TICK = 8
@@ -381,7 +381,7 @@ class VortexWindow(PickerMixin, QWidget):
     # ----------------------------------------------------------------------- #
 
     def _on_compute(self):
-        from core.workers import VortexWorker
+        from uprime.core.workers import VortexWorker
 
         if hasattr(self, '_worker') and self._worker.isRunning():
             self._worker.terminate()

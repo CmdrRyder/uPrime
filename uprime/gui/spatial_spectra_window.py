@@ -16,11 +16,11 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle as MplRect
-from core.spatial_spectra import spatial_psd_line, spatial_psd_roi
-from core.spatiotemporal_spectra import compute_st_spectra
-from core.export import export_spectra_csv
-from gui.line_selector import compute_snapped_line
-from gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
+from uprime.core.spatial_spectra import spatial_psd_line, spatial_psd_roi
+from uprime.core.spatiotemporal_spectra import compute_st_spectra
+from uprime.core.export import export_spectra_csv
+from uprime.gui.line_selector import compute_snapped_line
+from uprime.gui.arrow_toolbar import DrawAwareToolbar, PickerMixin
 
 
 class SpatialSpectraWindow(PickerMixin, QWidget):
@@ -265,7 +265,7 @@ class SpatialSpectraWindow(PickerMixin, QWidget):
     def _draw_field(self):
         ds   = self.dataset
         x, y = ds["x"], ds["y"]
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         speed = np.sqrt(np.nanmean(get_masked(ds, "U"), axis=2)**2 +
                         np.nanmean(get_masked(ds, "V"), axis=2)**2)
         speed[~ds["MASK"]] = np.nan
@@ -439,7 +439,7 @@ class SpatialSpectraWindow(PickerMixin, QWidget):
         if noverlap >= nperseg:
             raise ValueError("Overlap must be less than segment length.")
 
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         _U = get_masked(ds, "U"); _V = get_masked(ds, "V"); _W = get_masked(ds, "W")
         if sel["type"] == "roi":
             results, n_lines = spatial_psd_roi(
@@ -466,7 +466,7 @@ class SpatialSpectraWindow(PickerMixin, QWidget):
         avg  = self.spin_st_avg.value()
         direction = "x" if self._mode == "st_horizontal" else "y"
 
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         k, f, psds = compute_st_spectra(
             get_masked(ds, "U"), get_masked(ds, "V"), get_masked(ds, "W"),
             self._x, self._y,

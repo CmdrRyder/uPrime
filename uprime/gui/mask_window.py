@@ -34,7 +34,7 @@ from matplotlib.path import Path as MplPath
 
 from scipy import ndimage
 
-from gui.arrow_toolbar import DrawAwareToolbar
+from uprime.gui.arrow_toolbar import DrawAwareToolbar
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +334,7 @@ class MaskWindow(QDialog):
         x, y       = ds["x"], ds["y"]
         field_name = self.combo_bg.currentText()
 
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         invalid = ~ds["MASK"]
 
         if field_name == "Mean U":

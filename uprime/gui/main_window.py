@@ -77,23 +77,23 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
 
-from core.loader import load_dataset, cleanup_memmap, sweep_orphan_memmaps, SIZE_THRESHOLD
+from uprime.core.loader import load_dataset, cleanup_memmap, sweep_orphan_memmaps, SIZE_THRESHOLD
 # core.davis_io guards its own optional lvpyio import; importing it here is safe
 # and never pulls lvpyio into the GPL core.
-from core.davis_io import HAS_LVPYIO
-from core.transform import transform_status_string
-from gui.anisotropy_window import AnisotropyWindow
-from gui.reynolds_window import ReynoldsWindow
-from gui.tke_window import TKEWindow
-from gui.tke_budget_window import TKEBudgetWindow
-from gui.spectra_window import SpectraWindow
-from gui.correlation_window import CorrelationWindow
-from gui.pod_window import PODWindow
-from gui.transform_window import TransformWindow
-from gui.arrow_toolbar import PickerMixin, DrawAwareToolbar
-from core.export import export_2d_tecplot
-from gui.mean_convergence_tab import MeanConvergenceWindow
-from gui.compare_window import CompareWindow
+from uprime.core.davis_io import HAS_LVPYIO
+from uprime.core.transform import transform_status_string
+from uprime.gui.anisotropy_window import AnisotropyWindow
+from uprime.gui.reynolds_window import ReynoldsWindow
+from uprime.gui.tke_window import TKEWindow
+from uprime.gui.tke_budget_window import TKEBudgetWindow
+from uprime.gui.spectra_window import SpectraWindow
+from uprime.gui.correlation_window import CorrelationWindow
+from uprime.gui.pod_window import PODWindow
+from uprime.gui.transform_window import TransformWindow
+from uprime.gui.arrow_toolbar import PickerMixin, DrawAwareToolbar
+from uprime.core.export import export_2d_tecplot
+from uprime.gui.mean_convergence_tab import MeanConvergenceWindow
+from uprime.gui.compare_window import CompareWindow
 
 
 def _read_app_version(default="0.8.2"):
@@ -170,7 +170,7 @@ class MatLoaderThread(QThread):
 
     def run(self):
         try:
-            from core.mat_loader import load_mat_dataset
+            from uprime.core.mat_loader import load_mat_dataset
             dataset, _ = load_mat_dataset(
                 self._filepath, self._mapping,
                 progress_callback=self.progress.emit,
@@ -202,7 +202,7 @@ class DavisLoaderThread(QThread):
 
     def run(self):
         try:
-            from core.davis_io import load_davis
+            from uprime.core.davis_io import load_davis
             dataset = load_davis(self._paths, subset=self._subset,
                                  progress_callback=self.progress.emit)
             self.finished.emit(dataset)
@@ -915,7 +915,7 @@ class MainWindow(PickerMixin, QMainWindow):
         # Metadata-stage read: snapshot count + single-snapshot / bad-type
         # rejection — the same way the .mat loader rejects single-snapshot files.
         try:
-            from core.davis_io import davis_snapshot_count
+            from uprime.core.davis_io import davis_snapshot_count
             n_total = davis_snapshot_count(selection)
         except Exception as exc:
             QMessageBox.critical(self, "DaVis Load Error", str(exc))
@@ -967,7 +967,7 @@ class MainWindow(PickerMixin, QMainWindow):
           5. Post-dialog snapshot count check on user's manual choice.
           6. Commit state and start background loader.
         """
-        from core.mat_loader import detect_variables, detect_u_candidate, auto_detect_mapping
+        from uprime.core.mat_loader import detect_variables, detect_u_candidate, auto_detect_mapping
 
         # Step 1 — metadata only; detect_variables closes the h5py handle before
         # returning, so no file-ID reuse can bleed into the snapshot check below.
@@ -988,7 +988,7 @@ class MainWindow(PickerMixin, QMainWindow):
         mapping, _ = auto_detect_mapping(var_info)
 
         # Step 4 — confirmation dialog (includes snapshot subset controls)
-        from gui.mat_var_dialog import MatVarMappingDialog
+        from uprime.gui.mat_var_dialog import MatVarMappingDialog
         dlg = MatVarMappingDialog(filepath, var_info, mapping,
                                   u_shape=u_shape, parent=self)
         if dlg.exec() != QDialog.DialogCode.Accepted:
@@ -1487,7 +1487,7 @@ class MainWindow(PickerMixin, QMainWindow):
 
         ds         = self.dataset
         x, y       = ds["x"], ds["y"]
-        from core.dataset_utils import get_masked
+        from uprime.core.dataset_utils import get_masked
         U = get_masked(ds, "U"); V = get_masked(ds, "V"); W = get_masked(ds, "W")
         field_name = self.combo_field.currentText()
         skip_x     = self.spin_skip_x.value()
@@ -1846,7 +1846,7 @@ class MainWindow(PickerMixin, QMainWindow):
                 "DMD requires Time-Resolved data.\n"
                 "Please select TR acquisition type.")
             return
-        from gui.dmd_window import DmdWindow
+        from uprime.gui.dmd_window import DmdWindow
         win = DmdWindow(self.dataset, fs=self.get_fs())
         if not win._valid:
             return
@@ -1859,12 +1859,12 @@ class MainWindow(PickerMixin, QMainWindow):
 
     def _run_vortex(self):
         if not self._check_data(): return
-        from gui.vortex_window import VortexWindow
+        from uprime.gui.vortex_window import VortexWindow
         self._open_window(VortexWindow(self.dataset))
 
     def _run_probability(self):
         if not self._check_data(): return
-        from gui.probability_window import ProbabilityWindow
+        from uprime.gui.probability_window import ProbabilityWindow
         self._open_window(ProbabilityWindow(
             self.dataset,
             is_time_resolved=self.is_time_resolved(),
