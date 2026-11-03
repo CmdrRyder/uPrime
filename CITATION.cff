@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If uPrime contributes to your research, please cite it using the metadata from this file."
+type: software
+title: "uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data"
+abstract: >-
+  uPrime is a standalone desktop application for post-processing and turbulence
+  analysis of velocity field data from particle image velocimetry (PIV) and
+  computational fluid dynamics (CFD). It provides a graphical interface for
+  Reynolds stresses, TKE budgets, spectra, correlations, POD, DMD, vortex
+  identification and probability analysis without requiring any scripting.
+authors:
+  - family-names: Jose
+    given-names: Jibu Tom
+    orcid: "https://orcid.org/0000-0003-2487-5883"
+    affiliation: "Technion - Israel Institute of Technology"
+  - family-names: Ram
+    given-names: Omri
+    affiliation: "Technion - Israel Institute of Technology"
+version: 0.8.0-alpha
+date-released: 2026-09-01
+doi: 10.5281/zenodo.19376184
+license: GPL-3.0-only
+repository-code: "https://github.com/CmdrRyder/uPrime"
+url: "https://cmdrryder.github.io/uPrime/"
+keywords:
+  - particle image velocimetry
+  - PIV
+  - CFD
+  - turbulence
+  - fluid mechanics
+  - POD
+  - DMD
+  - vortex identification
