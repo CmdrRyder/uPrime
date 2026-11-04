@@ -299,7 +299,9 @@ def _stack_buffers(fetch, n_total, subset, source_files, check_grid,
     if W is not None:
         W[:] = np.nan
 
-    valid_all = np.ones((ny, nx), dtype=bool)
+    # A grid point counts as invalid only if it is invalid in every snapshot,
+    # so accumulate the union of the per-snapshot valid masks.
+    valid_all = np.zeros((ny, nx), dtype=bool)
     loaded_files = []
 
     for out_i, snap in enumerate(indices):
@@ -335,7 +337,7 @@ def _stack_buffers(fetch, n_total, subset, source_files, check_grid,
         if W is not None and w is not None:
             w = w.copy(); w[~valid] = np.nan
             W[:, :, out_i] = w
-        valid_all &= valid
+        valid_all |= valid
         loaded_files.append(src)
         if progress_callback:
             progress_callback(int(100 * (out_i + 1) / Nt))

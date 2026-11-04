@@ -4,6 +4,34 @@ All notable changes to uPrime are documented here.
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **Invalid vectors from every snapshot after the first were treated as real
+  data when loading `.dat` files (v0.4.1 through v0.8.2).** `load_single_file`
+  read each snapshot's `isValid` column, but `load_dataset` kept only the
+  first snapshot's. Every later snapshot's invalid vectors stayed in `U`, `V`
+  and `W` as whatever the file contained — for a DaVis export that is
+  normally `0.0` — and were averaged in as genuine measurements. This biases
+  the mean toward zero and inflates every fluctuation statistic. On a
+  synthetic case with 5% of vectors invalid and written as zero, the mean
+  streamwise velocity read 4.75 m/s instead of 5.00, and `<u'u'>` read 1.42
+  (m/s)² instead of 0.25 — a factor of 5.7.
+
+  **If your `.dat` data contains invalid vectors, any mean, Reynolds stress,
+  TKE, spectrum, correlation or modal result produced by v0.4.1 through
+  v0.8.2 should be recomputed.** Datasets with no invalid vectors, or whose
+  files have no `isValid` column, are unaffected.
+
+  All three loaders now follow one rule: a vector invalid in a snapshot is
+  NaN in that snapshot, and `MASK` marks a grid point invalid only if it is
+  invalid in every snapshot. This also fixes the opposite problem in the
+  `.vc7` and `.mat` loaders, which set `MASK` to the points valid in *all*
+  snapshots, so a single bad vector blanked that grid point for the whole
+  series.
+
+---
+
 ## [0.8.2] - 2026-09-03
 
 Adds a Lumley-triangle comparison mode to Compare Cases.

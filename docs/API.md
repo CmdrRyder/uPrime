@@ -41,9 +41,22 @@ scales are mm, time scales are s.
 
 **Invalid vectors and NaN.** Invalid points are represented by NaN, and every
 core routine uses NaN-aware reductions (`np.nanmean`, `np.nanstd`) so masked
-points drop out of statistics instead of biasing them. *When* the NaN appears
-depends on the loader — see [Masking](#masking) below, and the note in
-[Known inconsistencies](#known-inconsistencies).
+points drop out of statistics instead of biasing them.
+
+All three loaders follow the same rule:
+
+1. A vector that is invalid in a snapshot is **NaN in that snapshot**.
+   Validity is per snapshot, so a vector may be valid at one time and
+   invalid at another.
+2. `MASK` marks a grid point invalid **only if it is invalid in every
+   snapshot** — a point that drops out occasionally is still usable.
+3. `valid`, `valid_frac` and `MASK_LOADED` stay consistent with `MASK`.
+
+So `dataset["U"]` already carries the per-snapshot NaN as loaded, and
+`get_masked` additionally blanks the points that are invalid throughout.
+One consequence worth planning for: the NaN pattern varies along the time
+axis, so any routine needing a complete time series at a point (see POD and
+DMD under [Limits](#limits)) must fill or drop those gaps itself.
 
 ### The dataset dict
 
@@ -81,8 +94,9 @@ from uprime.core.dataset_utils import get_masked
 U = get_masked(dataset, "U")      # [ny, nx, Nt], invalid points NaN
 ```
 
-It returns a **copy** with `dataset["MASK"]` applied (invalid points set to
-NaN), never touching the stored array, and preserves the stored dtype —
+It returns a **copy** with `dataset["MASK"]` applied (points invalid in every
+snapshot set to NaN, on top of the per-snapshot NaN already present), never
+touching the stored array, and preserves the stored dtype —
 including float16, which supports NaN like any IEEE 754 float. If
 `mask_active` is `False` it returns an unmasked copy; if the field is `None`
 (asking for `"W"` on planar data) it returns `None`.
@@ -496,20 +510,31 @@ exists, it is the supported way to observe progress.
 **`pyfftw` is required.** `spatial_spectra_fft` imports it at module level. It
 is a hard dependency of the package, so a normal install always has it.
 
+**Gaps in the time axis are handled differently per module.** Because validity
+is per snapshot, a point's time series can contain NaN. Most routines use
+NaN-aware reductions and are unaffected. The exceptions:
+
+- **DMD** has no NaN handling at all. `compute_dmd` raises
+  `LinAlgError: SVD did not converge` on a snapshot matrix containing NaN.
+  Fill or drop the gaps before calling it.
+- **POD** replaces NaN with 0.0 on the fluctuation fields, and drops grid
+  points whose NaN fraction is 10% or more. Zeros are not neutral for an
+  energy decomposition, so mode energies shift when gaps are common.
+- **Temporal spectra** (`psd_at_point`, `psd_in_region`) fill gaps with the
+  series mean; **spatial spectra** fill with 0.0 on the fluctuation; the
+  **3-D FFT branch** replaces NaN with 0.0 and refuses an ROI that is more
+  than half NaN.
+- **TKE budget** inpaints NaN from valid neighbours for the gradient step and
+  restores NaN in a dilated neighbourhood afterwards.
+
 ### Known inconsistencies
 
 These are real behaviours of the current code, noted so scripts do not rely on
 the tidier version:
 
-- **The `.dat` loader does not NaN-mask velocities at load time.** `load_dataset`
-  stores raw `U`/`V`/`W` and leaves masking to `get_masked`, while
-  `load_mat_dataset` and `load_davis` apply `U[~mask] = np.nan` during the
-  load. Always go through `get_masked` and the distinction stops mattering.
-  (The `loader.py` module docstring still claims invalid vectors are set to
-  NaN; that is true of vorticity only.)
 - **`has_vort` can be `True` while `vort` is `None`.** The memory-mapped branch
   of `load_dataset` never fills a vorticity array, so for datasets above 4 GB
   the flag is set from the header but the data is absent. Test `vort is not
   None`, not `has_vort`.
-- **The validity mask comes from the first snapshot only.** `load_dataset`
-  takes `mask_2d` from file index 0 and applies it to the whole series.
+- **The dataset dict is not uniform across loaders.** `.mat` and DaVis
+  datasets carry `dx` and `dy`; `.dat` datasets do not.

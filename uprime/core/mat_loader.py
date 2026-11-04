@@ -517,31 +517,61 @@ def load_mat_dataset(filepath, mapping, progress_callback=None, status_callback=
             progress_callback(90)
 
         # --- Validity mask ---
+        # A vector invalid in a snapshot is NaN in that snapshot; a grid point
+        # is marked invalid in MASK only when it is invalid in EVERY snapshot.
+        # A 2-D isValid is a static mask and applies to every snapshot.
+        #
+        # The mask convention is applied per snapshot, before the per-frame NaN
+        # and the mask accumulation -- inverting the accumulated mask afterwards
+        # would not be equivalent.
         mask_2d = None
+        _invert = (mask_convention == "invalid")
+
+        def _apply_frame(valid_plane, t):
+            """NaN one snapshot's invalid vectors; fold its mask into the union."""
+            nonlocal mask_2d
+            if _invert:
+                valid_plane = ~valid_plane
+            bad = ~valid_plane
+            if bad.any():
+                U[bad, t] = np.nan
+                V[bad, t] = np.nan
+                if W is not None:
+                    W[bad, t] = np.nan
+            mask_2d = (valid_plane.copy() if mask_2d is None
+                       else (mask_2d | valid_plane))
+
+        _static_valid = None      # set when isValid is 2-D (one mask for all time)
+
         if mapping.get("isValid"):
             try:
                 if use_h5py:
-                    # Accumulate the 2-D all-time mask in chunks to avoid
-                    # materialising the full 3-D isValid field (can be several GB
-                    # if stored as float64 in MATLAB).
+                    # Read in chunks, frame by frame, to avoid materialising the
+                    # full 3-D isValid field (can be several GB as float64).
                     h5valid = data[mapping["isValid"]]
-                    mask_2d = np.ones((Ny, Nx), dtype=bool)
-                    for i in range(0, Nt, _CHUNK):
-                        j = min(i + _CHUNK, Nt)
-                        s = snap_indices[i]
-                        e = snap_indices[j - 1] + 1
-                        # h5valid[s:e:step] shape: (j-i, dim1, dim2)
-                        # After axis=0 reduction: (dim1, dim2).
-                        # Standard (_u_axes=(2,1,0)): dims are (Nx, Ny) → need .T
-                        # Non-std  (_u_axes=(1,2,0)): dims are (Ny, Nx) → no .T
-                        chunk = h5valid[s:e:snap_step].astype(bool)
-                        _plane = np.all(chunk, axis=0)
-                        mask_2d &= (_plane.T if _u_axes == (2, 1, 0) else _plane)
-                        del chunk
-                        if progress_callback:
-                            progress_callback(90 + int(j / Nt * 5))
-                        if status_callback:
-                            status_callback(f"Reading isValid · {j:,} / {Nt:,} frames")
+                    _h5_ndim = getattr(h5valid, "ndim", 3)
+                    if _h5_ndim == 2:
+                        _plane = np.asarray(h5valid).astype(bool)
+                        _static_valid = (_plane.T if _u_axes == (2, 1, 0)
+                                         else _plane)
+                    else:
+                        for i in range(0, Nt, _CHUNK):
+                            j = min(i + _CHUNK, Nt)
+                            s_i = snap_indices[i]
+                            e_i = snap_indices[j - 1] + 1
+                            # h5valid[s:e:step] shape: (j-i, dim1, dim2)
+                            # Standard (_u_axes=(2,1,0)): dims are (Nx, Ny) -> .T
+                            # Non-std  (_u_axes=(1,2,0)): dims are (Ny, Nx) -> no .T
+                            chunk = h5valid[s_i:e_i:snap_step].astype(bool)
+                            for k in range(min(len(chunk), j - i)):
+                                _plane = chunk[k]
+                                _apply_frame(_plane.T if _u_axes == (2, 1, 0)
+                                             else _plane, i + k)
+                            del chunk
+                            if progress_callback:
+                                progress_callback(90 + int(j / Nt * 5))
+                            if status_callback:
+                                status_callback(f"Reading isValid · {j:,} / {Nt:,} frames")
                 else:
                     if status_callback:
                         status_callback("Reading isValid…")
@@ -554,10 +584,11 @@ def load_mat_dataset(filepath, mapping, progress_callback=None, status_callback=
                     if valid_raw.ndim == 3 and valid_raw.shape[2] == Nt_file and Nt != Nt_file:
                         valid_raw = valid_raw[:, :, snap_start:_snap_end + 1:snap_step]
                     if valid_raw.shape == (Ny, Nx, Nt):
-                        mask_2d = np.all(valid_raw, axis=2)
+                        for t in range(Nt):
+                            _apply_frame(valid_raw[:, :, t], t)
                         del valid_raw
                     elif valid_raw.shape == (Ny, Nx):
-                        mask_2d = valid_raw
+                        _static_valid = valid_raw
                     else:
                         print(
                             f"[mat_loader] isValid shape {valid_raw.shape} "
@@ -567,18 +598,16 @@ def load_mat_dataset(filepath, mapping, progress_callback=None, status_callback=
             except Exception as exc:
                 print(f"[mat_loader] Could not load isValid: {exc}")
 
-        # Apply user-specified mask convention.
-        # mask_2d raw: True where the variable value == 1 (no auto-detection).
-        # "valid"   → True means valid (uPrime isValid convention, no change)
-        # "invalid" → True means invalid; invert so True = valid for downstream code.
-        if mask_2d is not None and mask_convention == "invalid":
-            mask_2d = ~mask_2d
+        if _static_valid is not None:
+            # One mask for the whole series: honour the convention, then blank
+            # those points in every snapshot.
+            mask_2d = ~_static_valid if _invert else _static_valid
 
         if mask_2d is None:
             mask_2d = np.ones((Ny, Nx), dtype=bool)
 
-        # Apply mask in-place: invalid points → NaN (matches .dat loader behaviour).
-        # mask_2d is True=valid; ~mask_2d selects points to blank.
+        # Points invalid in every snapshot. For the per-frame paths these are
+        # already NaN, so this only does work for a static 2-D isValid.
         if not np.all(mask_2d):
             U[~mask_2d, :] = np.nan
             V[~mask_2d, :] = np.nan

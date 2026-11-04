@@ -275,10 +275,10 @@ def load_single_file(filepath, header):
     Read one .dat snapshot into velocity, validity and vorticity arrays.
 
     Only the columns named in `header` are read. Rows are flipped to match
-    load_grid (row 0 = smallest y) and velocities are scaled to m/s. The
-    validity mask is returned separately and is NOT applied to u/v/w, which
-    keep their raw values; it is applied to vorticity, where invalid points
-    become NaN.
+    load_grid (row 0 = smallest y) and velocities are scaled to m/s. Vectors
+    marked invalid in this snapshot are set to NaN in u, v, w and vort. The
+    mask is also returned separately, so load_dataset can accumulate it over
+    the series.
 
     Parameters
     ----------
@@ -290,8 +290,8 @@ def load_single_file(filepath, header):
     u     : ndarray [ny, nx], velocity in m/s
     v     : ndarray [ny, nx], velocity in m/s
     w     : ndarray [ny, nx] or None, None for planar data
-    valid : ndarray [ny, nx] of bool, True where the vector is valid.
-            All True when the file has no isValid column.
+    valid : ndarray [ny, nx] of bool, True where the vector is valid in
+            this snapshot. All True when the file has no isValid column.
     vort  : ndarray [ny, nx] or None, NaN at invalid points
     """
     nx = header["nx"]
@@ -350,7 +350,11 @@ def load_single_file(filepath, header):
     v = v * header["vel_to_ms"]
     if w is not None: w = w * header["vel_to_ms"]
 
-    # Apply valid mask to vorticity only; U/V/W stay raw (mask is stored separately)
+    # A vector that is invalid in this snapshot is NaN in this snapshot.
+    # The mask is still returned separately so load_dataset can accumulate it.
+    u[~valid] = np.nan
+    v[~valid] = np.nan
+    if w    is not None: w[~valid]    = np.nan
     if vort is not None: vort[~valid] = np.nan
 
     return u, v, w, valid, vort
@@ -376,15 +380,18 @@ def load_dataset(file_list, progress_callback=None):
     Load a list of .dat snapshots into one dataset dict.
 
     Files are sorted by name, so snapshot order follows filename order. The
-    first file sets the grid, the units and the validity mask for the whole
-    series. Datasets estimated above SIZE_THRESHOLD (4 GB) are written to
+    first file sets the grid and the units for the whole series, while the
+    validity mask is accumulated across every snapshot: a vector invalid in
+    one snapshot is NaN in that snapshot, and a grid point is marked invalid
+    in MASK only when it is invalid in every snapshot.
+    Datasets estimated above SIZE_THRESHOLD (4 GB) are written to
     memory-mapped temp files instead of RAM; pass the result to
     cleanup_memmap when finished. Smaller datasets are read in parallel.
 
     Arrays are pre-filled with NaN, so a file that fails to read leaves its
     snapshot as NaN and prints a warning rather than aborting the load.
-    Velocity arrays are stored unmasked -- use
-    uprime.core.dataset_utils.get_masked to apply the validity mask.
+    Use uprime.core.dataset_utils.get_masked to additionally blank the points
+    that MASK marks invalid.
 
     Parameters
     ----------
@@ -400,7 +407,8 @@ def load_dataset(file_list, progress_callback=None):
         "W"            : ndarray [ny, nx, Nt] or None, None for planar data
         "vort"         : ndarray [ny, nx, Nt] or None, vorticity if the files
                          carry it. Always None on the memory-mapped path.
-        "valid"        : ndarray [ny, nx] of bool, mask from the first file
+        "valid"        : ndarray [ny, nx] of bool, True where the vector is
+                         valid in at least one snapshot
         "valid_frac"   : ndarray [ny, nx] float32, "valid" as 0.0/1.0
         "MASK"         : ndarray [ny, nx] of bool, the mask get_masked applies
         "MASK_LOADED"  : ndarray [ny, nx] of bool, copy of the loaded mask,
@@ -465,8 +473,7 @@ def load_dataset(file_list, progress_callback=None):
                 V[:, :, i] = v.astype(np.float32)
                 if W is not None and w is not None:
                     W[:, :, i] = w.astype(np.float32)
-                if i == 0:
-                    mask_2d = valid
+                mask_2d = valid.copy() if mask_2d is None else (mask_2d | valid)
             except Exception as e:
                 print(f"Warning: skipping file {i} "
                       f"({os.path.basename(fpath)}): {e}")
@@ -509,8 +516,8 @@ def load_dataset(file_list, progress_callback=None):
                     V[:, :, idx] = v
                     if W    is not None and w    is not None: W[:, :, idx]    = w
                     if VORT is not None and vort is not None: VORT[:, :, idx] = vort
-                    if idx == 0:
-                        mask_2d = valid
+                    mask_2d = (valid.copy() if mask_2d is None
+                               else (mask_2d | valid))
 
                 n_done += 1
                 if progress_callback and (n_done % report_every == 0 or n_done == Nt):
