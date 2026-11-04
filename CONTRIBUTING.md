@@ -119,4 +119,6 @@ own commit.
 - Branch off `main`.
 - Keep `core/` free of Qt imports.
 - Add or update tests for behavioral changes, and make sure `pytest` is green.
+- Update [`docs/API.md`](docs/API.md) whenever a public function in `uprime/core`
+  changes -- its name, parameters, or what it returns.
 - Note user-visible changes in `CHANGELOG.md` under an `## [Unreleased]` heading.

@@ -1,5 +1,5 @@
 """
-core/two_point_corr.py
+uprime/core/two_point_corr.py
 ----------------------
 Two-point correlation analysis for PIV velocity fields.
 
@@ -33,11 +33,39 @@ _trapz = getattr(np, "trapz", None) or getattr(np, "trapezoid", None)
 # ---------------------------------------------------------------------------
 
 def nearest_grid_point(x, y, x_click, y_click):
+    """
+    Find the grid index closest to a point, by squared distance.
+
+    Parameters
+    ----------
+    x, y             : ndarray [ny, nx], coordinate grids in mm
+    x_click, y_click : float, target position in mm
+
+    Returns
+    -------
+    row, col : tuple of int, index of the nearest grid point
+    """
     dist = (x - x_click) ** 2 + (y - y_click) ** 2
     return np.unravel_index(np.argmin(dist), dist.shape)
 
 
 def get_fluctuations(U, V, W):
+    """
+    Subtract the time mean from each velocity component.
+
+    The mean is taken over axis 2 with np.nanmean, so NaN points are ignored
+    rather than propagating into the mean.
+
+    Parameters
+    ----------
+    U, V : ndarray [ny, nx, Nt], velocity in m/s
+    W    : ndarray [ny, nx, Nt] or None, None for planar data
+
+    Returns
+    -------
+    Up, Vp : ndarray [ny, nx, Nt], fluctuations about the time mean
+    Wp     : ndarray [ny, nx, Nt] or None, None when W is None
+    """
     Up = U - np.nanmean(U, axis=2, keepdims=True)
     Vp = V - np.nanmean(V, axis=2, keepdims=True)
     Wp = (W - np.nanmean(W, axis=2, keepdims=True)) if W is not None else None
@@ -45,6 +73,23 @@ def get_fluctuations(U, V, W):
 
 
 def select_component(Up, Vp, Wp, component):
+    """
+    Pick one fluctuation component by name.
+
+    Parameters
+    ----------
+    Up, Vp, Wp : ndarray [ny, nx, Nt] or None, as returned by get_fluctuations
+    component  : one of "uu", "vv", "ww"
+
+    Returns
+    -------
+    field : ndarray [ny, nx, Nt], the selected fluctuation component
+
+    Raises
+    ------
+    ValueError
+        If component is unknown, or if "ww" is requested when Wp is None.
+    """
     if component == 'uu':
         return Up
     elif component == 'vv':

@@ -1,5 +1,5 @@
 """
-core/vortex_id.py
+uprime/core/vortex_id.py
 -----------------
 Vortex identification algorithms for uPrime.
 

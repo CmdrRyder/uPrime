@@ -1,5 +1,5 @@
 """
-core/dataset_utils.py
+uprime/core/dataset_utils.py
 ---------------------
 Utilities for accessing dataset arrays through the non-destructive mask system.
 """

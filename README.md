@@ -230,6 +230,13 @@ Both datasets load directly into uPrime without any configuration.
 
 Covers all modules with governing equations, step-by-step instructions, and references.
 
+🐍 [`uprime.core` API reference](docs/API.md)
+
+For scripting uPrime without the GUI: data conventions, every public function
+grouped by task, and what each one returns.
+[`examples/core_api_example.py`](examples/core_api_example.py) is a runnable
+starting point that checks itself against an analytically known field.
+
 ---
 
 ## 🧪 Running Tests

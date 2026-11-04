@@ -1,5 +1,5 @@
 """
-core/spectral.py
+uprime/core/spectral.py
 ----------------
 Temporal spectral analysis using Welch's method.
 

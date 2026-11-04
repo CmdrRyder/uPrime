@@ -1,5 +1,5 @@
 """
-core/case_io.py
+uprime/core/case_io.py
 ---------------
 Reader and data model for uPrime's OWN 1D exports, used by the standalone
 "Compare Cases" viewer (Stage A, 1D only).
@@ -7,16 +7,16 @@ Reader and data model for uPrime's OWN 1D exports, used by the standalone
 This module never reads raw u/v datasets. It reads the files uPrime itself
 writes:
 
-  * 1D line profiles  -> CSV via core.export.export_line_csv
+  * 1D line profiles  -> CSV via uprime.core.export.export_line_csv
         columns: dist_mm, x_mm, y_mm, mean_<name>, [std_<name>], ...
-  * 1D spectra        -> CSV via core.export.export_spectra_csv
+  * 1D spectra        -> CSV via uprime.core.export.export_spectra_csv
         columns: frequency_Hz, PSD_<comp>_m2s2_per_Hz, ...
-  * 2D fields         -> Tecplot ASCII .dat via core.export.export_2d_tecplot
+  * 2D fields         -> Tecplot ASCII .dat via uprime.core.export.export_2d_tecplot
         (VARIABLES = ... / ZONE ... F=POINT).  Detected but NOT loaded in
         Stage A.
 
 Every 1D export starts with the shared "#"-comment settings header emitted by
-core.export._settings_header:
+uprime.core.export._settings_header:
 
     # uPrime Export
     # Generated : YYYY-mm-dd HH:MM:SS

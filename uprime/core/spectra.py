@@ -1,5 +1,5 @@
 """
-core/spectra.py
+uprime/core/spectra.py
 ---------------
 Thin dispatcher for SpectraWorker.  Each branch calls the appropriate
 computation function and returns a plain dict consumed by the GUI result handler.
@@ -9,6 +9,41 @@ import numpy as np
 
 
 def compute_spectra(**kw):
+    """
+    Dispatch a spectra request to the matching computation and wrap the result.
+
+    Called by SpectraWorker. The "tab" keyword selects the branch and the
+    remaining keywords are those that branch needs; the returned dict is
+    consumed by the GUI result handler. The "3d_spatial" branch requires
+    pyfftw, raises ValueError when more than half the ROI is NaN, replaces
+    any remaining NaN with 0.0, and upcasts float16 input to float32.
+
+    Parameters
+    ----------
+    **kw : keyword arguments. "tab" is always required, and is one of:
+        "spatial"     -- also needs U, V, W, x, y, x0, y0, x1, y1,
+                         direction, avg_band, nperseg, noverlap, subtract
+        "3d_spatial"  -- also needs U_roi, V_roi, W_roi, Lx, Ly, roi
+        "temporal"    -- also needs sel_type, U, V, W, fs, nperseg, noverlap,
+                         and either row, col, title (when sel_type is
+                         "temp_point") or x, y, x0, x1, y0, y1
+        "st"          -- also needs U, V, W, x, y, x0, y0, x1, y1,
+                         direction, avg, fs
+
+    Returns
+    -------
+    result : dict, always carrying "tab". The other keys per branch are:
+        "spatial"    : "k", "psds", "direction"
+        "3d_spatial" : "result", "roi", "mask_pct"
+        "temporal"   : "type" ("point" or "rect"), "freq", "psds", "title"
+        "st"         : "k", "f", "psds", "direction"
+
+    Raises
+    ------
+    ValueError
+        If "tab" is not one of the four names above, or if the 3-D spatial
+        ROI holds too few valid vectors.
+    """
     tab = kw['tab']
 
     # ------------------------------------------------------------------

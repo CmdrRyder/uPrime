@@ -1,5 +1,5 @@
 """
-core/anisotropy.py
+uprime/core/anisotropy.py
 ------------------
 Anisotropy invariant analysis.
 

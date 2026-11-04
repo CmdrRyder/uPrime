@@ -1,5 +1,5 @@
 """
-core/reynolds_stress.py
+uprime/core/reynolds_stress.py
 -----------------------
 Computes Reynolds stress tensor components from velocity arrays.
 

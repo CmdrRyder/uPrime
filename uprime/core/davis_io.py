@@ -1,5 +1,5 @@
 """
-core/davis_io.py
+uprime/core/davis_io.py
 ----------------
 OPTIONAL, guarded LaVision DaVis loader via lvpyio.
 
@@ -14,7 +14,7 @@ project that touches lvpyio; everything else goes through ``HAS_LVPYIO`` and
 ``load_davis``.
 
 The returned dataset dict is byte-for-byte contract-compatible with
-``core.loader.load_dataset`` / ``core.mat_loader.load_mat_dataset`` so DaVis
+``uprime.core.loader.load_dataset`` / ``uprime.core.mat_loader.load_mat_dataset`` so DaVis
 data plugs into the pipeline with zero downstream changes:
 
     x, y          : (Ny, Nx) float64, physical coords in mm, row 0 = smallest y

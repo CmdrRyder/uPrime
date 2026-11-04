@@ -1,5 +1,5 @@
 """
-core/line_sample.py
+uprime/core/line_sample.py
 -------------------
 Shared free-line sampler for 2D fields.
 

@@ -1,5 +1,5 @@
 """
-core/spatiotemporal_spectra.py
+uprime/core/spatiotemporal_spectra.py
 ------------------------------
 Spatiotemporal spectral analysis E(k, f) from PIV data.
 

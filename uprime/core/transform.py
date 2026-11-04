@@ -1,5 +1,5 @@
 """
-core/transform.py
+uprime/core/transform.py
 -----------------
 In-place coordinate and velocity transformations for PIV datasets.
 

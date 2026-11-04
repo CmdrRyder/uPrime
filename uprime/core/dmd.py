@@ -1,5 +1,5 @@
 """
-core/dmd.py
+uprime/core/dmd.py
 -----------
 Dynamic Mode Decomposition following Schmid (2010).
 J. Fluid Mech. 656, 5-28. doi:10.1017/S0022112010001217

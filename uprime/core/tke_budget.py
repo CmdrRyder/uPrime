@@ -1,5 +1,5 @@
 """
-core/tke_budget.py
+uprime/core/tke_budget.py
 ------------------
 TKE budget computation from stereo PIV data.
 

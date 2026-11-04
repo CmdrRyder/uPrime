@@ -1,5 +1,5 @@
 """
-core/pod.py
+uprime/core/pod.py
 -----------
 Proper Orthogonal Decomposition (snapshot POD) for PIV datasets.
 

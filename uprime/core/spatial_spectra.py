@@ -1,5 +1,5 @@
 """
-core/spatial_spectra.py
+uprime/core/spatial_spectra.py
 -----------------------
 Spatial spectral analysis following Pope (2000) "Turbulent Flows".
 

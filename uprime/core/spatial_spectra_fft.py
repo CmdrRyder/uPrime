@@ -1,5 +1,5 @@
 """
-core/spatial_spectra_fft.py
+uprime/core/spatial_spectra_fft.py
 ----------------------------
 3D Spatial spectral analysis using pyfftw for efficient FFT computation.
 

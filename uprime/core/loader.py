@@ -1,5 +1,5 @@
 """
-core/loader.py
+uprime/core/loader.py
 Reads DaVis Tecplot-format .dat files into NumPy arrays.
 One file = one snapshot. Supports 2D and Stereo PIV.
 Invalid vectors (isValid == 0) are set to NaN.
@@ -64,6 +64,43 @@ def sweep_orphan_memmaps():
 
 
 def parse_header(filepath):
+    """
+    Read the Tecplot header of a DaVis .dat file and locate its columns.
+
+    Scans leading lines until the first one starting with a digit or minus
+    sign, parses the VARIABLES and ZONE lines, then maps variable names to
+    column indices. Velocity columns must start with "velocity" so that
+    "Acceleration u" is never mistaken for one; x/y/u/v fall back to columns
+    0-3 if detection fails. isValid has no fallback -- when that column is
+    absent, every vector is treated as valid. Prints the detected units.
+
+    Parameters
+    ----------
+    filepath : str, path to a .dat snapshot
+
+    Returns
+    -------
+    header : dict with keys:
+        "variables"  : list of str, names from the VARIABLES line
+        "nx", "ny"   : int, grid size from I= and J= in the ZONE line
+        "n_skip"     : int, header lines to skip before the data
+        "col_x", "col_y", "col_u", "col_v" : int, column indices
+        "col_w"      : int or None, absent for planar data
+        "col_vort"   : int or None, vorticity column if present
+        "col_valid"  : int or None, isValid column if present
+        "has_valid"  : bool, True if col_valid is not None
+        "is_stereo"  : bool, True if col_w is not None
+        "has_vort"   : bool, True if col_vort is not None
+        "x_unit"     : "mm" or "m", parsed from the x variable name
+        "vel_unit"   : "m/s" or "mm/s", parsed from the u variable name
+        "xy_to_mm"   : float, factor converting x/y to mm
+        "vel_to_ms"  : float, factor converting velocities to m/s
+
+    Raises
+    ------
+    ValueError
+        If no I= or J= can be found in the ZONE line.
+    """
     header = {}
 
     with open(filepath, "r", encoding="utf-8", errors="replace") as f:
@@ -190,6 +227,23 @@ def parse_header(filepath):
 
 
 def load_grid(filepath, header):
+    """
+    Read the x/y coordinate grid from a .dat file.
+
+    Rows are flipped when needed so that row 0 holds the smallest y, which is
+    the convention used throughout uPrime. Coordinates are scaled to mm using
+    header["xy_to_mm"].
+
+    Parameters
+    ----------
+    filepath : str, path to a .dat snapshot
+    header   : dict, as returned by parse_header
+
+    Returns
+    -------
+    x : ndarray [ny, nx], x coordinates in mm
+    y : ndarray [ny, nx], y coordinates in mm
+    """
     nx = header["nx"]
     ny = header["ny"]
     n  = nx * ny
@@ -217,6 +271,29 @@ def load_grid(filepath, header):
 
 
 def load_single_file(filepath, header):
+    """
+    Read one .dat snapshot into velocity, validity and vorticity arrays.
+
+    Only the columns named in `header` are read. Rows are flipped to match
+    load_grid (row 0 = smallest y) and velocities are scaled to m/s. The
+    validity mask is returned separately and is NOT applied to u/v/w, which
+    keep their raw values; it is applied to vorticity, where invalid points
+    become NaN.
+
+    Parameters
+    ----------
+    filepath : str, path to a .dat snapshot
+    header   : dict, as returned by parse_header
+
+    Returns
+    -------
+    u     : ndarray [ny, nx], velocity in m/s
+    v     : ndarray [ny, nx], velocity in m/s
+    w     : ndarray [ny, nx] or None, None for planar data
+    valid : ndarray [ny, nx] of bool, True where the vector is valid.
+            All True when the file has no isValid column.
+    vort  : ndarray [ny, nx] or None, NaN at invalid points
+    """
     nx = header["nx"]
     ny = header["ny"]
     n  = nx * ny
@@ -295,6 +372,52 @@ def _read_single_file(args):
 
 
 def load_dataset(file_list, progress_callback=None):
+    """
+    Load a list of .dat snapshots into one dataset dict.
+
+    Files are sorted by name, so snapshot order follows filename order. The
+    first file sets the grid, the units and the validity mask for the whole
+    series. Datasets estimated above SIZE_THRESHOLD (4 GB) are written to
+    memory-mapped temp files instead of RAM; pass the result to
+    cleanup_memmap when finished. Smaller datasets are read in parallel.
+
+    Arrays are pre-filled with NaN, so a file that fails to read leaves its
+    snapshot as NaN and prints a warning rather than aborting the load.
+    Velocity arrays are stored unmasked -- use
+    uprime.core.dataset_utils.get_masked to apply the validity mask.
+
+    Parameters
+    ----------
+    file_list         : list of str, paths to .dat snapshots
+    progress_callback : callable or None, called with an int percentage
+                        0-100 as loading proceeds
+
+    Returns
+    -------
+    dataset : dict with keys:
+        "x", "y"       : ndarray [ny, nx], coordinates in mm
+        "U", "V"       : ndarray [ny, nx, Nt] float32, velocity in m/s
+        "W"            : ndarray [ny, nx, Nt] or None, None for planar data
+        "vort"         : ndarray [ny, nx, Nt] or None, vorticity if the files
+                         carry it. Always None on the memory-mapped path.
+        "valid"        : ndarray [ny, nx] of bool, mask from the first file
+        "valid_frac"   : ndarray [ny, nx] float32, "valid" as 0.0/1.0
+        "MASK"         : ndarray [ny, nx] of bool, the mask get_masked applies
+        "MASK_LOADED"  : ndarray [ny, nx] of bool, copy of the loaded mask,
+                         kept so edits in the Mask Editor can be reverted
+        "mask_active"  : bool, whether get_masked applies MASK
+        "is_stereo"    : bool, True when W is present
+        "has_vort"     : bool, True when the files carry vorticity
+        "Nt", "nx", "ny" : int, array dimensions
+        "files"        : list of str, the sorted file list
+        "header"       : dict, as returned by parse_header
+        "_memmap_path" : str or None, temp-file stem when memory-mapped
+
+    Raises
+    ------
+    ValueError
+        If file_list is empty.
+    """
     if not file_list:
         raise ValueError("No files provided.")
 

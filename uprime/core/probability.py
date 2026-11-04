@@ -1,11 +1,11 @@
 """
-core/probability.py
+uprime/core/probability.py
 --------------------
 Probability analysis of velocity fields: per-point flow-direction probability,
 probability density functions, binary space-time maps, and quadrant analysis.
 
 Pure NumPy, no Qt. Every function that walks the time axis is **chunked**, because
-datasets above 4 GB are memory-mapped (see ``core/loader.py``) and a full-array
+datasets above 4 GB are memory-mapped (see ``uprime/core/loader.py``) and a full-array
 boolean temporary would force the whole thing into RAM.
 
 The NaN rule (critical)
@@ -15,7 +15,7 @@ by ``Nt`` and biases probabilities low wherever PIV dropped a vector -- exactly 
 near-wall region these maps are read in. Every accumulator here counts valid samples
 per point separately and divides by that count, returning ``np.nan`` where the count
 is zero. The dataset mask is applied as a boolean AND against ``mask_2d[:, :, None]``
-inside the chunk loop; ``core.dataset_utils.get_masked`` is deliberately NOT used
+inside the chunk loop; ``uprime.core.dataset_utils.get_masked`` is deliberately NOT used
 because it copies the whole array.
 
 References
