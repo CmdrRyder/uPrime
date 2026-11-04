@@ -53,9 +53,6 @@ uprime
 ```
 
 > `python main.py` still works too, if you prefer not to use the `uprime` command.
->
-> For the optional FFTW speedup in the 3-D spatial spectra module:
-> `pip install -e ".[fftw]"`
 
 > If you see a Qt platform plugin error on first run, try: `pip install PyQt6`
 
@@ -74,11 +71,8 @@ uprime
 ```
 
 > `python main.py` still works too, if you prefer not to use the `uprime` command.
->
-> For the optional FFTW speedup in the 3-D spatial spectra module:
-> `pip install -e ".[fftw]"`
 
-> If pyfftw fails to install, uPrime falls back to numpy FFT automatically. Install everything else and skip it if needed.
+> pyfftw is a required dependency and is installed automatically. If it is missing, the **Spatial E(k) using FFT** tab in the Spectra window is disabled; the other spectra tabs are unaffected.
 
 ### Run from source (Windows)
 
@@ -90,9 +84,6 @@ uprime
 ```
 
 > `python main.py` still works too, if you prefer not to use the `uprime` command.
->
-> For the optional FFTW speedup in the 3-D spatial spectra module:
-> `pip install -e ".[fftw]"`
 
 ---
 

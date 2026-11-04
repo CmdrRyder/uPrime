@@ -30,13 +30,12 @@ Optional extras:
 
 | Extra | Install | What it adds |
 |---|---|---|
-| `fftw` | `pip install -e ".[fftw]"` | pyfftw-backed FFT for the 3-D spatial spectra module. Imported behind `try/except`, so the app runs without it. |
 | `dev` | `pip install -e ".[dev]"` | pytest. |
 | DaVis | `pip install -r requirements-lvpyio.txt` | LaVision `lvpyio` for `.set`/`.vc7`/`.vec` input. Separately licensed, **not** GPL — see that file's header. |
 
 `requirements.txt` is kept alongside `pyproject.toml` on purpose: the public
-PyInstaller build installs from it so that pyfftw is always bundled in the
-released executable, even though it is an optional extra for a source install.
+PyInstaller build installs from it, so the released executable always bundles
+the same pinned set.
 
 ---
 

@@ -44,13 +44,10 @@ dependencies = [
     "PyQt6>=6.5",
     "h5py>=3.8",
     "Pillow>=10.0",
+    "pyfftw>=0.13",
 ]
 
 [project.optional-dependencies]
-# Optional FFTW-backed speedup for the 3-D spatial spectra module.
-# uprime.core.spatial_spectra_fft is imported behind try/except, so the app
-# runs fine without it -- the FFT tab simply falls back / is disabled.
-fftw = ["pyfftw>=0.13"]
 dev = ["pytest>=7.0"]
 
 [project.urls]
