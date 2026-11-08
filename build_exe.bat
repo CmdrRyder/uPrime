@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  build_exe.bat -- uPrime v0.8.2  (PUBLIC build)
+REM  build_exe.bat -- uPrime v0.9.0  (PUBLIC build)
 REM  Builds a single-file windowed executable via PyInstaller
 REM  Target: Python 3.11
 REM  Usage:  double-click or run from project root
@@ -22,7 +22,17 @@ REM    PIL/Pillow  -- collect-all (image handling)
 REM    openpyxl    -- hidden-import (optional .xlsx reading in Compare
 REM                   Cases; harmless warning if openpyxl is absent)
 REM
-REM  New in v0.8.2 (public build):
+REM  New in v0.9.0 (public build):
+REM    - Installable as a package: pip install -e . and a uprime command.
+REM      Distribution name on PyPI is uprime-piv.
+REM    - Invalid vectors are now honoured per snapshot in all three
+REM      loaders. .dat statistics from v0.4.1-v0.8.2 should be recomputed.
+REM    - DMD handles gaps like POD and reports filled_fraction.
+REM    - One grid convention everywhere: row 0 = smallest y,
+REM      column 0 = smallest x, for .dat, .vc7 and .mat alike.
+REM    - Documented Python API in docs/API.md; CI on Windows, macOS, Linux.
+REM
+REM  Carried from v0.8.2 (public build):
 REM    - Lumley triangle comparison mode in Compare Cases (1D tab):
 REM      -II vs III scatter across cases, drawn with the same boundary
 REM      artwork as the Anisotropy Invariant module (shared gui.lumley_plot
@@ -78,7 +88,7 @@ python -m pip install pyinstaller --quiet
 pyinstaller ^
     --onefile ^
     --windowed ^
-    --name uPrime_v0.8.2 ^
+    --name uPrime_v0.9.0 ^
     --add-data "uprime/assets;assets" ^
     --add-data "uprime/version.txt;." ^
     --collect-all matplotlib ^
@@ -149,6 +159,6 @@ echo.
 if errorlevel 1 (
     echo BUILD FAILED. Check output above.
 ) else (
-    echo BUILD COMPLETE: dist\uPrime_v0.8.2.exe
+    echo BUILD COMPLETE: dist\uPrime_v0.9.0.exe
 )
 pause

@@ -100,14 +100,25 @@ The runtime version comes from `uprime/version.txt`, which `pyproject.toml`
 also reads as the package version. Bumping a release means editing these:
 
 - [ ] `uprime/version.txt` — the source of truth; everything at runtime reads this
-- [ ] `CITATION.cff` — `version:` and `date-released:` (and the DOI for a Zenodo release)
-- [ ] `CHANGELOG.md` — new section for the release
-- [ ] `build_exe.bat` — `--name`, the header comment, and the final `BUILD COMPLETE` echo
+- [ ] `uprime/app.py` — the version line in the module docstring
+- [ ] `uprime/gui/main_window.py` — the `_read_app_version(default=...)` fallback
+- [ ] `build_uprime.py` — both `_read_version()` fallbacks
+- [ ] `build_exe.bat` — the header comment, `--name`, the final `BUILD COMPLETE`
+      echo, and a new "New in" REM block (keep the older ones)
 - [ ] `.github/workflows/build-test.yml` — the `--name` in the PyInstaller step
 - [ ] `README.md` — version badge, Development Status, citation line
-- [ ] `index.html` — version badge and the download button text
-- [ ] `uprime/gui/main_window.py` — the `_read_app_version(default=...)` fallback
-- [ ] `build_uprime.py` — the `_read_version()` fallback
+- [ ] `index.html` — version badge, the download button text, and a "NEW IN"
+      block (keep the older ones)
+- [ ] `CITATION.cff` — `version:` and `date-released:` (keep the concept DOI,
+      which covers every version)
+- [ ] `pyproject.toml` — the `Development Status` classifier, if the maturity
+      changed
+- [ ] `CHANGELOG.md` — rename `[Unreleased]` to the new version and date
+
+Leave historical references alone: past `CHANGELOG.md` entries, the "(vX.Y)"
+markers in `uprime/gui/probability_window.py` and the tests that record when a
+feature arrived, the older REM and "NEW IN" blocks, the old `.spec` files, the
+manual and the screenshot filenames.
 
 Do not commit a version bump and a feature change together; keep the bump its
 own commit.

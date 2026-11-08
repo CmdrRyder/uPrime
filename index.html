@@ -248,7 +248,7 @@
 
   <!-- Badges -->
   <div class="badges">
-    <span class="badge highlight">v0.8.2 alpha</span>
+    <span class="badge highlight">v0.9.0</span>
     <span class="badge">Python 3.10+</span>
     <span class="badge">GPLv3</span>
     <span class="badge">Windows · macOS · Linux</span>
@@ -264,7 +264,7 @@
 
   <!-- Buttons -->
   <div class="buttons">
-    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/latest">Download v0.8.2</a>
+    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/latest">Download v0.9.0</a>
     <a class="button secondary" href="https://github.com/CmdrRyder/uPrime">View on GitHub</a>
     <a class="button secondary" href="https://doi.org/10.5281/zenodo.19376184">DOI</a>
     <a class="button secondary" href="docs/Manual.pdf">Manual (PDF)</a>
@@ -274,6 +274,27 @@
   <img class="gui-img" src="docs/images/gui_v08.png" alt="uPrime v0.8 GUI">
 
   <!-- What's New -->
+  <div class="whats-new">
+    <h2>NEW IN v0.9.0</h2>
+    <ul>
+      <li><strong>Installable with pip</strong>: <code>pip install -e .</code> gives you a
+          <code>uprime</code> command and an importable <code>uprime</code> package. The
+          distribution name is <code>uprime-piv</code>.</li>
+      <li><strong>Corrected invalid-vector handling</strong>: a vector marked invalid is now
+          excluded in every snapshot it is invalid in, not just the first. <strong>Statistics
+          produced from <code>.dat</code> data by v0.4.1&ndash;v0.8.2 should be
+          recomputed.</strong></li>
+      <li><strong>Documented Python API</strong>: <code>docs/API.md</code> describes every
+          public function in <code>uprime.core</code>, with a worked example in
+          <code>examples/</code>, so the analysis can be scripted as well as clicked.</li>
+      <li><strong>Consistent grid orientation</strong>: <code>.dat</code>, <code>.vc7</code> and
+          <code>.mat</code> now share one convention &mdash; row 0 at the smallest y, column 0 at
+          the smallest x &mdash; so cases from different sources are directly comparable.</li>
+      <li><strong>Tested on Windows, macOS and Linux</strong>: the suite runs in CI on all three
+          across Python 3.10 and 3.12.</li>
+    </ul>
+  </div>
+
   <div class="whats-new">
     <h2>NEW IN v0.8</h2>
     <ul>

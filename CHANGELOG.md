@@ -4,7 +4,36 @@ All notable changes to uPrime are documented here.
 
 ---
 
-## [Unreleased]
+## [0.9.0] - 2026-11-08
+
+uPrime is now an installable Python package with a documented API, and drops
+the "alpha" label. This release also corrects how invalid vectors are handled
+when loading data — **see the first entry under Fixed before reusing any
+result produced by an earlier version.**
+
+### Breaking
+- **Code now lives in the `uprime` package.** `from core.loader import ...`
+  becomes `from uprime.core.loader import ...`; likewise for `gui`.
+- **`core.dmd.build_snapshot_matrix` returns `(X, n_per, info)`** instead of
+  `(X, n_per)`. Pass `info["mask"]` to `get_mode_components`, not the dataset
+  `MASK` — gappy points are dropped, so it no longer matches `n_per`.
+- **`pyfftw` is now a required dependency**, not an optional extra. The
+  `fftw` extra is gone; `spatial_spectra_fft` imports it at module level.
+
+### Added
+- **`pip install -e .` and a `uprime` command.** The GUI launches from the
+  console script; `python main.py` still works.
+- **Distribution name `uprime-piv`** on PyPI, since `uprime` is taken by an
+  unrelated package. The import name is still `uprime`.
+- **`docs/API.md`**, documenting every public function in `uprime.core`, with
+  a runnable `examples/core_api_example.py` covering the common workflow.
+- **CI on Windows, macOS and Linux**, running the suite across Python 3.10
+  and 3.12 on every push.
+- **`CONTRIBUTING.md` and `CITATION.cff`**, covering development setup, the
+  build variants, the version-bump checklist and how to cite uPrime.
+- **`filled_fraction` in POD and DMD results**, the fraction of values
+  entering the decomposition that had to be gap-filled; both windows show it
+  in their status line when it is non-zero.
 
 ### Fixed
 - **Invalid vectors from every snapshot after the first were treated as real
@@ -83,20 +112,6 @@ All notable changes to uPrime are documented here.
   defaults to `False` when absent, so a caller that skips `load_grid` is
   unaffected. All three loaders now share one convention: **row 0 = smallest
   `y`, column 0 = smallest `x`**.
-
-### Changed
-- **POD and DMD results report `filled_fraction`**, the fraction of the
-  values entering the decomposition that had to be gap-filled. It is `0.0`
-  for a dataset without gaps. Both windows show it in their status line when
-  it is non-zero, so a result resting largely on filled data is visible
-  rather than implicit.
-
-- **`core.dmd.build_snapshot_matrix` now returns `(X, n_per, info)`** instead
-  of `(X, n_per)`, since dropping gappy points means the caller needs the
-  reduced mask to map modes back onto the grid. `info` holds `mask`,
-  `filled_fraction` and `n_components`. Pass `info["mask"]` to
-  `get_mode_components` — the unreduced dataset `MASK` no longer matches
-  `n_per`. The gap rule is also exposed on its own as `core.dmd.resolve_gaps`.
 
 ---
 

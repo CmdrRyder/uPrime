@@ -40,7 +40,7 @@ jobs:
       - name: Build with PyInstaller
         run: |
           pyinstaller --onedir --noconfirm --windowed \
-            --name uPrime_v0.8.2_${{ matrix.os }} \
+            --name uPrime_v0.9.0_${{ matrix.os }} \
             --add-data "uprime:uprime" \
             --hidden-import "matplotlib.backends.backend_qtagg" \
             --hidden-import "PyQt6.QtCore" \
