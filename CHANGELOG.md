@@ -69,6 +69,21 @@ All notable changes to uPrime are documented here.
   uses reversed views, and the per-snapshot `isValid` path flips one plane at
   a time, so a multi-GB HDF5 case costs no extra memory.
 
+- **Column order is now normalised too, so column 0 holds the smallest `x`.**
+  `davis_io` already flipped columns to make `x` ascend, but the `.dat` and
+  `.mat` loaders took the file's column order as given. A file written with
+  `x` descending loaded with column 0 at the far end of the domain. As with
+  the row case it was self-consistent — `x` descended too, so every plot was
+  correct and `dx` stayed positive — but column indices, line profiles taken
+  by column, and Compare Cases were mirrored against a `.vc7` case of the
+  same flow. `core.loader` and `core.mat_loader` now reverse `x`, `y`, `U`,
+  `V`, `W`, the vorticity and the validity mask along the column axis when
+  `x` descends. `load_grid` records the decision in `header["flip_cols"]`
+  and `load_single_file` follows it, exactly as for `flip_rows`; the flag
+  defaults to `False` when absent, so a caller that skips `load_grid` is
+  unaffected. All three loaders now share one convention: **row 0 = smallest
+  `y`, column 0 = smallest `x`**.
+
 ### Changed
 - **POD and DMD results report `filled_fraction`**, the fraction of the
   values entering the decomposition that had to be gap-filled. It is `0.0`

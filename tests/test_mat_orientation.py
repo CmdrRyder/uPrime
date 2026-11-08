@@ -1,13 +1,13 @@
-"""Row orientation in the .mat loader.
+"""Grid orientation in the .mat loader.
 
-uPrime's convention is row 0 = smallest y. core.loader.load_grid and
-core.davis_io both enforce it; mat_loader used to take the file's own row
-order as given. A .mat written with y descending therefore loaded upside down
-relative to a .dat or .vc7 case -- self-consistent, so nothing ever warned,
-but not comparable.
+uPrime's convention is row 0 = smallest y and column 0 = smallest x.
+core.loader.load_grid and core.davis_io both enforce it; mat_loader used to
+take the file's own order as given. A .mat written the other way round
+therefore loaded mirrored relative to a .dat or .vc7 case -- self-consistent,
+so nothing ever warned, but not comparable.
 
-Each test writes the same physical field twice, once with the rows ascending
-in y and once descending, and asserts the two load to identical arrays.
+Each test writes the same physical field in several row and column orders and
+asserts they all load to identical arrays.
 """
 
 import os
@@ -43,29 +43,43 @@ def _field():
     return U, V, W, x1d, y1d
 
 
-def _rows(arr, descending):
-    """Reverse the row axis when the file is to be written y-descending."""
-    return arr[::-1, ...] if descending else arr
+def _reorder(arr, desc_y, desc_x):
+    """Reverse the row and/or column axis as the file is to be written."""
+    sl = (slice(None, None, -1) if desc_y else slice(None),
+          slice(None, None, -1) if desc_x else slice(None))
+    return arr[sl + (Ellipsis,)]
 
 
-def _write_classic(path, U, V, W, x1d, y1d, descending, valid=None):
-    """Write a classic (v5) .mat, rows in either y order."""
+# Every combination of row and column order, all describing the same field.
+ORDERS = [
+    pytest.param(False, False, id="y_asc_x_asc"),
+    pytest.param(True, False, id="y_desc_x_asc"),
+    pytest.param(False, True, id="y_asc_x_desc"),
+    pytest.param(True, True, id="both_reversed"),
+]
+WRITERS = ["classic", "v73"]
+
+
+def _write_classic(path, U, V, W, x1d, y1d, desc_y=False, desc_x=False,
+                   valid=None):
+    """Write a classic (v5) .mat, rows and columns in either order."""
     y2d = np.tile(y1d.reshape(-1, 1), (1, NX))
     x2d = np.tile(x1d, (NY, 1))
     out = {
-        "x": _rows(x2d, descending),
-        "y": _rows(y2d, descending),
-        "u": _rows(U, descending),
-        "v": _rows(V, descending),
-        "w": _rows(W, descending),
+        "x": _reorder(x2d, desc_y, desc_x),
+        "y": _reorder(y2d, desc_y, desc_x),
+        "u": _reorder(U, desc_y, desc_x),
+        "v": _reorder(V, desc_y, desc_x),
+        "w": _reorder(W, desc_y, desc_x),
     }
     if valid is not None:
-        out["isValid"] = _rows(valid, descending).astype(np.float64)
+        out["isValid"] = _reorder(valid, desc_y, desc_x).astype(np.float64)
     scipy_io.savemat(path, out)
     return path
 
 
-def _write_v73(path, U, V, W, x1d, y1d, descending, valid=None):
+def _write_v73(path, U, V, W, x1d, y1d, desc_y=False, desc_x=False,
+               valid=None):
     """Write a MATLAB v7.3 file, so mat_loader takes its chunked h5py path.
 
     v7.3 is HDF5 with a 512-byte userblock. scipy reads the version from bytes
@@ -77,15 +91,16 @@ def _write_v73(path, U, V, W, x1d, y1d, descending, valid=None):
 
     y2d = np.tile(y1d.reshape(-1, 1), (1, NX))
     x2d = np.tile(x1d, (NY, 1))
+    R = lambda a: _reorder(a, desc_y, desc_x)
     out = {
-        "x": _rows(x2d, descending).T,                   # (Ny,Nx) -> (Nx,Ny)
-        "y": _rows(y2d, descending).T,
-        "u": _rows(U, descending).transpose(2, 1, 0),    # (Ny,Nx,Nt) -> (Nt,Nx,Ny)
-        "v": _rows(V, descending).transpose(2, 1, 0),
-        "w": _rows(W, descending).transpose(2, 1, 0),
+        "x": R(x2d).T,                           # (Ny,Nx) -> (Nx,Ny)
+        "y": R(y2d).T,
+        "u": R(U).transpose(2, 1, 0),            # (Ny,Nx,Nt) -> (Nt,Nx,Ny)
+        "v": R(V).transpose(2, 1, 0),
+        "w": R(W).transpose(2, 1, 0),
     }
     if valid is not None:
-        v = _rows(valid, descending)
+        v = R(valid)
         out["isValid"] = (v.transpose(2, 1, 0) if v.ndim == 3 else v.T)
 
     with h5py.File(path, "w", userblock_size=512) as fh:
@@ -116,37 +131,42 @@ def _load(path, force_isvalid=None, **kw):
     return ds
 
 
-def _assert_same(ds_asc, ds_desc, U, V, W, y1d):
-    """Both row orders give identical arrays, in uPrime's convention."""
+def _assert_same(ds_ref, ds_got, U, V, W, x1d, y1d):
+    """Both orders give identical arrays, in uPrime's convention."""
     for key in ("x", "y", "U", "V", "W", "MASK", "valid", "MASK_LOADED"):
-        a, b = ds_asc[key], ds_desc[key]
+        a, b = ds_ref[key], ds_got[key]
         assert np.array_equal(np.asarray(a), np.asarray(b), equal_nan=True), key
 
-    # And they match the field as written, with row 0 = smallest y.
-    np.testing.assert_allclose(ds_desc["U"], U, rtol=0, atol=1e-5)
-    np.testing.assert_allclose(ds_desc["V"], V, rtol=0, atol=1e-5)
-    np.testing.assert_allclose(ds_desc["W"], W, rtol=0, atol=1e-5)
-    np.testing.assert_allclose(ds_desc["y"][:, 0], y1d, rtol=0, atol=1e-9)
-    assert ds_desc["y"][0, 0] < ds_desc["y"][-1, 0]
-    assert ds_asc["y"][0, 0] < ds_asc["y"][-1, 0]
+    # And they match the field as written: row 0 = min y, column 0 = min x.
+    np.testing.assert_allclose(ds_got["U"], U, rtol=0, atol=1e-5)
+    np.testing.assert_allclose(ds_got["V"], V, rtol=0, atol=1e-5)
+    np.testing.assert_allclose(ds_got["W"], W, rtol=0, atol=1e-5)
+    np.testing.assert_allclose(ds_got["y"][:, 0], y1d, rtol=0, atol=1e-9)
+    np.testing.assert_allclose(ds_got["x"][0, :], x1d, rtol=0, atol=1e-9)
+    assert ds_got["y"][0, 0] < ds_got["y"][-1, 0]
+    assert ds_got["x"][0, 0] < ds_got["x"][0, -1]
 
 
-@pytest.mark.parametrize("writer", ["classic", "v73"])
-def test_ascending_and_descending_y_load_identically(tmp_path, writer):
+@pytest.mark.parametrize("writer", WRITERS)
+@pytest.mark.parametrize("desc_y,desc_x", ORDERS)
+def test_every_row_and_column_order_loads_identically(tmp_path, writer,
+                                                      desc_y, desc_x):
     U, V, W, x1d, y1d = _field()
     write = _write_classic if writer == "classic" else _write_v73
 
-    asc = _load(write(str(tmp_path / "asc.mat"), U, V, W, x1d, y1d, False))
-    desc = _load(write(str(tmp_path / "desc.mat"), U, V, W, x1d, y1d, True))
+    ref = _load(write(str(tmp_path / "ref.mat"), U, V, W, x1d, y1d))
+    got = _load(write(str(tmp_path / "got.mat"), U, V, W, x1d, y1d,
+                      desc_y=desc_y, desc_x=desc_x))
 
-    _assert_same(asc, desc, U, V, W, y1d)
-    assert asc["header"]["flip_rows"] is False
-    assert desc["header"]["flip_rows"] is True
+    _assert_same(ref, got, U, V, W, x1d, y1d)
+    assert got["header"]["flip_rows"] is desc_y
+    assert got["header"]["flip_cols"] is desc_x
 
 
-@pytest.mark.parametrize("writer", ["classic", "v73"])
-def test_three_d_isvalid_flips_with_the_data(tmp_path, writer):
-    """The per-snapshot isValid path must flip too, or NaN lands on wrong rows."""
+@pytest.mark.parametrize("writer", WRITERS)
+@pytest.mark.parametrize("desc_y,desc_x", ORDERS)
+def test_three_d_isvalid_flips_with_the_data(tmp_path, writer, desc_y, desc_x):
+    """The per-snapshot isValid path must flip too, or NaN lands on wrong points."""
     U, V, W, x1d, y1d = _field()
     write = _write_classic if writer == "classic" else _write_v73
 
@@ -155,21 +175,24 @@ def test_three_d_isvalid_flips_with_the_data(tmp_path, writer):
     valid[sometimes[0], sometimes[1], :2] = False
     valid[always[0], always[1], :] = False
 
-    asc = _load(write(str(tmp_path / "asc.mat"), U, V, W, x1d, y1d, False, valid))
-    desc = _load(write(str(tmp_path / "desc.mat"), U, V, W, x1d, y1d, True, valid))
+    ref = _load(write(str(tmp_path / "ref.mat"), U, V, W, x1d, y1d, valid=valid))
+    got = _load(write(str(tmp_path / "got.mat"), U, V, W, x1d, y1d,
+                      desc_y=desc_y, desc_x=desc_x, valid=valid))
 
-    for key in ("U", "V", "W", "MASK", "y"):
-        assert np.array_equal(np.asarray(asc[key]), np.asarray(desc[key]),
+    for key in ("U", "V", "W", "MASK", "x", "y"):
+        assert np.array_equal(np.asarray(ref[key]), np.asarray(got[key]),
                               equal_nan=True), key
 
-    # NaN sits on exactly the rows the field was written with.
-    assert np.array_equal(np.isnan(desc["U"]), ~valid)
-    assert bool(desc["MASK"][sometimes])
-    assert not bool(desc["MASK"][always])
+    # NaN sits on exactly the points the field was written with.
+    assert np.array_equal(np.isnan(got["U"]), ~valid)
+    assert bool(got["MASK"][sometimes])
+    assert not bool(got["MASK"][always])
 
 
-@pytest.mark.parametrize("writer", ["classic", "v73"])
-def test_static_two_d_isvalid_flips_with_the_data(tmp_path, writer):
+@pytest.mark.parametrize("writer", WRITERS)
+@pytest.mark.parametrize("desc_y,desc_x", ORDERS)
+def test_static_two_d_isvalid_flips_with_the_data(tmp_path, writer, desc_y,
+                                                  desc_x):
     """A 2-D isValid bypasses _apply_frame, so it needs its own flip."""
     U, V, W, x1d, y1d = _field()
     write = _write_classic if writer == "classic" else _write_v73
@@ -178,14 +201,15 @@ def test_static_two_d_isvalid_flips_with_the_data(tmp_path, writer):
     valid[6, 8] = False
     valid[1, 2] = False
 
-    asc = _load(write(str(tmp_path / "asc.mat"), U, V, W, x1d, y1d, False, valid),
+    ref = _load(write(str(tmp_path / "ref.mat"), U, V, W, x1d, y1d, valid=valid),
                 force_isvalid="isValid")
-    desc = _load(write(str(tmp_path / "desc.mat"), U, V, W, x1d, y1d, True, valid),
-                 force_isvalid="isValid")
+    got = _load(write(str(tmp_path / "got.mat"), U, V, W, x1d, y1d,
+                      desc_y=desc_y, desc_x=desc_x, valid=valid),
+                force_isvalid="isValid")
 
-    assert np.array_equal(asc["MASK"], desc["MASK"])
-    assert np.array_equal(desc["MASK"], valid)
-    assert np.array_equal(np.asarray(asc["U"]), np.asarray(desc["U"]),
+    assert np.array_equal(ref["MASK"], got["MASK"])
+    assert np.array_equal(got["MASK"], valid)
+    assert np.array_equal(np.asarray(ref["U"]), np.asarray(got["U"]),
                           equal_nan=True)
 
 
@@ -198,28 +222,36 @@ def test_invalid_mask_convention_still_flips(tmp_path):
     valid[2, 3, :2] = False
     stored = ~valid              # the file stores "invalid", not "valid"
 
-    asc_p = _write_classic(str(tmp_path / "asc.mat"), U, V, W, x1d, y1d,
-                           False, stored)
-    desc_p = _write_classic(str(tmp_path / "desc.mat"), U, V, W, x1d, y1d,
-                            True, stored)
+    ref_p = _write_classic(str(tmp_path / "ref.mat"), U, V, W, x1d, y1d,
+                           valid=stored)
+    got_p = _write_classic(str(tmp_path / "got.mat"), U, V, W, x1d, y1d,
+                           desc_y=True, desc_x=True, valid=stored)
 
-    asc = _load(asc_p, mask_convention="invalid")
-    desc = _load(desc_p, mask_convention="invalid")
+    ref = _load(ref_p, mask_convention="invalid")
+    got = _load(got_p, mask_convention="invalid")
 
-    assert np.array_equal(np.asarray(asc["U"]), np.asarray(desc["U"]),
+    assert np.array_equal(np.asarray(ref["U"]), np.asarray(got["U"]),
                           equal_nan=True)
-    assert np.array_equal(np.isnan(desc["U"]), ~valid)
-    assert not bool(desc["MASK"][6, 8])
-    assert bool(desc["MASK"][2, 3])
+    assert np.array_equal(np.isnan(got["U"]), ~valid)
+    assert not bool(got["MASK"][6, 8])
+    assert bool(got["MASK"][2, 3])
 
 
-def test_flip_does_not_copy_the_velocity_arrays(tmp_path):
-    """The flip must be a view: an HDF5 case can be many GB."""
+@pytest.mark.parametrize("desc_y,desc_x", ORDERS[1:])
+def test_flip_does_not_copy_the_velocity_arrays(tmp_path, desc_y, desc_x):
+    """Every flip must be a view: an HDF5 case can be many GB.
+
+    If this ever fails because someone wrapped the flip in
+    np.ascontiguousarray, the fix is not to relax the test: that doubles peak
+    memory on exactly the files this loader exists to handle.
+    """
     U, V, W, x1d, y1d = _field()
-    path = _write_classic(str(tmp_path / "desc.mat"), U, V, W, x1d, y1d, True)
+    path = _write_classic(str(tmp_path / "got.mat"), U, V, W, x1d, y1d,
+                          desc_y=desc_y, desc_x=desc_x)
     ds = _load(path)
 
-    assert ds["header"]["flip_rows"] is True
+    assert ds["header"]["flip_rows"] is desc_y
+    assert ds["header"]["flip_cols"] is desc_x
     for key in ("U", "V", "W", "x", "y"):
         arr = ds[key]
         # A reversed slice keeps its parent alive through .base and owns no

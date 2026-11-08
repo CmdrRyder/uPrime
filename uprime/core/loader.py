@@ -230,20 +230,23 @@ def load_grid(filepath, header):
     """
     Read the x/y coordinate grid from a .dat file.
 
-    Rows are flipped when needed so that row 0 holds the smallest y, which is
-    the convention used throughout uPrime. Coordinates are scaled to mm using
-    header["xy_to_mm"].
+    Rows and columns are flipped when needed so that row 0 holds the smallest
+    y and column 0 the smallest x, which is the convention used throughout
+    uPrime. Coordinates are scaled to mm using header["xy_to_mm"].
 
-    The decision is recorded in header["flip_rows"] so that load_single_file
-    flips exactly when the grid did. DaVis writes rows top-to-bottom and so
-    needs the flip, but a file written with y ascending must not be flipped,
-    or the velocities come back mirrored relative to the grid.
+    Both decisions are recorded, in header["flip_rows"] and
+    header["flip_cols"], so that load_single_file flips exactly as the grid
+    did. DaVis writes rows top-to-bottom and columns left-to-right, so the row
+    flip is the usual case and the column flip is not; a file written the
+    other way round must be flipped to match, or the velocities come back
+    mirrored relative to the grid.
 
     Parameters
     ----------
     filepath : str, path to a .dat snapshot
     header   : dict, as returned by parse_header
-               Mutated: header["flip_rows"] is set to the decision taken.
+               Mutated: header["flip_rows"] and header["flip_cols"] are set to
+               the decisions taken.
 
     Returns
     -------
@@ -265,14 +268,21 @@ def load_grid(filepath, header):
     x = raw[:, 0].reshape(ny, nx)
     y = raw[:, 1].reshape(ny, nx)
 
-    # DaVis stores rows top-to-bottom; flip so row 0 = smallest y.
-    # Record it so load_single_file flips the data exactly when we flipped
-    # the grid -- a file written with y ascending needs no flip at all.
-    flip_rows = bool(y[0, 0] > y[-1, 0])
+    # DaVis stores rows top-to-bottom and columns left-to-right; flip so that
+    # row 0 = smallest y and column 0 = smallest x. Record both so that
+    # load_single_file flips the data exactly as we flipped the grid -- a file
+    # written with y ascending needs no row flip at all. core.davis_io and
+    # core.mat_loader apply the same two rules.
+    flip_rows = bool(ny > 1 and y[0, 0] > y[-1, 0])
+    flip_cols = bool(nx > 1 and x[0, 0] > x[0, -1])
     header["flip_rows"] = flip_rows
-    if flip_rows:
-        x = x[::-1, :]
-        y = y[::-1, :]
+    header["flip_cols"] = flip_cols
+    if flip_rows or flip_cols:
+        # A strided slice is a view, so this reorders without copying.
+        sl = (slice(None, None, -1) if flip_rows else slice(None),
+              slice(None, None, -1) if flip_cols else slice(None))
+        x = x[sl]
+        y = y[sl]
 
     x = x * header["xy_to_mm"]
     y = y * header["xy_to_mm"]
@@ -284,15 +294,16 @@ def load_single_file(filepath, header):
     """
     Read one .dat snapshot into velocity, validity and vorticity arrays.
 
-    Only the columns named in `header` are read. Rows are flipped to match
-    load_grid (row 0 = smallest y) and velocities are scaled to m/s. Vectors
-    marked invalid in this snapshot are set to NaN in u, v, w and vort. The
-    mask is also returned separately, so load_dataset can accumulate it over
-    the series.
+    Only the columns named in `header` are read. Rows and columns are flipped
+    to match load_grid (row 0 = smallest y, column 0 = smallest x) and
+    velocities are scaled to m/s. Vectors marked invalid in this snapshot are
+    set to NaN in u, v, w and vort. The mask is also returned separately, so
+    load_dataset can accumulate it over the series.
 
-    Whether to flip comes from header["flip_rows"], which load_grid sets. It
-    defaults to True when absent, so a caller that skips load_grid keeps the
-    behaviour it had before the flag existed.
+    Whether to flip comes from header["flip_rows"] and header["flip_cols"],
+    which load_grid sets. They default to True and False respectively when
+    absent, which is what a caller that skips load_grid used to get before
+    the flags existed.
 
     Parameters
     ----------
@@ -354,14 +365,19 @@ def load_single_file(filepath, header):
     else:
         vort = None
 
-    # Flip rows to match grid orientation, exactly when load_grid flipped the
-    # grid. Default True for callers that never called load_grid.
-    if header.get("flip_rows", True):
-        u     = u[::-1, :]
-        v     = v[::-1, :]
-        valid = valid[::-1, :]
-        if w    is not None: w    = w[::-1, :]
-        if vort is not None: vort = vort[::-1, :]
+    # Flip rows and columns to match the grid orientation, exactly as
+    # load_grid flipped it. The defaults reproduce the behaviour a caller that
+    # never calls load_grid used to get: rows flipped, columns not.
+    _flip_rows = header.get("flip_rows", True)
+    _flip_cols = header.get("flip_cols", False)
+    if _flip_rows or _flip_cols:
+        sl = (slice(None, None, -1) if _flip_rows else slice(None),
+              slice(None, None, -1) if _flip_cols else slice(None))
+        u     = u[sl]
+        v     = v[sl]
+        valid = valid[sl]
+        if w    is not None: w    = w[sl]
+        if vort is not None: vort = vort[sl]
 
     u = u * header["vel_to_ms"]
     v = v * header["vel_to_ms"]

@@ -23,17 +23,22 @@ from uprime.core.reynolds_stress import compute_reynolds_stresses
 
 **Array shapes.** A time series is `[ny, nx, Nt]` — rows, columns, snapshots.
 A single 2D field (a mean, a stress component, a vorticity map) is `[ny, nx]`.
-Row 0 is the smallest `y`. All three loaders enforce it: each detects whether
-the file stores rows top-to-bottom and flips `x`, `y`, the velocities and the
-validity mask together when it does, so the convention holds regardless of how
-the source wrote the file. Each records the decision in `header["flip_rows"]`.
+**Grid order.** Row 0 holds the smallest `y` and column 0 the smallest `x`.
+All three loaders enforce this, and they enforce it the same way: each detects
+the order the file was written in and, where it disagrees, reverses `x`, `y`,
+the velocities, the vorticity and the validity mask together along that axis.
+The convention therefore holds whatever the source wrote, and a `.dat`, `.vc7`
+and `.mat` case of the same flow are directly comparable, index for index.
 
-Column order is **not** normalised the same way. `davis_io` flips columns so
-that `x` ascends, but the `.dat` and `.mat` loaders take the file's column
-order as given, so a file written with `x` descending loads with column 0 at
-the largest `x`. It stays self-consistent — `x` descends too, so plots are
-correct and `dx` is positive either way — but column indices are mirrored
-relative to a `.vc7` case of the same flow.
+`.dat` and `.mat` record both decisions as `header["flip_rows"]` and
+`header["flip_cols"]`. The flips are applied as reversed views, so no data is
+copied. `dx` and `dy` are measured after the flip and are positive either way.
+
+A file that disagrees with the convention loads **self-consistently** whether
+or not the loader normalises it — `x` or `y` simply descends alongside the
+data, so plots look right and summary statistics are unchanged. That is what
+made the old mismatch hard to notice, and why the loaders normalise rather
+than warn.
 
 **The third component.** `W` is `None` for planar (2D2C) data, not an array of
 zeros or NaN. Core functions take `W` as a positional argument and branch on
@@ -188,11 +193,12 @@ Read the Tecplot header and locate its columns.
 Raises `ValueError` if the ZONE line has no `I=`/`J=`.
 
 **`loader.load_grid(filepath, header)`**
-Read the coordinate grid, flipped so row 0 is the smallest `y`, scaled to mm.
-→ `(x, y)`, each `[ny, nx]`.
-Mutates `header`, setting `header["flip_rows"]` to the decision taken.
-`load_single_file` follows that flag, so call this first; it defaults to
-`True` when absent, which is what a file written top-to-bottom needs.
+Read the coordinate grid, reordered so row 0 is the smallest `y` and column 0
+the smallest `x`, scaled to mm. → `(x, y)`, each `[ny, nx]`.
+Mutates `header`, setting `header["flip_rows"]` and `header["flip_cols"]` to
+the decisions taken. `load_single_file` follows those flags, so call this
+first. They default to `True` and `False` when absent, which is what a DaVis
+export needs and what `load_single_file` did before the flags existed.
 
 **`loader.load_single_file(filepath, header)`**
 Read one snapshot.
