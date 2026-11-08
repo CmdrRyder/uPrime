@@ -30,6 +30,47 @@ All notable changes to uPrime are documented here.
   snapshots, so a single bad vector blanked that grid point for the whole
   series.
 
+- **DMD crashed on data with invalid vectors, and filled raw velocity with
+  zero.** `compute_dmd` had no gap handling and failed inside the SVD with
+  `LinAlgError: SVD did not converge` on a snapshot matrix containing NaN.
+  The DMD window did not crash, because `DMDWorker` called `np.nan_to_num`
+  first, but that fills with a literal zero: with **subtract mean** switched
+  off the matrix holds raw velocity, so every invalid vector became a spike
+  of `-U` against the local mean, injecting broadband energy and shifting the
+  mode frequencies. Gap handling now lives in
+  `core.dmd.build_snapshot_matrix` on the same terms as POD — grid points
+  that are NaN in 10% or more of the snapshots are dropped, and the remaining
+  gaps are filled with that point's own temporal mean, which is zero for a
+  mean-subtracted field and the local mean velocity for a raw one. The two
+  settings now agree. `compute_dmd` additionally rejects non-finite input
+  with a clear `ValueError` instead of failing in the SVD.
+
+- **`.dat` files written with y ascending loaded mirrored vertically.**
+  `load_grid` flips rows only when y descends, so that row 0 always holds the
+  smallest y, but `load_single_file` flipped unconditionally. DaVis writes y
+  descending, so the two cancelled out on real exports and the bug never
+  showed there; a file written the other way round — a Tecplot export from a
+  non-DaVis source, or a hand-built file — loaded with the velocities
+  upside down relative to `x` and `y`. Nothing warned, and no summary
+  statistic changes under a row flip. `load_grid` now records its decision in
+  `header["flip_rows"]` and `load_single_file` follows it. The flag defaults
+  to `True` when absent, so a caller that skips `load_grid` keeps the old
+  behaviour.
+
+### Changed
+- **POD and DMD results report `filled_fraction`**, the fraction of the
+  values entering the decomposition that had to be gap-filled. It is `0.0`
+  for a dataset without gaps. Both windows show it in their status line when
+  it is non-zero, so a result resting largely on filled data is visible
+  rather than implicit.
+
+- **`core.dmd.build_snapshot_matrix` now returns `(X, n_per, info)`** instead
+  of `(X, n_per)`, since dropping gappy points means the caller needs the
+  reduced mask to map modes back onto the grid. `info` holds `mask`,
+  `filled_fraction` and `n_components`. Pass `info["mask"]` to
+  `get_mode_components` — the unreduced dataset `MASK` no longer matches
+  `n_per`. The gap rule is also exposed on its own as `core.dmd.resolve_gaps`.
+
 ---
 
 ## [0.8.2] - 2026-09-03

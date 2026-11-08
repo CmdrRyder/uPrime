@@ -449,9 +449,12 @@ class PODWindow(QWidget):
         if self.is_time_resolved:
             self._plot_temporal_coeffs()
 
+        _ff = result.get('filled_fraction', 0.0)
+        _gap = f"  ({_ff * 100:.1f}% of values gap-filled)" if _ff > 0 else ""
         self.lbl_status.setText(
             f"Done. {n} modes computed  "
-            f"({result['cumul_energy'][min(9, n-1)]*100:.1f}% energy in first {min(10, n)})")
+            f"({result['cumul_energy'][min(9, n-1)]*100:.1f}% energy in first {min(10, n)})"
+            f"{_gap}")
 
     def _on_pod_error(self, tb_str):
         QMessageBox.critical(self, "POD Error", tb_str)

@@ -234,10 +234,16 @@ def load_grid(filepath, header):
     the convention used throughout uPrime. Coordinates are scaled to mm using
     header["xy_to_mm"].
 
+    The decision is recorded in header["flip_rows"] so that load_single_file
+    flips exactly when the grid did. DaVis writes rows top-to-bottom and so
+    needs the flip, but a file written with y ascending must not be flipped,
+    or the velocities come back mirrored relative to the grid.
+
     Parameters
     ----------
     filepath : str, path to a .dat snapshot
     header   : dict, as returned by parse_header
+               Mutated: header["flip_rows"] is set to the decision taken.
 
     Returns
     -------
@@ -259,8 +265,12 @@ def load_grid(filepath, header):
     x = raw[:, 0].reshape(ny, nx)
     y = raw[:, 1].reshape(ny, nx)
 
-    # DaVis stores rows top-to-bottom; flip so row 0 = smallest y
-    if y[0, 0] > y[-1, 0]:
+    # DaVis stores rows top-to-bottom; flip so row 0 = smallest y.
+    # Record it so load_single_file flips the data exactly when we flipped
+    # the grid -- a file written with y ascending needs no flip at all.
+    flip_rows = bool(y[0, 0] > y[-1, 0])
+    header["flip_rows"] = flip_rows
+    if flip_rows:
         x = x[::-1, :]
         y = y[::-1, :]
 
@@ -280,10 +290,15 @@ def load_single_file(filepath, header):
     mask is also returned separately, so load_dataset can accumulate it over
     the series.
 
+    Whether to flip comes from header["flip_rows"], which load_grid sets. It
+    defaults to True when absent, so a caller that skips load_grid keeps the
+    behaviour it had before the flag existed.
+
     Parameters
     ----------
     filepath : str, path to a .dat snapshot
-    header   : dict, as returned by parse_header
+    header   : dict, as returned by parse_header, after load_grid has added
+               header["flip_rows"]
 
     Returns
     -------
@@ -339,12 +354,14 @@ def load_single_file(filepath, header):
     else:
         vort = None
 
-    # Flip rows to match grid orientation (bottom to top)
-    u     = u[::-1, :]
-    v     = v[::-1, :]
-    valid = valid[::-1, :]
-    if w    is not None: w    = w[::-1, :]
-    if vort is not None: vort = vort[::-1, :]
+    # Flip rows to match grid orientation, exactly when load_grid flipped the
+    # grid. Default True for callers that never called load_grid.
+    if header.get("flip_rows", True):
+        u     = u[::-1, :]
+        v     = v[::-1, :]
+        valid = valid[::-1, :]
+        if w    is not None: w    = w[::-1, :]
+        if vort is not None: vort = vort[::-1, :]
 
     u = u * header["vel_to_ms"]
     v = v * header["vel_to_ms"]

@@ -54,9 +54,7 @@ def _write_series(folder, U, V, W, VALID, x1d, y1d):
             f.write(f"VARIABLES = {_VARS}\n")
             f.write(f'ZONE T="frame {t}", I={nx}, J={ny}, F=POINT\n')
             # Rows top-to-bottom (y descending), as DaVis writes them.
-            # load_grid flips rows only when y descends, while load_single_file
-            # flips unconditionally -- an ascending-y file would come back with
-            # the data upside down relative to the grid.
+            # test_row_orientation.py covers the ascending-y case.
             for r in range(ny - 1, -1, -1):
                 for c in range(nx):
                     f.write(f"{x1d[c]:.6f} {y1d[r]:.6f} "

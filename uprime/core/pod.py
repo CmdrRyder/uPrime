@@ -30,6 +30,10 @@ def compute_pod(U, V, W, n_modes=25):
         energy_frac   : (n_modes,)   fraction of TKE per mode
         cumul_energy  : (n_modes,)   cumulative energy fraction
         mask          : (ny, nx)  bool, True = valid point
+                        (points with 10 % or more NaN snapshots are dropped)
+        filled_fraction : float
+                        Fraction of the values entering the decomposition that
+                        were gap-filled. 0.0 for a dataset without gaps.
         n_modes       : int
         Nc            : int (2 or 3)
         mean_U        : (ny, nx)
@@ -63,6 +67,18 @@ def compute_pod(U, V, W, n_modes=25):
     # ------------------------------------------------------------------ #
     # 3. Fill NaN with 0 on the fluctuation fields                        #
     # ------------------------------------------------------------------ #
+    # Record how much of the retained data this fills, before filling it.
+    # Zero on a fluctuation field is the point's own temporal mean, which is
+    # the same rule core.dmd.resolve_gaps applies.
+    n_used = int(mask.sum()) * Nt * Nc
+    if n_used:
+        n_fill = int(np.isnan(u)[mask, :].sum()) + int(np.isnan(v)[mask, :].sum())
+        if w is not None:
+            n_fill += int(np.isnan(w)[mask, :].sum())
+        filled_fraction = n_fill / n_used
+    else:
+        filled_fraction = 0.0
+
     u = np.where(np.isnan(u), 0.0, u)
     v = np.where(np.isnan(v), 0.0, v)
     if w is not None:
@@ -156,7 +172,8 @@ def compute_pod(U, V, W, n_modes=25):
         coeffs       = coeffs,
         energy_frac  = energy_frac,
         cumul_energy = cumul_energy,
-        mask         = mask,
+        mask            = mask,
+        filled_fraction = filled_fraction,
         n_modes      = n_modes,
         Nc           = Nc,
         mean_U       = mean_U,

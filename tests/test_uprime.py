@@ -247,10 +247,10 @@ class TestDMD:
         V = get_masked(dataset, "V").astype(float)
         U -= np.nanmean(U, axis=2, keepdims=True)
         V -= np.nanmean(V, axis=2, keepdims=True)
-        X, n_per = build_snapshot_matrix(U, V, None,
-                                         component="stacked",
-                                         mask=dataset["MASK"])
-        X = np.nan_to_num(X, nan=0.0)
+        X, n_per, info = build_snapshot_matrix(U, V, None,
+                                               component="stacked",
+                                               mask=dataset["MASK"])
+        assert int(info["mask"].sum()) == n_per
         result = compute_dmd(X, rank=10)
         result = scale_to_physical(result, fs=1000.0)
         assert "modes" in result
@@ -266,10 +266,9 @@ class TestDMD:
         V = get_masked(dataset, "V").astype(float)
         U -= np.nanmean(U, axis=2, keepdims=True)
         V -= np.nanmean(V, axis=2, keepdims=True)
-        X, _ = build_snapshot_matrix(U, V, None,
-                                     component="stacked",
-                                     mask=dataset["MASK"])
-        X = np.nan_to_num(X, nan=0.0)
+        X, _, _ = build_snapshot_matrix(U, V, None,
+                                        component="stacked",
+                                        mask=dataset["MASK"])
         result = scale_to_physical(compute_dmd(X, rank=10), fs=1000.0)
         assert np.all(np.isfinite(result["frequencies_hz"]))
         assert np.all(np.isfinite(result["growth_rates_phys"]))

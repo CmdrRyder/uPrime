@@ -377,6 +377,12 @@ Integral scale from a normalised correlation curve. `method` is
 zero crossing), `extras` a dict with keys `cutoff_idx`, `fit_L`, `fit_r`,
 `fit_R`, `cumulative`, `r_axis`, `no_crossing`.
 
+The arrays in `extras` are **not a fixed length**. `cumulative` and `r_axis`
+run up to the integration cutoff, which for `'zero_crossing'` is the first
+zero crossing of `R_1d` — so two cases, or the same case with and without
+gaps, can return arrays of different lengths. Do not stack them across cases
+without checking, and use `extras['r_axis']` rather than assuming the axis.
+
 **`two_point_corr.compute_time_scales(R_tau, lags, dt, method='zero_crossing')`**
 → `(T, extras)`, same shape of result in seconds.
 
@@ -385,21 +391,46 @@ zero crossing), `extras` a dict with keys `cutoff_idx`, `fit_L`, `fit_r`,
 **`pod.compute_pod(U, V, W, n_modes=25)`**
 Snapshot POD of the fluctuating field.
 → dict with keys `eigenvalues`, `modes`, `coeffs`, `energy_frac`,
-`cumul_energy`, `mask`, `n_modes`, `Nc`, `mean_U`, `mean_V`, `mean_W`.
-`energy_frac` is the per-mode energy fraction, `cumul_energy` its cumulative
-sum.
+`cumul_energy`, `mask`, `filled_fraction`, `n_modes`, `Nc`, `mean_U`,
+`mean_V`, `mean_W`. `energy_frac` is the per-mode energy fraction,
+`cumul_energy` its cumulative sum. `mask` is the **reduced** mask, after gap
+handling (below), and `filled_fraction` is the fraction of the values that
+entered the decomposition that had to be gap-filled — `0.0` for a dataset
+without gaps.
 
 **`pod.reconstruct_snapshot(pod_result, snapshot_idx, n_modes)`**
 Rebuild one snapshot from the leading modes. → `(U_rec, V_rec, W_rec)`.
 
-**`dmd.build_snapshot_matrix(U, V, W, component='stacked', mask=None)`**
-Flatten a time series into a snapshot matrix. → `(X, n_per)`.
+**`dmd.resolve_gaps(fields, mask=None, max_nan_frac=0.1)`**
+The shared gap rule for both decompositions. A grid point is kept only if
+`mask` marks it valid **and** fewer than `max_nan_frac` of its snapshots are
+NaN, counting a snapshot as NaN if any of `fields` is NaN there, so every
+component keeps the same points. Gaps at the surviving points are filled with
+**that point's own temporal mean**.
+→ `(filled, mask_out, filled_fraction)` — `filled` is a list of copies of
+`fields`, `mask_out` the reduced `[ny, nx]` bool mask, `filled_fraction` the
+fraction of retained values that were filled.
+
+Filling with the point's own mean is what makes the rule safe for raw
+velocity: a mean-subtracted field is filled with (numerically) zero, while a
+raw field is filled with the local mean velocity rather than a false zero.
+
+**`dmd.build_snapshot_matrix(U, V, W, component='stacked', mask=None, max_nan_frac=0.1)`**
+Flatten a time series into a snapshot matrix, resolving gaps with
+`resolve_gaps` first. → `(X, n_per, info)`, where `X` is free of NaN and `info`
+holds `mask` (the reduced mask, whose `True` count is `n_per`),
+`filled_fraction` and `n_components`.
+
+`mask` is only the starting point — gappy grid points are dropped on top of
+it. Pass `info['mask']`, **not** the dataset `MASK`, to `get_mode_components`.
 
 **`dmd.compute_dmd(X, rank=None)`**
 Dynamic mode decomposition.
 → dict with keys `modes`, `eigenvalues`, `amplitudes`, `growth_rates`,
 `frequencies`, `rank`. `frequencies` and `growth_rates` are in discrete
 (per-snapshot) units.
+Raises `ValueError` if `X` holds any NaN or inf, rather than failing inside the
+SVD. Build `X` with `build_snapshot_matrix` and this cannot happen.
 
 **`dmd.scale_to_physical(dmd_result, fs)`**
 Add physical-unit copies. → the same dict plus `frequencies_hz` and
@@ -407,6 +438,9 @@ Add physical-unit copies. → the same dict plus `frequencies_hz` and
 
 **`dmd.get_mode_components(mode_flat, n_per, n_components, ny, nx, mask)`**
 Unflatten one mode. → list of `[ny, nx]` arrays, one per component.
+`mask` must be the reduced mask from `build_snapshot_matrix`, whose `True`
+count is `n_per`; the unreduced dataset `MASK` scatters the mode across the
+wrong grid points.
 
 ### Vortex identification
 
@@ -514,12 +548,14 @@ is a hard dependency of the package, so a normal install always has it.
 is per snapshot, a point's time series can contain NaN. Most routines use
 NaN-aware reductions and are unaffected. The exceptions:
 
-- **DMD** has no NaN handling at all. `compute_dmd` raises
-  `LinAlgError: SVD did not converge` on a snapshot matrix containing NaN.
-  Fill or drop the gaps before calling it.
-- **POD** replaces NaN with 0.0 on the fluctuation fields, and drops grid
-  points whose NaN fraction is 10% or more. Zeros are not neutral for an
-  energy decomposition, so mode energies shift when gaps are common.
+- **POD and DMD** drop grid points whose NaN fraction is 10% or more and fill
+  the remaining gaps with the point's own temporal mean — zero on a
+  fluctuation field, the local mean velocity on a raw one. Both report how
+  much was filled in `filled_fraction`, and both return the reduced `mask`
+  they actually used. The filling is still an assumption, not a measurement:
+  a filled gap contributes no fluctuation energy, so mode energies shift when
+  gaps are common. Check `filled_fraction` before trusting mode energies.
+  `compute_dmd` refuses non-finite input with a `ValueError`.
 - **Temporal spectra** (`psd_at_point`, `psd_in_region`) fill gaps with the
   series mean; **spatial spectra** fill with 0.0 on the fluctuation; the
   **3-D FFT branch** replaces NaN with 0.0 and refuses an ROI that is more

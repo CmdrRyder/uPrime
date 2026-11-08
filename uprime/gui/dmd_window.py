@@ -53,6 +53,7 @@ class DmdWindow(PickerMixin, QWidget):
         self._dmd_result         = None
         self._selected_mode      = None
         self._n_per              = None
+        self._mask               = None   # reduced mask from the DMD run
         self._n_components       = None
         self._x_vals             = None
         self._gr_phys            = None
@@ -384,6 +385,7 @@ class DmdWindow(PickerMixin, QWidget):
         self._dmd_result   = result
         self._n_per        = result['n_per']
         self._n_components = result['n_components']
+        self._mask         = result['mask']
 
         self._modes_by_amplitude = np.argsort(
             result['amplitudes'])[::-1].tolist()
@@ -394,8 +396,10 @@ class DmdWindow(PickerMixin, QWidget):
         self.btn_replot_spectrum.setEnabled(True)
         self.btn_export_spectrum.setEnabled(True)
 
+        _ff = result.get('filled_fraction', 0.0)
+        _gap = f"  ({_ff * 100:.1f}% of values gap-filled)" if _ff > 0 else ""
         self.lbl_status_compute.setText(
-            f"Done. {result['rank']} modes computed.")
+            f"Done. {result['rank']} modes computed.{_gap}")
 
         self._plot_spectrum()
 
@@ -549,7 +553,8 @@ class DmdWindow(PickerMixin, QWidget):
     def _plot_mode(self, mode_idx):
         r          = self._dmd_result
         ny, nx     = self._y.shape[0], self._x.shape[1]
-        mask       = self.dataset["MASK"]
+        # The DMD run may have dropped gappy points, so use its reduced mask.
+        mask       = self._mask
         mode_flat  = r['modes'][:, mode_idx]
         part       = self.combo_part.currentData()
         cmap       = self.combo_cmap.currentText()
@@ -666,7 +671,7 @@ class DmdWindow(PickerMixin, QWidget):
         r         = self._dmd_result
         mode_idx  = self._selected_mode
         ny, nx    = self._y.shape[0], self._x.shape[1]
-        mask      = self.dataset["MASK"]
+        mask      = self._mask
         mode_flat = r['modes'][:, mode_idx]
 
         components = get_mode_components(

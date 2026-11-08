@@ -57,17 +57,23 @@ class DMDWorker(BaseWorker):
             V -= np.nanmean(V, axis=2, keepdims=True)
             if W is not None:
                 W -= np.nanmean(W, axis=2, keepdims=True)
-        X, n_per = build_snapshot_matrix(U, V, W,
-                                          component=self.component,
-                                          mask=self.mask)
-        X = np.nan_to_num(X, nan=0.0)
+        # build_snapshot_matrix resolves the gaps: it drops grid points that
+        # are NaN in 10 % or more of the snapshots and fills the rest with the
+        # point's own temporal mean. That is zero for a mean-subtracted field
+        # and the local mean velocity otherwise, so raw velocity no longer
+        # gets false zeros where vectors were invalid.
+        X, n_per, info = build_snapshot_matrix(U, V, W,
+                                               component=self.component,
+                                               mask=self.mask)
         rank = min(X.shape[0], X.shape[1] - 1, self.n_modes)
         result = compute_dmd(X, rank=rank)
         result = scale_to_physical(result, self.fs)
         result['n_per'] = n_per
-        result['n_components'] = (
-            (3 if W is not None else 2) if self.component == 'stacked' else 1
-        )
+        # The reduced mask, which the mode viewer must use to map modes back
+        # onto the grid -- its True count is n_per.
+        result['mask'] = info['mask']
+        result['filled_fraction'] = info['filled_fraction']
+        result['n_components'] = info['n_components']
         return result
 
 
