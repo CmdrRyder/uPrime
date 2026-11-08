@@ -29,6 +29,12 @@ MATLAB stores arrays in Fortran (column-major) order; HDF5 stores them in C
 (row-major) order.  A MATLAB array of logical size [Ny, Nx, Nt] is therefore
 written to HDF5 with shape (Nt, Nx, Ny).  h5py reads the raw HDF5 shape, so
 every array read via h5py is transposed (.T or equivalent) before use.
+
+Row order follows uPrime's convention, row 0 = smallest y, the same one
+core.loader.load_grid and core.davis_io enforce.  A file whose y descends
+along rows is flipped on load.  The flip is applied as a reversed view (and
+per snapshot for isValid), so nothing is copied and a multi-GB HDF5 file
+costs no extra memory.
 """
 
 import gc
@@ -444,6 +450,30 @@ def load_mat_dataset(filepath, mapping, progress_callback=None, status_callback=
         x = _expand_coord(x_raw, "x")
         y = _expand_coord(y_raw, "y")
 
+        # --- Row orientation ---------------------------------------------
+        # uPrime's convention is row 0 = smallest y; core.loader.load_grid and
+        # core.davis_io both enforce it. mat_loader used to take the file's own
+        # row order as given, so a .mat written with y descending loaded upside
+        # down relative to those two -- self-consistent, and therefore silent,
+        # but not comparable with a .dat or .vc7 case.
+        #
+        # Every row-indexed array is flipped together, here for x/y/U/V, after
+        # the read for W, and per snapshot for isValid. A [::-1] slice is a
+        # view, so none of this copies the data -- which matters because U and
+        # V are already full-size in memory by this point and an HDF5 case can
+        # be many GB. np.diff below then sees the final row order, so dy and
+        # the non-uniform-spacing check are unaffected.
+        flip_rows = bool(y.shape[0] > 1 and y[0, 0] > y[-1, 0])
+        if flip_rows:
+            if status_callback:
+                status_callback(
+                    "Note: y descends along rows; flipping rows so that row 0 "
+                    "holds the smallest y (uPrime convention).")
+            x = x[::-1, :]
+            y = y[::-1, :]
+            U = U[::-1, :, :]
+            V = V[::-1, :, :]
+
         # Robust grid spacing: median of first-differences on the extracted
         # 1-D slices (median is robust against minor edge rounding; abs handles
         # axes where coordinates decrease).
@@ -513,6 +543,10 @@ def load_mat_dataset(filepath, mapping, progress_callback=None, status_callback=
             except Exception as exc:
                 print(f"[mat_loader] Could not load W: {exc}")
 
+        # W is read after the coordinates, so it is flipped here instead.
+        if flip_rows and W is not None:
+            W = W[::-1, :, :]
+
         if progress_callback:
             progress_callback(90)
 
@@ -530,6 +564,10 @@ def load_mat_dataset(filepath, mapping, progress_callback=None, status_callback=
         def _apply_frame(valid_plane, t):
             """NaN one snapshot's invalid vectors; fold its mask into the union."""
             nonlocal mask_2d
+            if flip_rows:
+                # One snapshot at a time, so the full 3-D isValid is never
+                # materialised just to reorder it.
+                valid_plane = valid_plane[::-1, :]
             if _invert:
                 valid_plane = ~valid_plane
             bad = ~valid_plane
@@ -600,7 +638,10 @@ def load_mat_dataset(filepath, mapping, progress_callback=None, status_callback=
 
         if _static_valid is not None:
             # One mask for the whole series: honour the convention, then blank
-            # those points in every snapshot.
+            # those points in every snapshot. It bypasses _apply_frame, so it
+            # needs the same row flip.
+            if flip_rows:
+                _static_valid = _static_valid[::-1, :]
             mask_2d = ~_static_valid if _invert else _static_valid
 
         if mask_2d is None:
@@ -679,6 +720,7 @@ def load_mat_dataset(filepath, mapping, progress_callback=None, status_callback=
         "vel_to_ms": 1.0,
         "source":    "mat",
         "mapping":   dict(mapping),
+        "flip_rows": flip_rows,
     }
 
     dataset = {

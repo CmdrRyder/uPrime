@@ -57,6 +57,18 @@ All notable changes to uPrime are documented here.
   to `True` when absent, so a caller that skips `load_grid` keeps the old
   behaviour.
 
+- **`.mat` files written with y descending loaded upside down relative to
+  `.dat` and `.vc7` cases.** uPrime's convention is row 0 = smallest y;
+  `core.loader.load_grid` and `core.davis_io` both enforce it, but
+  `mat_loader` took the file's own row order as given. Such a file loaded
+  self-consistently — `y` descended too, so every plot looked right — and
+  nothing warned, but row indices were mirrored and a `.mat` case could not
+  be compared with a `.dat` or `.vc7` case of the same flow. `x`, `y`, `U`,
+  `V`, `W` and the validity mask are now flipped together when y descends,
+  and the decision is recorded in `dataset["header"]["flip_rows"]`. The flip
+  uses reversed views, and the per-snapshot `isValid` path flips one plane at
+  a time, so a multi-GB HDF5 case costs no extra memory.
+
 ### Changed
 - **POD and DMD results report `filled_fraction`**, the fraction of the
   values entering the decomposition that had to be gap-filled. It is `0.0`

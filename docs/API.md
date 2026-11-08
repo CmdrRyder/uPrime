@@ -23,8 +23,17 @@ from uprime.core.reynolds_stress import compute_reynolds_stresses
 
 **Array shapes.** A time series is `[ny, nx, Nt]` — rows, columns, snapshots.
 A single 2D field (a mean, a stress component, a vorticity map) is `[ny, nx]`.
-Row 0 is the smallest `y`: the `.dat` loader flips rows when the file stores
-them top-to-bottom, so this holds regardless of DaVis's own ordering.
+Row 0 is the smallest `y`. All three loaders enforce it: each detects whether
+the file stores rows top-to-bottom and flips `x`, `y`, the velocities and the
+validity mask together when it does, so the convention holds regardless of how
+the source wrote the file. Each records the decision in `header["flip_rows"]`.
+
+Column order is **not** normalised the same way. `davis_io` flips columns so
+that `x` ascends, but the `.dat` and `.mat` loaders take the file's column
+order as given, so a file written with `x` descending loads with column 0 at
+the largest `x`. It stays self-consistent — `x` descends too, so plots are
+correct and `dx` is positive either way — but column indices are mirrored
+relative to a `.vc7` case of the same flow.
 
 **The third component.** `W` is `None` for planar (2D2C) data, not an array of
 zeros or NaN. Core functions take `W` as a positional argument and branch on
@@ -181,6 +190,9 @@ Raises `ValueError` if the ZONE line has no `I=`/`J=`.
 **`loader.load_grid(filepath, header)`**
 Read the coordinate grid, flipped so row 0 is the smallest `y`, scaled to mm.
 → `(x, y)`, each `[ny, nx]`.
+Mutates `header`, setting `header["flip_rows"]` to the decision taken.
+`load_single_file` follows that flag, so call this first; it defaults to
+`True` when absent, which is what a file written top-to-bottom needs.
 
 **`loader.load_single_file(filepath, header)`**
 Read one snapshot.
