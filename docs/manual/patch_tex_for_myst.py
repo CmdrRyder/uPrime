@@ -91,8 +91,8 @@ def convert_uipth(text: str) -> str:
 
 
 def convert_software(text: str) -> str:
-    """\\software{...} → plain text (just the argument)."""
-    return replace_macro(text, 'software', lambda inner: inner)
+    """\\software{uPrime} → \\cite{jose2026uprime} (citation from references.bib)."""
+    return replace_macro(text, 'software', lambda inner: '\\cite{jose2026uprime}' if inner.strip() == 'uPrime' else inner)
 
 
 def convert_key(text: str) -> str:
