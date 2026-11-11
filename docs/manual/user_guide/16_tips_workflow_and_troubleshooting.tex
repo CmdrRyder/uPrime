@@ -1,6 +1,6 @@
-\chapter{Tips, Workflow, and Troubleshooting}
+\section{Tips, Workflow, and Troubleshooting}
 
-\section{Recommended workflow}
+\subsection{Recommended workflow}
 
 For any new dataset, follow this order:
 
@@ -19,27 +19,27 @@ For any new dataset, follow this order:
   \item \textbf{Export} results. Use the multi-case workflow to overlay against benchmark data when relevant.
 \end{enumerate}
 
-\section{Performance tips}
+\subsection{Performance tips}
 
 \begin{itemize}[leftmargin=1.5em]
   \item POD and DMD computation time scales as $N_t^2$. For 5000+ snapshots use stride subsampling to $\sim$1000--2000 samples first.
   \item Velocity data is loaded as 32-bit floats (float32), halving RAM usage compared to the 64-bit default.
   \item Close unused analysis windows to free RAM.
-  \item Use \uipth{Reload Last Dataset} to undo a bad transform without restarting.
+  \item Use `Reload Last Dataset` to undo a bad transform without restarting.
   \item For spatial spectra over a region, the FFT tab is faster than running multiple Welch lines.
   \item The $\Gamma_1/\Gamma_2$ computation involves a Python loop over all grid points and can be slow for large grids. Start with a subsampled dataset or a small neighborhood size $S$ while exploring.
   \item For very large \texttt{.mat} files, save with \texttt{-v7.3} in MATLAB to enable HDF5 chunked reading and real per-snapshot progress.
 \end{itemize}
 
-\section{Exporting figures for publication}
+\subsection{Exporting figures for publication}
 
 \begin{itemize}[leftmargin=1.5em]
   \item \textbf{PDF / SVG}: all text is embedded as editable text objects. Open in Adobe Illustrator or Inkscape to change fonts, sizes, and labels to match journal requirements.
   \item \textbf{PNG}: 300 DPI by default. Suitable for Word, PowerPoint, and reports.
-  \item Enable \uipth{Clean export} and/or \uipth{Hide colorbar} for plain field images without annotations.
+  \item Enable `Clean export` and/or `Hide colorbar` for plain field images without annotations.
 \end{itemize}
 
-\section{Known limitations}
+\subsection{Known limitations}
 
 \begin{itemize}[leftmargin=1.5em]
   \item 3D (tomographic) PIV data is not supported.
@@ -58,7 +58,7 @@ For any new dataset, follow this order:
   \item For classic \texttt{.mat} files (not v7.3), the snapshot subset is applied after the full read because \texttt{scipy.io.loadmat} is a single blocking call. Convert to v7.3 in MATLAB for efficient strided loading on very large files.
 \end{itemize}
 
-\section{Common issues}
+\subsection{Common issues}
 
 \begin{table}[htbp]
 \centering
@@ -68,41 +68,23 @@ For any new dataset, follow this order:
 \textbf{Issue} & \textbf{Solution} \\
 \midrule
 Files do not load (\texttt{.dat}) & Confirm files are Tecplot ASCII format from DaVis. Binary \texttt{.dat} files are not supported. \\
-\addlinespace
-\texttt{.mat} load shows ``Insufficient Snapshots'' immediately & The file contains only one snapshot. \software{uPrime} requires multiple snapshots. Re-export from MATLAB with the time axis included as the third dimension of \texttt{u}, \texttt{v}, etc. \\
-\addlinespace
+\texttt{.mat} load shows ``Insufficient Snapshots'' immediately & The file contains only one snapshot. \href{https://cmdrryder.github.io/uPrime/}{uPrime} requires multiple snapshots. Re-export from MATLAB with the time axis included as the third dimension of \texttt{u}, \texttt{v}, etc. \\
 \texttt{.mat} variable dialog cannot find \texttt{u} & The velocity variable name is not in the recognized list. Use the manual dropdowns in the dialog to map your variables to $x$, $y$, $u$, $v$, etc. \\
-\addlinespace
 \texttt{.mat} dx/dy shown as 0.000 mm & Coordinate arrays are degenerate (all values equal along one axis), or the meshgrid orientation could not be inferred. Check that \texttt{x} and \texttt{y} contain real coordinate values. \\
-\addlinespace
 Anisotropy module is greyed out & Data is 2D2C. This module requires stereo (2D3C) data with a $W$ component. \\
-\addlinespace
 DMD button is greyed out & Set Acquisition Type to TR in the info ribbon and ensure at least 50 snapshots are loaded. \\
-\addlinespace
 Temporal tabs are greyed out & Set Acquisition Type to Time-Resolved and enter $f_s$ before opening the analysis window. \\
-\addlinespace
 Top-bar amber non-convergence label is shown & Dataset has fewer than 500 snapshots. Open Mean \& Convergence and verify convergence at a point in your region of interest. \\
-\addlinespace
 PDF save fails: permission denied & The file is open in Adobe Acrobat. Close it in Acrobat first, then save again. \\
-\addlinespace
 Rotation gives a blank result & Mirror the dataset \emph{before} rotating, not after. \\
-\addlinespace
 Lumley triangle points outside boundary & Insufficient snapshots or masked/invalid vectors near the sampling line. Avoid masked regions when drawing the analysis line. \\
-\addlinespace
 DMD spectrum dominated by high-$|\sigma|$ modes & Apply the growth rate filter ($|\sigma| <$ threshold) to focus on near-neutral physically meaningful modes. \\
-\addlinespace
 $\Gamma$ computation is very slow & Reduce the neighborhood half-width $S$, or subsample the dataset before computing. \\
-\addlinespace
 Binary Space-Time tab is greyed out & Data is marked Non-TR. Set Acquisition Type to Time-Resolved and enter $f_s$ in the info ribbon before opening the window. \\
-\addlinespace
 PDF looks spiky or has empty bins & Too few samples for the chosen bin count. Reduce the number of bins, or switch from Point to Line, ROI, or Whole field sampling to pool more samples. \\
-\addlinespace
 Reverse-flow probability is 0 everywhere & The flow does not reverse in this dataset, or the coordinate system is rotated so that reversal appears in the other component. Check the alignment in Coordinate Transform. \\
-\addlinespace
 Quadrant fractions do not sum as expected & Both the time fractions and the stress fractions sum to 1 only at hole size $H = 0$. At $H > 0$ the excluded weak events are missing by design, and the shortfall measures how much of the signal is weak. \\
-\addlinespace
 Grey patches in an FFP or RFP map & Those points lie outside the ROI, so they were never computed. Grey means untouched, not zero probability. \\
-\addlinespace
 Imported case appears at wrong scale & The imported CSV uses a different $U_m$ or different units than the current session. Check the case's header and re-export consistently. \\
 \bottomrule
 \end{tabular}

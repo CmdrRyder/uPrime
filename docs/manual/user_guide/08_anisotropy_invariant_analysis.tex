@@ -1,11 +1,11 @@
-\chapter{Anisotropy Invariant Analysis}
+\section{Anisotropy Invariant Analysis}
 \label{ch:anisotropy}
 
-Open from \uipth{3.\ Analysis $\to$ Anisotropy Invariants}.
+Open from `3.\ Analysis $\to$ Anisotropy Invariants`.
 
-\begin{notebox}
+```{note}
 This module requires \textbf{stereo PIV (2D3C)} data. It is not available for 2D2C datasets.
-\end{notebox}
+```
 
 The Reynolds stress tensor $b_{ij} = \langle u'_i u'_j \rangle / (2k) - \delta_{ij}/3$ is a symmetric, traceless tensor that describes the anisotropy of the turbulence. Its eigenvalues $\lambda_1 \geq \lambda_2 \geq \lambda_3$ satisfy $\lambda_1 + \lambda_2 + \lambda_3 = 0$. The invariants of $b_{ij}$,
 \[
@@ -15,16 +15,16 @@ define a two-dimensional state space. All physically realizable turbulence state
 
 \noindent\textbf{References:} Lumley, J.L. (1978). Computational modeling of turbulent flows. \textit{Advances in Applied Mechanics}, 18, 123--176. Banerjee, S., Krahl, R., Durst, F. \& Zenger, Ch. (2007). Presentation of anisotropy properties of turbulence. \textit{International Journal of Heat and Fluid Flow}, 28(3), 939--946.
 
-\section{Lumley triangle mode}
+\subsection{Lumley triangle mode}
 
-\begin{stepbox}
+```{note}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
-  \item Ensure \uipth{Line (Lumley triangle)} is selected.
-  \item Choose \uipth{Free}, \uipth{Horizontal}, or \uipth{Vertical} line orientation.
+  \item Ensure `Line (Lumley triangle)` is selected.
+  \item Choose `Free`, `Horizontal`, or `Vertical` line orientation.
   \item Left-click and drag on the mean field to draw the sampling line.
-  \item Click \uipth{Compute}.
+  \item Click `Compute`.
 \end{enumerate}
-\end{stepbox}
+```
 
 Reading the triangle: the top vertex represents one-component turbulence; the bottom-left vertex represents two-component axisymmetric (disk-like) turbulence; the bottom-right vertex represents two-component axisymmetric (rod-like) turbulence; the origin represents isotropic turbulence. Points outside the boundary indicate numerical issues (insufficient snapshots or masked regions).
 
@@ -35,19 +35,19 @@ Reading the triangle: the top vertex represents one-component turbulence; the bo
   \label{fig:anisotropy}
 \end{figure}
 
-\section{Barycentric map mode}
+\subsection{Barycentric map mode}
 
-\begin{stepbox}
+```{note}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
-  \item Select \uipth{Rectangle (Barycentric map)}.
+  \item Select `Rectangle (Barycentric map)`.
   \item Left-click and drag to draw a rectangular region on the field.
-  \item Click \uipth{Compute}.
+  \item Click `Compute`.
 \end{enumerate}
-\end{stepbox}
+```
 
-The map colors each grid point by its anisotropy state: red = one-component, blue = two-component axisymmetric, green = three-component (near isotropic). Check \uipth{Median filter} to apply a $3\times3$ spatial smoothing to reduce noise.
+The map colors each grid point by its anisotropy state: red = one-component, blue = two-component axisymmetric, green = three-component (near isotropic). Check `Median filter` to apply a $3\times3$ spatial smoothing to reduce noise.
 
-\section{Multi-case comparison}
+\subsection{Multi-case comparison}
 
 Lumley-triangle line profiles support CSV import and overlay (Chapter~\ref{ch:multicase}).
 

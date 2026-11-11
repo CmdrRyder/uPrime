@@ -64,16 +64,16 @@
 % -----------------------------------------------------------------------
 % Section formatting
 % -----------------------------------------------------------------------
-\titleformat{\chapter}[display]
+\titleformat{\section}[display]
   {\normalfont\Large\bfseries\color{upblue}}
   {\chaptertitlename\ \thechapter}{10pt}{\Huge}
-\titlespacing*{\chapter}{0pt}{20pt}{20pt}
+\titlespacing*{\section}{0pt}{20pt}{20pt}
 
-\titleformat{\section}
+\titleformat{\subsection}
   {\normalfont\large\bfseries\color{upblue}}
   {\thesection}{1em}{}
-\titleformat{\subsection}
-  {\normalfont\normalsize\bfseries\color{upblue!80!black}}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{upblue}}
   {\thesubsection}{1em}{}
 
 % -----------------------------------------------------------------------
@@ -109,8 +109,8 @@
 }
 
 \newtcolorbox{stepbox}{
-  colback  = upblue!5,
-  colframe = upblue!35,
+  colback  = upblue,
+  colframe = upblue,
   coltitle = upblue,
   fonttitle= \bfseries\small,
   title    = {\faListOl\quad Step-by-step},
@@ -122,7 +122,7 @@
 % -----------------------------------------------------------------------
 \newcommand{\uipth}[1]{\textbf{\textcolor{upblue}{#1}}}
 \newcommand{\key}[1]{\fbox{\small\texttt{#1}}}
-\newcommand{\software}[1]{\textsf{#1}}
+\newcommand{\software}[1]{#1}
 
 \graphicspath{{Figs/}}
 
@@ -143,7 +143,7 @@
 \begin{tikzpicture}[remember picture, overlay]
   \foreach \x in {-1, -0.45, ..., 22} {
     \foreach \y in {-2, -2.55, ..., -10} {
-      \fill[upblue!10] (current page.north west) ++(\x cm, \y cm) circle (1.2pt);
+      \fill[upblue] (current page.north west) ++(\x cm, \y cm) circle (1.2pt);
     }
   }
 \end{tikzpicture}
@@ -154,7 +154,7 @@
 \end{center}
 
 \vspace{0.6cm}
-\noindent\textcolor{upblue!40}{\rule{\textwidth}{0.8pt}}
+\noindent\textcolor{upblue}{\rule{\textwidth}{0.8pt}}
 \vspace{0.5cm}
 
 \begin{flushleft}
@@ -164,7 +164,7 @@
 
 \vfill
 
-\noindent\textcolor{upblue!20}{\rule{\textwidth}{0.4pt}}
+\noindent\textcolor{upblue}{\rule{\textwidth}{0.4pt}}
 \vspace{0.5cm}
 
 \begin{flushleft}
@@ -187,11 +187,11 @@
 \clearpage
 \thispagestyle{empty}
 
-\section*{Abstract}
+\subsection*{Abstract}
 
-\software{uPrime} is an open-source, cross-platform desktop application for the post-processing and turbulence analysis of planar velocity fields obtained from particle image velocimetry (PIV) and computational fluid dynamics (CFD). The software provides an integrated graphical environment covering the full range of standard turbulence diagnostics: mean velocity profiles with cumulative-statistics convergence verification, Reynolds normal and shear stresses, turbulent kinetic energy (TKE) budgets, one-dimensional and two-dimensional spatial and temporal power spectral densities, two-point spatial and temporal correlation functions with automatic integral length and time scale extraction, turbulence anisotropy analysis via the Lumley triangle and barycentric maps, snapshot Proper Orthogonal Decomposition (POD) with modal energy spectra and low-order flow field reconstruction, Dynamic Mode Decomposition (DMD) with frequency-growth rate spectra and spatial mode visualization, vortex identification using five scalar criteria including gradient-based methods and the Graftieaux $\Gamma$ functions, and probability analysis comprising velocity and fluctuation probability density functions, forward- and reverse-flow probability maps for separation diagnostics, binary space-time maps of coherent structure passage, and quadrant analysis of the Reynolds shear stress with hole-size conditioning. All analyzes are accessible through a labeled graphical interface without requiring programming knowledge, making the tool accessible to students and researchers new to quantitative flow analysis.
+\href{https://cmdrryder.github.io/uPrime/}{uPrime} is an open-source, cross-platform desktop application for the post-processing and turbulence analysis of planar velocity fields obtained from particle image velocimetry (PIV) and computational fluid dynamics (CFD). The software provides an integrated graphical environment covering the full range of standard turbulence diagnostics: mean velocity profiles with cumulative-statistics convergence verification, Reynolds normal and shear stresses, turbulent kinetic energy (TKE) budgets, one-dimensional and two-dimensional spatial and temporal power spectral densities, two-point spatial and temporal correlation functions with automatic integral length and time scale extraction, turbulence anisotropy analysis via the Lumley triangle and barycentric maps, snapshot Proper Orthogonal Decomposition (POD) with modal energy spectra and low-order flow field reconstruction, Dynamic Mode Decomposition (DMD) with frequency-growth rate spectra and spatial mode visualization, vortex identification using five scalar criteria including gradient-based methods and the Graftieaux $\Gamma$ functions, and probability analysis comprising velocity and fluctuation probability density functions, forward- and reverse-flow probability maps for separation diagnostics, binary space-time maps of coherent structure passage, and quadrant analysis of the Reynolds shear stress with hole-size conditioning. All analyzes are accessible through a labeled graphical interface without requiring programming knowledge, making the tool accessible to students and researchers new to quantitative flow analysis.
 
-\software{uPrime} reads multi-snapshot Tecplot ASCII \texttt{.dat} files exported from LaVision DaVis, as well as MATLAB \texttt{.mat} files (classic v5/v7 and HDF5-based v7.3). It supports both 2D two-component (2D2C) and stereo three-component (2D3C) PIV datasets. It includes coordinate transformation tools for correcting camera calibration misalignment, snapshot subsampling for efficient handling of large time-resolved datasets, and a multi-case import and comparison workflow for overlaying results from different experiments or runs. Figures are exportable as PNG (300\,DPI) or vector graphics (PDF, SVG) with editable text, facilitating direct integration into publication workflows.
+\href{https://cmdrryder.github.io/uPrime/}{uPrime} reads multi-snapshot Tecplot ASCII \texttt{.dat} files exported from LaVision DaVis, as well as MATLAB \texttt{.mat} files (classic v5/v7 and HDF5-based v7.3). It supports both 2D two-component (2D2C) and stereo three-component (2D3C) PIV datasets. It includes coordinate transformation tools for correcting camera calibration misalignment, snapshot subsampling for efficient handling of large time-resolved datasets, and a multi-case import and comparison workflow for overlaying results from different experiments or runs. Figures are exportable as PNG (300\,DPI) or vector graphics (PDF, SVG) with editable text, facilitating direct integration into publication workflows.
 
 \vspace{0.5cm}
 \noindent\textbf{Keywords:} particle image velocimetry; turbulence post-processing; Reynolds stresses; turbulent kinetic energy budget; power spectral density; two-point correlation; integral length scale; Lumley triangle; Proper Orthogonal Decomposition; Dynamic Mode Decomposition; vortex identification; probability density function; quadrant analysis; ejections and sweeps; reverse-flow probability; backflow coefficient; binary space-time map; mean and convergence; MATLAB \texttt{.mat} input; open-source software; LaVision DaVis

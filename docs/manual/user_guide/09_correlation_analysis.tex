@@ -1,7 +1,7 @@
-\chapter{Correlation Analysis}
+\section{Correlation Analysis}
 \label{ch:correlation}
 
-Open from \uipth{3.\ Analysis $\to$ Correlation Analysis}.
+Open from `3.\ Analysis $\to$ Correlation Analysis`.
 
 The two-point spatial correlation function
 \[
@@ -11,25 +11,25 @@ measures the degree to which velocity fluctuations at two different locations ar
 
 \noindent\textbf{Reference:} Pope, S.B. (2000). \textit{Turbulent Flows}. Cambridge University Press.
 
-\section{Selecting a reference}
+\subsection{Selecting a reference}
 
 \begin{itemize}[leftmargin=1.5em]
-  \item \uipth{Point mode}: left-click on the mean field to select a single reference point. Enable \uipth{$3\times3$ kernel average} to reduce sensitivity to noisy vectors at that point.
-  \item \uipth{ROI mode}: left-click and drag to draw a rectangle. The correlation is computed as a spatial average over the region.
+  \item `Point mode`: left-click on the mean field to select a single reference point. Enable `$3\times3$ kernel average` to reduce sensitivity to noisy vectors at that point.
+  \item `ROI mode`: left-click and drag to draw a rectangle. The correlation is computed as a spatial average over the region.
 \end{itemize}
 
-\section{Spatial correlation}
+\subsection{Spatial correlation}
 
-\begin{stepbox}
+```{note}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Select Point or ROI mode and pick your reference on the field.
   \item Choose the velocity component: R$_{uu}$, R$_{vv}$, or R$_{ww}$.
-  \item Select the \uipth{Scale method} (Table~\ref{tab:scalemethods}).
-  \item Click \uipth{Compute Spatial Correlation}.
+  \item Select the `Scale method` (Table~\ref{tab:scalemethods}).
+  \item Click `Compute Spatial Correlation`.
 \end{enumerate}
-\end{stepbox}
+```
 
-In Point mode you see the full 2D correlation map and two independent 1D slice panels. In ROI mode only the 1D panels are shown. The computed $L_x$ and $L_y$ are displayed in the readout strip at the bottom of the window. A vertical dashed line marks the crossing lag used by the selected scale method; for the zero-crossing method, this line is placed at the lag where $R$ first crosses zero, while $L$ is reported as the integral of $R$ up to that crossing. Click \uipth{Show Diagnostic Plot} to see the cumulative integral of $R(\Delta r)$.
+In Point mode you see the full 2D correlation map and two independent 1D slice panels. In ROI mode only the 1D panels are shown. The computed $L_x$ and $L_y$ are displayed in the readout strip at the bottom of the window. A vertical dashed line marks the crossing lag used by the selected scale method; for the zero-crossing method, this line is placed at the lag where $R$ first crosses zero, while $L$ is reported as the integral of $R$ up to that crossing. Click `Show Diagnostic Plot` to see the cumulative integral of $R(\Delta r)$.
 
 \begin{figure}[htbp]
   \centering
@@ -54,25 +54,25 @@ Domain integral & When no zero crossing exists and you want a conservative upper
 \end{tabular}
 \end{table}
 
-\begin{tipbox}
+```{tip}
 If unsure, start with \textbf{Zero crossing}. If the correlation does not have a clean crossing (common for low-Reynolds-number flows or short datasets), switch to \textbf{Exponential fit}.
-\end{tipbox}
+```
 
-\section{Temporal correlation (TR only)}
+\subsection{Temporal correlation (TR only)}
 
-\begin{stepbox}
+```{note}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
-  \item Click the \uipth{Temporal} tab.
+  \item Click the `Temporal` tab.
   \item Pick a reference point or draw an ROI as before.
-  \item Set \uipth{Max lag (\% of Nt)}: 50\% is usually sufficient.
+  \item Set `Max lag (\% of Nt)`: 50\% is usually sufficient.
   \item Select the Scale method.
-  \item Click \uipth{Compute Temporal Correlation}.
+  \item Click `Compute Temporal Correlation`.
 \end{enumerate}
-\end{stepbox}
+```
 
 Results show $R(\tau)$ vs time lag $\tau$ in milliseconds, with integral time scale $T$ and Taylor microscale $\lambda_t$ marked.
 
-\section{Multi-case comparison}
+\subsection{Multi-case comparison}
 
 Spatial 1D slice and temporal correlation curves support CSV import and overlay (Chapter~\ref{ch:multicase}).
 

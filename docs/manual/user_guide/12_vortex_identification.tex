@@ -1,11 +1,11 @@
-\chapter{Vortex Identification}
+\section{Vortex Identification}
 \label{ch:vortex}
 
-Open from \uipth{3.\ Analysis $\to$ Vortex Identification}.
+Open from `3.\ Analysis $\to$ Vortex Identification`.
 
-Vortex identification methods seek to objectively define the boundary and core of a vortex from the instantaneous or mean velocity field. \software{uPrime} implements five scalar criteria, which can be broadly divided into gradient-based (Eulerian) methods and the integral-based Graftieaux criteria.
+Vortex identification methods seek to objectively define the boundary and core of a vortex from the instantaneous or mean velocity field. \href{https://cmdrryder.github.io/uPrime/}{uPrime} implements five scalar criteria, which can be broadly divided into gradient-based (Eulerian) methods and the integral-based Graftieaux criteria.
 
-\subsection*{Gradient-based methods}
+\subsubsection*{Gradient-based methods}
 
 All four gradient-based methods derive from the 2D velocity gradient tensor:
 \[
@@ -18,14 +18,14 @@ which is decomposed into its symmetric strain rate $\mathbf{S} = \tfrac{1}{2}(\n
 
   \item \textbf{Q-criterion} (Hunt et al., 1988): $Q = -\tfrac{1}{2}(\partial_x u^2 + \partial_y v^2 + 2\,\partial_y u\,\partial_x v)$. A vortex core is identified where $Q > 0$, meaning rotation dominates strain. Q is the most widely used criterion in PIV literature.
 
-  \item \textbf{Swirling strength} $\lambda_{ci}$ (Zhou et al., 1999): the imaginary part of the complex eigenvalue of $\nabla\mathbf{u}$. Complex eigenvalues exist only where the flow is locally swirling; $\lambda_{ci}$ is therefore immune to pure shear contamination that inflates $\omega$ and $Q$ in shear layers. \software{uPrime} multiplies by $\text{sign}(\omega)$ to retain rotation direction.
+  \item \textbf{Swirling strength} $\lambda_{ci}$ (Zhou et al., 1999): the imaginary part of the complex eigenvalue of $\nabla\mathbf{u}$. Complex eigenvalues exist only where the flow is locally swirling; $\lambda_{ci}$ is therefore immune to pure shear contamination that inflates $\omega$ and $Q$ in shear layers. \href{https://cmdrryder.github.io/uPrime/}{uPrime} multiplies by $\text{sign}(\omega)$ to retain rotation direction.
 
   \item \textbf{$\lambda_2$-criterion} (Jeong \& Hussain, 1995): identifies a vortex core as a connected region where the second eigenvalue of $\mathbf{S}^2 + \boldsymbol{\Omega}^2$ is negative. This criterion has a direct physical motivation: $\lambda_2 < 0$ marks regions where the centrifugal tendency of the pressure field overcomes both strain and unsteady effects.
 \end{itemize}
 
 \noindent\textbf{References:} Hunt, J.C.R., Wray, A. \& Moin, P. (1988). Eddies, stream, and convergence zones in turbulent flows. \textit{CTR Report CTR-S88}, 193--208. Zhou, J., Adrian, R.J., Balachandar, S. \& Kendall, T.M. (1999). Mechanisms for generating coherent packets of hairpin vortices in channel flow. \textit{Journal of Fluid Mechanics}, 387, 353--396. Jeong, J. \& Hussain, F. (1995). On the identification of a vortex. \textit{Journal of Fluid Mechanics}, 285, 69--94.
 
-\subsection*{Graftieaux $\Gamma$ functions}
+\subsubsection*{Graftieaux $\Gamma$ functions}
 
 The $\Gamma$ functions (Graftieaux et al., 2001) are computed directly from the velocity vectors without differentiation, making them substantially more robust to PIV measurement noise:
 \[
@@ -36,16 +36,16 @@ where $\mathcal{S}$ is a local neighborhood of $N$ points around $P$, $\widehat{
 
 \noindent\textbf{Reference:} Graftieaux, L., Michard, M. \& Grosjean, N. (2001). Combining PIV, POD and vortex identification algorithms for the study of unsteady turbulent swirling flows. \textit{Measurement Science and Technology}, 12(9), 1422--1429.
 
-\section{Field View tab}
+\subsection{Field View tab}
 
-\begin{stepbox}
+```{note}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Select the scalar field and input (mean or instantaneous frame).
-  \item Click \uipth{Compute Field}.
-  \item Set the threshold fraction and sign filter, then click \uipth{Detect Vortices}.
-  \item Check \uipth{Show vortex boundaries} to overlay detected contours on the colormap.
+  \item Click `Compute Field`.
+  \item Set the threshold fraction and sign filter, then click `Detect Vortices`.
+  \item Check `Show vortex boundaries` to overlay detected contours on the colormap.
 \end{enumerate}
-\end{stepbox}
+```
 
 The threshold is expressed as a fraction of the field maximum, making it dataset-agnostic. The actual physical value is shown in the readout next to the slider. For the $\Gamma$ criteria the threshold has a universal meaning ($|\Gamma_1| = 0.6$ corresponds to the standard core boundary); for gradient-based criteria it is dataset-dependent and must be chosen by the user.
 
@@ -56,13 +56,13 @@ The threshold is expressed as a fraction of the field maximum, making it dataset
   \label{fig:vortex_field}
 \end{figure}
 
-\begin{tipbox}
+```{tip}
 For PIV data, start with $\Gamma_1/\Gamma_2$, which is most robust to measurement noise. Cross-check with Q-criterion or $\lambda_{ci}$. If the two methods agree, the detected structures are reliable.
-\end{tipbox}
+```
 
-\section{Vortex Statistics tab}
+\subsection{Vortex Statistics tab}
 
-After clicking \uipth{Show Statistics}, two plots appear: a spatial probability map showing how often a vortex is detected at each grid point across all snapshots, and a histogram of the selected per-vortex quantity (area, circulation, or aspect ratio) with positive and negative vortices shown separately in red and blue.
+After clicking `Show Statistics`, two plots appear: a spatial probability map showing how often a vortex is detected at each grid point across all snapshots, and a histogram of the selected per-vortex quantity (area, circulation, or aspect ratio) with positive and negative vortices shown separately in red and blue.
 
 \begin{figure}[htbp]
   \centering
@@ -71,8 +71,8 @@ After clicking \uipth{Show Statistics}, two plots appear: a spatial probability 
   \label{fig:vortex_stats}
 \end{figure}
 
-\section{Exporting}
+\subsection{Exporting}
 
-Click \uipth{Export scalar field\ldots} to save the scalar field as a Tecplot \texttt{.dat} file. Click \uipth{Export vortex table (CSV)\ldots} to save a per-vortex table with columns: vortex ID, centroid position, area, sign, circulation, aspect ratio, and frame index. The default filename now reflects the active criterion (e.g.\ \texttt{vortex\_lambda\_ci\_dataset.csv}). This CSV is designed to be imported into post-processing scripts for vortex tracking or further statistical analysis.
+Click `Export scalar field\ldots` to save the scalar field as a Tecplot \texttt{.dat} file. Click `Export vortex table (CSV)\ldots` to save a per-vortex table with columns: vortex ID, centroid position, area, sign, circulation, aspect ratio, and frame index. The default filename now reflects the active criterion (e.g.\ \texttt{vortex\_lambda\_ci\_dataset.csv}). This CSV is designed to be imported into post-processing scripts for vortex tracking or further statistical analysis.
 
 % ============================= CHAPTER 13 ==============================

@@ -1,13 +1,13 @@
-\chapter{Multi-case Comparison}
+\section{Multi-case Comparison}
 \label{ch:multicase}
 
-Several analysis modules support importing CSV files from previous \software{uPrime} sessions and overlaying them on top of the current plot. This is useful for comparing experimental conditions, validating against numerical data, or assembling multi-panel publication figures.
+Several analysis modules support importing CSV files from previous \href{https://cmdrryder.github.io/uPrime/}{uPrime} sessions and overlaying them on top of the current plot. This is useful for comparing experimental conditions, validating against numerical data, or assembling multi-panel publication figures.
 
 The same workflow is used in: Mean \& Convergence (Mean Velocity tab), Reynolds Stress, TKE Budget, Spectra (Spatial Welch and Temporal), Correlation, and Anisotropy (Lumley line mode).
 
-\section{Importing a case}
+\subsection{Importing a case}
 
-Click \uipth{Import Case\ldots} and select a CSV file. The CSV must follow the column layout produced by \software{uPrime}'s own \uipth{Export Profile} or \uipth{Export Data} actions. The imported case is added to the case list with an auto-assigned color and dashed linestyle.
+Click `Import Case\ldots` and select a CSV file. The CSV must follow the column layout produced by \href{https://cmdrryder.github.io/uPrime/}{uPrime}'s own `Export Profile` or `Export Data` actions. The imported case is added to the case list with an auto-assigned color and dashed linestyle.
 
 \begin{figure}[htbp]
   \centering
@@ -16,35 +16,35 @@ Click \uipth{Import Case\ldots} and select a CSV file. The CSV must follow the c
   \label{fig:multicase}
 \end{figure}
 
-\section{Managing cases}
+\subsection{Managing cases}
 
-Click \uipth{Manage Cases\ldots} to open the Case Manager dialog. From here, cases can be renamed, hidden, or removed. Each case retains its imported file path, line geometry (where applicable), and any header metadata such as $U_m$.
+Click `Manage Cases\ldots` to open the Case Manager dialog. From here, cases can be renamed, hidden, or removed. Each case retains its imported file path, line geometry (where applicable), and any header metadata such as $U_m$.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.55\linewidth]{fig_case_manager}
-  \caption{Case Manager dialog. Each row corresponds to one imported case. Use the rename field to change the legend label; toggle visibility with the checkbox; click \uipth{Remove} to drop a case from the list.}
+  \caption{Case Manager dialog. Each row corresponds to one imported case. Use the rename field to change the legend label; toggle visibility with the checkbox; click `Remove` to drop a case from the list.}
   \label{fig:casemgr}
 \end{figure}
 
-\section{Plot styles}
+\subsection{Plot styles}
 
-Click \uipth{Edit Styles\ldots} to change line color, linestyle, marker, and label per case. The current dataset and imported cases are styled independently.
+Click `Edit Styles\ldots` to change line color, linestyle, marker, and label per case. The current dataset and imported cases are styled independently.
 
-\section{Quantity selector and layout chooser}
+\subsection{Quantity selector and layout chooser}
 
 For modules with multiple quantities (Reynolds stresses with several components, TKE budget with $P$, $C$, $D$, $R$, etc.), the quantity selector controls which quantity is overlaid. The layout chooser switches between single-axes overlay and a faceted grid (one panel per case, sharing axes).
 
-\section{Combined export}
+\subsection{Combined export}
 
-Click \uipth{Export All Cases\ldots} to save the current dataset and all visible imported cases together in a single CSV. A \texttt{case} column is added to identify which row belongs to which case, suitable for pandas, MATLAB, or further plotting.
+Click `Export All Cases\ldots` to save the current dataset and all visible imported cases together in a single CSV. A \texttt{case} column is added to identify which row belongs to which case, suitable for pandas, MATLAB, or further plotting.
 
-\section{Header consistency checks}
+\subsection{Header consistency checks}
 
-\software{uPrime} reads metadata from CSV headers when available. For Mean Velocity profiles, the \texttt{\# U\_m =} header is read per imported case. If the imported $U_m$ differs from the current setting, a status-bar warning is shown for that specific case so you can manually re-normalize before publishing.
+\href{https://cmdrryder.github.io/uPrime/}{uPrime} reads metadata from CSV headers when available. For Mean Velocity profiles, the \texttt{\# U\_m =} header is read per imported case. If the imported $U_m$ differs from the current setting, a status-bar warning is shown for that specific case so you can manually re-normalize before publishing.
 
-\begin{warnbox}
-\software{uPrime} does not automatically convert units between cases. If your imported CSV uses different units (mm vs m, m/s vs U/U\_m, etc.), the comparison will be misleading. Check the header values and re-export the source data in a consistent format if needed.
-\end{warnbox}
+```{warning}
+\href{https://cmdrryder.github.io/uPrime/}{uPrime} does not automatically convert units between cases. If your imported CSV uses different units (mm vs m, m/s vs U/U\_m, etc.), the comparison will be misleading. Check the header values and re-export the source data in a consistent format if needed.
+```
 
 % ============================= CHAPTER 15 ==============================
