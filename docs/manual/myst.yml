@@ -37,5 +37,5 @@ project:
 site:
   template: book-theme
   options:
-    favicon: ../../assets/logo.png
-    logo: ../../assets/logo.png
+    favicon: user_guide/logo.png
+    logo: user_guide/logo.png

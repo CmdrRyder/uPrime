@@ -2,14 +2,14 @@
 # uPrime
 
 +++ {"kind": "centered"}
-:::{image} ../../assets/logo.png
+:::{image} user_guide/logo.png
 :width: 10%
 :alt: uPrime logo
 :class: dark:hidden
 :::
 
 
-:::{image} ../../assets/logo_dark.png
+:::{image} user_guide/logo_upblue.png
 :width: 10%
 :alt: uPrime logo
 :class: hidden dark:block
