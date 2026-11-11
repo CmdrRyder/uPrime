@@ -45,6 +45,21 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     includes = []
 
+    # --- Special case: extract the Abstract section ---
+    abstract_match = re.search(r'\\section\*?\{Abstract\}', doc_body)
+    if abstract_match:
+        abs_start = abstract_match.start()
+        # Abstract ends at the next \chapter, \tableofcontents, or end of body
+        next_chapter = chapter_matches[0].start() if chapter_matches else len(doc_body)
+        toc_idx = doc_body.find('\\tableofcontents', abs_start)
+        abs_end = min(next_chapter, toc_idx if toc_idx != -1 else len(doc_body))
+        abstract_text = doc_body[abs_start:abs_end].strip() + '\n'
+        abstract_file = os.path.join(output_dir, '00_abstract.tex')
+        with open(abstract_file, 'w', encoding='utf-8') as f:
+            f.write(abstract_text)
+        includes.append(f"\\include{{{output_dir}/00_abstract}}")
+        print(f"Created: 00_abstract.tex")
+
     for i, match in enumerate(chapter_matches):
         start = match.start()
         end = chapter_matches[i + 1].start() if (i + 1) < len(chapter_matches) else len(doc_body)
@@ -66,7 +81,11 @@ def main():
         includes.append(f"\\include{{{output_dir}/{os.path.splitext(filename)[0]}}}")
         print(f"Created: {filename}")
 
-    front_matter = doc_body[:chapter_matches[0].start()]
+    # Front matter: everything before the abstract (or before first chapter if no abstract)
+    fm_end = chapter_matches[0].start()
+    if abstract_match and abstract_match.start() < fm_end:
+        fm_end = abstract_match.start()
+    front_matter = doc_body[:fm_end]
     new_main = preamble + '\n\n' + front_matter + '\n\n' + '\n'.join(includes) + '\n\n\\end{document}\n'
 
     with open(os.path.join(os.getcwd(), 'main.tex'), 'w', encoding='utf-8') as f:
