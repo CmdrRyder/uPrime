@@ -15,7 +15,7 @@ From planar PIV, the dissipation $\varepsilon$ and pressure diffusion cannot be 
 Spatial gradients are computed using central differences with NaN-inpainting near mask boundaries to prevent spurious gradients at wall and shadow edges. Triple correlations for turbulent diffusion are optionally smoothed with a median filter before differentiation to reduce noise amplification.
 
 \begin{quote}
-\textbf{Note:}
+\textbf{Note}
 The residual $R$ absorbs pressure diffusion and viscous dissipation, which cannot be computed from planar PIV. A non-zero residual is expected and is \emph{not} an error in the calculation.
 \end{quote}
 
@@ -41,7 +41,7 @@ $\partial k/\partial t$ & Unsteady term             & TR data only \\
 \subsection{Using the window}
 
 \begin{quote}
-\textbf{Step:}
+\textbf{Important}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Set parameters: enter $U_m$ and $L$ if normalising. Adjust the smoothing kernel if the field is noisy.
   \item Click `Compute Budget` (only needs to be done once per session).
@@ -61,7 +61,7 @@ In line profile mode the line can be drawn by click-and-drag on the field or set
 \end{figure}
 
 \begin{quote}
-\textbf{Tip:}
+\textbf{Tip}
 Enable `Normalize by $U_m^3/L$` to make the budget terms non-dimensional. TKE $k$ is normalized by $U_m^2$. This is essential when comparing results across different flow conditions or Reynolds numbers.
 \end{quote}
 

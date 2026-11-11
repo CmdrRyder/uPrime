@@ -13,7 +13,7 @@ Reynolds stresses, spectra, and correlations all describe the flow through low-o
 \end{itemize}
 
 \begin{quote}
-\textbf{Note:}
+\textbf{Note}
 All four tabs count valid samples \emph{per grid point}. Masked or invalid vectors (NaN) are excluded from the sample count at that point rather than being treated as zeros, so a point with $k$ valid snapshots out of $N$ is normalised by $k$, not by $N$. A point with no valid samples returns NaN and is rendered as background, not as a probability of zero. Points whose valid-sample count is very low still produce a number, so check the sample-count readout before interpreting isolated extreme values.
 \end{quote}
 
@@ -57,12 +57,12 @@ The bin range is set either manually through the `min` and `max` boxes or automa
 \end{figure}
 
 \begin{quote}
-\textbf{Tip:}
+\textbf{Tip}
 Compare a point PDF inside a shear layer with one in the free stream. The free-stream distribution is close to Gaussian ($S \approx 0$, $F \approx 3$); the shear-layer distribution is typically skewed and has a flatness well above 3. That difference is invisible in the Reynolds stress map, which reports only $\langle q'^2 \rangle$.
 \end{quote}
 
 \begin{quote}
-\textbf{Warning:}
+\textbf{Warning}
 A converged mean does not imply a converged PDF. The tails of the distribution are governed by the rarest events, so the fourth moment needs far more snapshots than the second. Treat $F$ from a few hundred snapshots as indicative only, and verify convergence in the `Mean \& Convergence` module (Chapter~\ref{ch:meanconv}) first.
 \end{quote}
 
@@ -102,14 +102,14 @@ Flow Direction offers \textbf{ROI} and \textbf{whole domain} only. Line profiles
 When an ROI is set, the computation itself is restricted to the ROI, not merely the display. Grid points outside the ROI are rendered in a distinct neutral grey so that an untouched region is never confused with a region where the probability happens to be low.
 
 \begin{quote}
-\textbf{Tip:}
+\textbf{Tip}
 The $\mathrm{RFP} = 0.5$ contour and the mean $\langle u \rangle = 0$ contour usually do not coincide. Plotting both is a quick check on whether your separation region is steady or flapping: a large gap between them means the separation point is moving substantially in time.
 \end{quote}
 
 \subsection{Binary Space-Time tab}
 
 \begin{quote}
-\textbf{Note:}
+\textbf{Note}
 This tab requires time-resolved data. Set `Acquisition Type` to TR with a valid $f_s$ in the info ribbon before opening the window, otherwise the tab is disabled.
 \end{quote}
 
@@ -188,7 +188,7 @@ Clicking `Compute` produces the joint PDF, the quadrant-contribution bar chart, 
 \noindent\textbf{References:} Wallace, J.M., Eckelmann, H. \& Brodkey, R.S. (1972). The wall region in turbulent shear flow. \textit{Journal of Fluid Mechanics}, 54(1), 39--48. Lu, S.S. \& Willmarth, W.W. (1973). Measurements of the structure of the Reynolds stress in a turbulent boundary layer. \textit{Journal of Fluid Mechanics}, 60(3), 481--511. Wallace, J.M. (2016). Quadrant analysis in turbulence research: history and evolution. \textit{Annual Review of Fluid Mechanics}, 48, 131--158.
 
 \begin{quote}
-\textbf{Warning:}
+\textbf{Warning}
 Quadrant analysis is defined with respect to the mean shear direction. If the coordinate system is not aligned with the flow, the quadrant labels lose their physical meaning: what the software calls an ejection is then some mixture of ejections and sweeps. Align the dataset in the `Coordinate Transform` module (Chapter~\ref{ch:transform}) before running this tab.
 \end{quote}
 

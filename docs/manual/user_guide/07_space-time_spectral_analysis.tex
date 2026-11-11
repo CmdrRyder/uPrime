@@ -10,7 +10,7 @@ The spectral window has four tabs. \textbf{Spatial (Welch)} is always available.
 The one-dimensional spatial energy spectrum $E(k)$ characterizes the distribution of turbulent kinetic energy across spatial scales. For homogeneous isotropic turbulence, Kolmogorov's similarity theory predicts an inertial subrange where $E(k) \propto k^{-5/3}$ (Kolmogorov, 1941). The spatial spectrum is computed along a user-defined line using Welch's method: the line is divided into overlapping segments, each Hann-windowed and Fourier-transformed, and the periodograms are averaged to reduce variance. The wavenumber $k$ is in rad/m.
 
 \begin{quote}
-\textbf{Step:}
+\textbf{Important}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Choose `Horizontal ($k_x$)` or `Vertical ($k_y$)` mode.
   \item Left-click and drag on the field to draw the line.
@@ -36,7 +36,7 @@ Results are plotted on a log-log scale. The Kolmogorov $-5/3$ reference slope ca
 The power spectral density $E(f)$ of the velocity fluctuations at a fixed point reveals the temporal frequency content of the turbulence. Dominant peaks correspond to periodic or quasi-periodic phenomena such as vortex shedding, shear layer flapping, or acoustic resonances. The temporal spectrum is computed using Welch's method with a Hann window.
 
 \begin{quote}
-\textbf{Step:}
+\textbf{Important}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Left-click on the field to pick a reference point, or right-click drag to draw an ROI.
   \item Set the number of Welch segments. More segments give a smoother spectrum at the cost of frequency resolution.
@@ -45,7 +45,7 @@ The power spectral density $E(f)$ of the velocity fluctuations at a fixed point 
 \end{quote}
 
 \begin{quote}
-\textbf{Tip:}
+\textbf{Tip}
 Looking for a shedding frequency or flapping mode? Use fewer segments (higher frequency resolution). Just want the spectral shape? Use more segments for a smoother curve.
 \end{quote}
 

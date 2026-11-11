@@ -64,7 +64,7 @@ Display           & 1920$\times$1080 or larger strongly recommended \\
 \end{table}
 
 \begin{quote}
-\textbf{Note:}
+\textbf{Note}
 All Python dependencies are installed automatically via \texttt{pip install -r requirements.txt}. The Windows executable requires no Python or dependency installation.
 \end{quote}
 
@@ -77,7 +77,7 @@ Download \texttt{uPrime\_v0.7.1.exe} from the
 and double-click to launch. No Python or any other software is required.
 
 \begin{quote}
-\textbf{Note:}
+\textbf{Note}
 Windows Defender may show a security warning on first launch. Click \textbf{More info} then \textbf{Run anyway}. This is normal for executables built with PyInstaller that have not been code-signed.
 \end{quote}
 
@@ -111,7 +111,7 @@ python main.py
 \href{https://cmdrryder.github.io/uPrime/}{uPrime} automatically reads the physical units from the variable name strings in the file header (e.g.\ \texttt{"x [mm]"}, \texttt{"Velocity u [m/s]"}). If units are not specified in the header, it defaults to millimetres for coordinates and m/s for velocity. All internal computations are performed in SI units regardless of the input.
 
 \begin{quote}
-\textbf{Note:}
+\textbf{Note}
 \href{https://cmdrryder.github.io/uPrime/}{uPrime} auto-detects variable names. It expects \texttt{x}, \texttt{y}, \texttt{U} (or \texttt{Velocity u}), \texttt{V} (or \texttt{Velocity v}), and optionally \texttt{W} for stereo. Extra columns (vorticity, acceleration, etc.) are ignored silently. An \texttt{isValid} or \texttt{mask} column is used to exclude invalid vectors; this column is present by default in DaVis exports. Files exported directly from DaVis will load without any configuration.
 \end{quote}
 
@@ -148,14 +148,14 @@ When you select a \texttt{.mat} file, \href{https://cmdrryder.github.io/uPrime/}
 \end{center}
 
 \begin{quote}
-\textbf{Tip:}
+\textbf{Tip}
 For very large \texttt{.mat} files, save with \texttt{-v7.3} in MATLAB:\\
 \texttt{save('dataset.mat', 'x', 'y', 'u', 'v', '-v7.3')}\\
 This enables HDF5 chunked reading, which can show real per-snapshot progress and avoids loading the entire file in one blocking call.
 \end{quote}
 
 \begin{quote}
-\textbf{Warning:}
+\textbf{Warning}
 A \texttt{.mat} file containing a single snapshot will be rejected before any data is read (Figure~\ref{fig:singlesnap}). Most \href{https://cmdrryder.github.io/uPrime/}{uPrime} modules require multiple snapshots to compute statistics; for a single snapshot only the field viewer is meaningful, which does not justify loading the file.
 \end{quote}
 
