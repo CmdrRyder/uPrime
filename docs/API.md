@@ -345,7 +345,8 @@ Spatial PSD along a line, averaged over snapshots. → `(k, psds)`.
 → `(results, n_lines)`.
 
 **`spatial_spectra_fft.compute_3d_spectra(U, V, W, Lx, Ly, Lz)`**
-FFTW-based 3-D spectrum. → `(k_bin_centers, spectrum_3d)`.
+FFTW-based 3-D spectrum. → `(k_bin_centers, spectrum_3d)`. Needs the `[fft]`
+extra; see [Limits](#limits).
 
 **`spatial_spectra_fft.compute_1d_spectra(U, V, W, Lx, Ly, Lz)`**
 → dict with keys `kx`, `ky`, `kz` and `u_kx`, `u_ky`, `u_kz`, `v_kx`, `v_ky`,
@@ -559,8 +560,13 @@ statistics. In a batch script this goes to stdout and cannot be silenced
 through an API argument. Where a `progress_callback` or `progress_cb` argument
 exists, it is the supported way to observe progress.
 
-**`pyfftw` is required.** `spatial_spectra_fft` imports it at module level. It
-is a hard dependency of the package, so a normal install always has it.
+**`pyfftw` is an optional extra.** Only `spatial_spectra_fft` uses it, and it
+imports it at module level, so importing that module without pyFFTW raises an
+`ImportError` naming the fix: `pip install "uprime-piv[fft]"`. Nothing else in
+`uprime.core` depends on it, and `spectra.compute_spectra` imports it only when
+asked for `tab='3d_spatial'`. In the GUI, the **Spatial E(k) using FFT** tab is
+disabled when pyFFTW is absent and every other tab works. The Windows
+executable bundles it.
 
 **Gaps in the time axis are handled differently per module.** Because validity
 is per snapshot, a point's time series can contain NaN. Most routines use

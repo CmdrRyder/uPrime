@@ -4,6 +4,30 @@ All notable changes to uPrime are documented here.
 
 ---
 
+## [0.9.1] - 2026-11-11
+
+uPrime is now on PyPI, so Python users on Windows, macOS and Linux can install
+it with `pip install uprime-piv`.
+
+### Added
+- **Published to PyPI as `uprime-piv`** — `pip install uprime-piv` installs
+  uPrime and the `uprime` command; Python 3.10 or newer. The import name is
+  still `uprime`; the distribution name differs because `uprime` on PyPI is an
+  unrelated package.
+- **Release publishing workflow** — `.github/workflows/publish.yml` uploads to
+  PyPI when a GitHub release is published, using Trusted Publishing with no
+  API token, and to TestPyPI on a manual run.
+
+### Changed
+- **pyFFTW is now an optional extra** — install it with
+  `pip install "uprime-piv[fft]"` (or `[all]`). Without it only the
+  **Spatial E(k) using FFT** tab is disabled, so uPrime now installs on a Python
+  for which no pyFFTW wheel exists. This reverses the 0.9.0 change that made it
+  required. The Windows executable still bundles it, and `requirements.txt`
+  keeps it for running from source.
+
+---
+
 ## [0.9.0] - 2026-11-08
 
 uPrime is now an installable Python package with a documented API, and drops

@@ -34,6 +34,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Visualization",
 ]
@@ -44,10 +45,14 @@ dependencies = [
     "PyQt6>=6.5",
     "h5py>=3.8",
     "Pillow>=10.0",
-    "pyfftw>=0.13",
 ]
 
 [project.optional-dependencies]
+# pyFFTW powers only the "Spatial E(k) using FFT" tab. It is an extra rather
+# than a dependency so that uPrime still installs on a Python for which no
+# pyFFTW wheel exists; without it that one tab is disabled.
+fft = ["pyfftw>=0.13"]
+all = ["pyfftw>=0.13"]
 dev = ["pytest>=7.0"]
 
 [project.urls]

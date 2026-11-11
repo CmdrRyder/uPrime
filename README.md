@@ -2,8 +2,9 @@
 
 [![DOI](https://zenodo.org/badge/1197739784.svg)](https://doi.org/10.5281/zenodo.19376184)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
-![Version](https://img.shields.io/badge/version-0.9.0-blue)
+![Version](https://img.shields.io/badge/version-0.9.1-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+[![PyPI](https://img.shields.io/pypi/v/uprime-piv)](https://pypi.org/project/uprime-piv/)
 
 ### *Turbulence is complex. Analysis shouldn't be.*
 
@@ -11,12 +12,12 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="uprime/assets/logo_dark.png">
     <source media="(prefers-color-scheme: light)" srcset="uprime/assets/logo.png">
-    <img src="uprime/assets/logo.png" width="200">
+    <img src="https://github.com/CmdrRyder/uPrime/raw/main/uprime/assets/logo.png" width="200">
   </picture>
 </p>
 
 <p align="center">
-  <img src="docs/images/gui_v08.png" width="855">
+  <img src="https://github.com/CmdrRyder/uPrime/raw/main/docs/images/gui_v08.png" width="855">
 </p>
 
 **uPrime** is a standalone desktop application for post-processing and turbulence analysis of velocity field data from PIV and CFD. It provides a unified graphical interface covering the full range of standard turbulence diagnostics — from Reynolds stresses to DMD — without requiring any scripting or programming knowledge.
@@ -29,7 +30,29 @@ Currently supports **planar (2D2C)** and **stereo (2D3C)** velocity fields.
 
 ## 🚀 Installation
 
-### Windows (recommended)
+### With pip (Windows, macOS, Linux)
+
+For Python users, install from PyPI and launch with the `uprime` command:
+
+```bash
+pip install uprime-piv
+uprime
+```
+
+Python 3.10 or newer is required. The distribution is named `uprime-piv`
+because `uprime` on PyPI is an unrelated package; the import name is still
+`uprime`.
+
+For the **Spatial E(k) using FFT** tab, add the `fft` extra, which installs
+pyFFTW:
+
+```bash
+pip install "uprime-piv[fft]"
+```
+
+---
+
+### Windows executable (no Python needed)
 
 Download the latest executable from:
 https://github.com/CmdrRyder/uPrime/releases
@@ -40,7 +63,7 @@ No installation required. Double-click to launch.
 
 ---
 
-A standalone executable is not currently available for macOS or Linux. Run directly from source instead: 
+A standalone executable is not currently available for macOS or Linux. Use pip above, or run directly from source: 
 ### macOS — Run from source
 
 ```bash
@@ -72,7 +95,7 @@ uprime
 
 > `python main.py` still works too, if you prefer not to use the `uprime` command.
 
-> pyfftw is a required dependency and is installed automatically. If it is missing, the **Spatial E(k) using FFT** tab in the Spectra window is disabled; the other spectra tabs are unaffected.
+> pyFFTW is optional. Without it, the **Spatial E(k) using FFT** tab in the Spectra window is disabled; the other spectra tabs are unaffected. Add it with `pip install -e ".[fft]"` from source, or `pip install "uprime-piv[fft]"`.
 
 ### Run from source (Windows)
 
@@ -137,19 +160,19 @@ uprime
 ### Reynolds Stress
 
 <p align="center">
-  <img src="docs/images/reynolds.png" width="600">
+  <img src="https://github.com/CmdrRyder/uPrime/raw/main/docs/images/reynolds.png" width="600">
 </p>
 
 ### Space-Time Spectra
 
 <p align="center">
-  <img src="docs/images/spectra.png" width="600">
+  <img src="https://github.com/CmdrRyder/uPrime/raw/main/docs/images/spectra.png" width="600">
 </p>
 
 ### Vortex Identification
 
 <p align="center">
-  <img src="docs/images/vortex.png" width="600">
+  <img src="https://github.com/CmdrRyder/uPrime/raw/main/docs/images/vortex.png" width="600">
 </p>
 
 ---
@@ -194,13 +217,14 @@ uPrime can load LaVision **DaVis** vector data — **`.vc7` / `.vec` vector file
 
 - **The public release `.exe` does NOT include DaVis loading.** The **Load from DaVis (.vc7 / .vec)** button is present but disabled.
 - **A separately-installed `lvpyio` will NOT be picked up by the public `.exe`.** A frozen PyInstaller executable only sees packages bundled at build time, not your system's `pip`-installed packages. So `pip install lvpyio` will **not** enable DaVis in the public exe.
-- DaVis support is available **one way only**: **run uPrime from source** with
+- DaVis support is available when you **run uPrime from source** with
   `lvpyio` installed:
      ```bash
      pip install -r requirements.txt
      pip install -r requirements-lvpyio.txt   # installs lvpyio (restricted licence)
      python main.py
      ```
+  A pip install is not frozen, so `pip install uprime-piv lvpyio` also enables DaVis input.
 - DaVis files: select **multiple `.vc7` / `.vec` files** (one per snapshot); they are stacked in natural filename order (`B0001, B0002, … B0010`). A single file is one snapshot and is rejected, like single-snapshot `.mat` files. All files must share the same grid, axes and components (2D2C/2D3C) or the load aborts naming the offending file.
 
 ---
@@ -226,15 +250,15 @@ Both datasets load directly into uPrime without any configuration.
 
 ## 📘 Documentation
 
-📄 [uPrime User Manual (PDF)](docs/Manual.pdf)
+📄 [uPrime User Manual (PDF)](https://github.com/CmdrRyder/uPrime/blob/main/docs/Manual.pdf)
 
 Covers all modules with governing equations, step-by-step instructions, and references.
 
-🐍 [`uprime.core` API reference](docs/API.md)
+🐍 [`uprime.core` API reference](https://github.com/CmdrRyder/uPrime/blob/main/docs/API.md)
 
 For scripting uPrime without the GUI: data conventions, every public function
 grouped by task, and what each one returns.
-[`examples/core_api_example.py`](examples/core_api_example.py) is a runnable
+[`examples/core_api_example.py`](https://github.com/CmdrRyder/uPrime/blob/main/examples/core_api_example.py) is a runnable
 starting point that checks itself against an analytically known field.
 
 ---
@@ -255,7 +279,7 @@ Tests run headlessly (Agg backend + offscreen Qt) with no real `.dat` files requ
 
 ## 🧠 Development Status
 
-uPrime is under active development (**v0.9.0**).
+uPrime is under active development (**v0.9.1**).
 Core analysis modules are stable. Performance and usability improvements ongoing.
 
 ---
@@ -277,7 +301,7 @@ Core analysis modules are stable. Performance and usability improvements ongoing
 
 If uPrime contributes to your research, please cite:
 
-> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.9.0). Zenodo.
+> Jibu Tom Jose, & Ram, O. (2026). *uPrime: Open-source software for velocity field and turbulence analysis from PIV and CFD data*. TFML, Technion (v0.9.1). Zenodo.
 > https://doi.org/10.5281/zenodo.19376184
 
 ---

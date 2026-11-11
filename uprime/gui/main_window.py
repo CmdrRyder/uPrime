@@ -96,7 +96,7 @@ from uprime.gui.mean_convergence_tab import MeanConvergenceWindow
 from uprime.gui.compare_window import CompareWindow
 
 
-def _read_app_version(default="0.9.0"):
+def _read_app_version(default="0.9.1"):
     """Return the app version string from version.txt (single source of truth).
 
     Handles both a normal source checkout and a PyInstaller bundle

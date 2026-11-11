@@ -14,7 +14,16 @@ Reference: FluidFFT (doi:10.5334/jors.238) and FluidSim (10.5334/jors.239) by Mo
 """
 
 import numpy as np
-import pyfftw
+
+try:
+    import pyfftw
+except ImportError as exc:
+    # pyFFTW is an optional extra. Re-raise as ImportError so callers that
+    # guard this module (gui/spectra_window.py) still degrade gracefully, but
+    # tell a direct importer how to get it.
+    raise ImportError(
+        "uprime.core.spatial_spectra_fft needs pyFFTW, an optional extra. "
+        'Install it with:  pip install "uprime-piv[fft]"') from exc
 
 # Configure pyfftw for optimal performance
 pyfftw.interfaces.cache.enable()

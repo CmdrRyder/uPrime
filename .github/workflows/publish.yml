@@ -1,0 +1,102 @@
+name: Publish
+
+# Publishes uprime-piv with PyPI Trusted Publishing (OIDC). No API token or
+# secret is used: PyPI trusts this repository, this workflow file
+# (publish.yml) and the environment named below, as registered on pypi.org
+# and test.pypi.org.
+#
+# - Publishing a GitHub release uploads to PyPI, in the "pypi" environment.
+# - Running it by hand (workflow_dispatch) uploads to TestPyPI by default, in
+#   the "testpypi" environment. Untick "testpypi" to upload to PyPI instead.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      testpypi:
+        description: "Upload to TestPyPI instead of PyPI"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # The package version comes from uprime/version.txt, not from the tag.
+      # A release tagged without bumping version.txt would build fine and fail
+      # only at upload, because PyPI never accepts the same version twice, so
+      # fail here instead. Releases only: the manual TestPyPI run has no tag.
+      #
+      # This is a plain string comparison and assumes tags like "v0.9.1". A
+      # prerelease tag such as "v0.8.0-alpha" would fail it even when correct,
+      # since version.txt would hold the PEP 440 form (e.g. "0.8.0a0"). Revisit
+      # before tagging a prerelease.
+      #
+      # GITHUB_REF_NAME is the tag name on a release event (GITHUB_REF is
+      # refs/tags/<tag>). It is read from the environment rather than
+      # interpolated with ${{ }}, so a tag name cannot inject shell code.
+      - name: Check the tag matches the package version
+        if: github.event_name == 'release'
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(tr -d '[:space:]' < uprime/version.txt)"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag $TAG does not match uprime/version.txt ($PKG). Bump version.txt before releasing."
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: python -m pip install build twine
+
+      - name: Build the sdist and wheel
+        run: python -m build
+
+      - name: Check the distributions
+        run: python -m twine check dist/*
+
+      - name: Store the distributions
+        uses: actions/upload-artifact@v5
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish:
+    # One job for both targets, so the upload action is invoked exactly once.
+    # A release always goes to PyPI; a manual run goes to TestPyPI unless the
+    # "testpypi" box is unticked.
+    name: Publish to ${{ (github.event_name == 'workflow_dispatch' && inputs.testpypi) && 'TestPyPI' || 'PyPI' }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ (github.event_name == 'workflow_dispatch' && inputs.testpypi) && 'testpypi' || 'pypi' }}
+      url: ${{ (github.event_name == 'workflow_dispatch' && inputs.testpypi) && 'https://test.pypi.org/p/uprime-piv' || 'https://pypi.org/p/uprime-piv' }}
+    permissions:
+      id-token: write  # mandatory for Trusted Publishing; set on this job only
+
+    steps:
+      - name: Download the distributions
+        uses: actions/download-artifact@v6
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish the distributions
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: ${{ (github.event_name == 'workflow_dispatch' && inputs.testpypi) && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}

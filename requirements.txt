@@ -2,6 +2,9 @@ numpy>=1.24
 scipy>=1.10
 matplotlib>=3.7
 PyQt6>=6.5
+# pyfftw is kept here because this file is for running from source and for the
+# PyInstaller build, which bundles it. For a pip install it is the optional
+# [fft] extra instead:  pip install "uprime-piv[fft]"
 pyfftw>=0.13
 h5py>=3.8
 Pillow>=10.0

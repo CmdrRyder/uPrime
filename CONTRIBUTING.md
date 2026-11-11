@@ -31,6 +31,8 @@ Optional extras:
 | Extra | Install | What it adds |
 |---|---|---|
 | `dev` | `pip install -e ".[dev]"` | pytest. |
+| `fft` | `pip install -e ".[fft]"` | pyFFTW, for the **Spatial E(k) using FFT** tab. Optional so uPrime installs on a Python with no pyFFTW wheel. |
+| `all` | `pip install -e ".[all]"` | Every optional runtime extra; currently the same as `fft`. |
 | DaVis | `pip install -r requirements-lvpyio.txt` | LaVision `lvpyio` for `.set`/`.vc7`/`.vec` input. Separately licensed, **not** GPL — see that file's header. |
 
 `requirements.txt` is kept alongside `pyproject.toml` on purpose: the public
