@@ -91,8 +91,8 @@ def convert_uipth(text: str) -> str:
 
 
 def convert_software(text: str) -> str:
-    """\\software{uPrime} → \\cite{jose2026uprime} (citation from references.bib)."""
-    return replace_macro(text, 'software', lambda inner: '\\cite{jose2026uprime}' if inner.strip() == 'uPrime' else inner)
+    """\\software{uPrime} → \\href{url}{uPrime} (hyperlink with anchor "uPrime")."""
+    return replace_macro(text, 'software', lambda inner: f'\\href{{https://cmdrryder.github.io/uPrime/}}{{{inner}}}' if inner.strip() == 'uPrime' else inner)
 
 
 def convert_key(text: str) -> str:

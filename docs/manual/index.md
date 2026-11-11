@@ -24,7 +24,7 @@ _Turbulence is complex. Analysis shouldn\'t be._
 
 +++
 
-uPrime is a standalone desktop application for post-processing and
+[uPrime](https://cmdrryder.github.io/uPrime/) [@jose2026uprime] is a standalone desktop application for post-processing and
 turbulence analysis of velocity field data from PIV and CFD. Reads
 Tecplot ASCII .dat (LaVision DaVis) and MATLAB .mat files. 
 
