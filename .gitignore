@@ -51,3 +51,9 @@ Py to exe_command.txt
 
 # TFML-internal build script (bundles proprietary lvpyio; must not be published)
 build_exe_TFML.bat
+
+# MyST build outputs
+docs/manual/_build
+
+# uv
+.python-version

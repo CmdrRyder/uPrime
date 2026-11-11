@@ -1,0 +1,214 @@
+\documentclass[11pt, a4paper]{report}
+
+% -----------------------------------------------------------------------
+% Packages
+% -----------------------------------------------------------------------
+\usepackage[a4paper, top=25mm, bottom=25mm, left=28mm, right=28mm]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{mdframed}
+\usepackage{fontawesome5}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{tcolorbox}
+\usepackage{amsmath}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{tikz}
+\usepackage{longtable}
+% -----------------------------------------------------------------------
+% Colors
+% -----------------------------------------------------------------------
+\definecolor{upblue}{RGB}{30, 90, 160}
+\definecolor{upaccent}{RGB}{220, 80, 60}
+\definecolor{upgray}{RGB}{100, 100, 100}
+\definecolor{uplightgray}{RGB}{245, 245, 245}
+\definecolor{upboxborder}{RGB}{180, 200, 230}
+\definecolor{tipgreen}{RGB}{40, 130, 80}
+
+% -----------------------------------------------------------------------
+% Hyperref
+% -----------------------------------------------------------------------
+\hypersetup{
+    colorlinks  = true,
+    linkcolor   = upblue,
+    urlcolor    = upblue,
+    citecolor   = upblue,
+    pdftitle    = {uPrime v0.8: Open-Source PIV Post-Processing and Turbulence Analysis Software, User Manual},
+    pdfauthor   = {Jibu Tom Jose},
+    pdfsubject  = {Particle Image Velocimetry, Turbulence Analysis, Open-Source Software},
+    pdfkeywords = {PIV, turbulence, Reynolds stresses, TKE budget, POD, DMD, vortex identification, spectral analysis, two-point correlation, anisotropy invariants, probability density function, quadrant analysis, ejections and sweeps, reverse flow probability, backflow coefficient, binary space-time map, mean and convergence, MATLAB mat file, open-source, DaVis, LaVision},
+    pdfcreator  = {uPrime, Transient Fluid Mechanics Laboratory, Technion},
+    pdflang     = {en-US},
+}
+
+% -----------------------------------------------------------------------
+% Header / footer
+% -----------------------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{upgray}{uPrime v0.8.0 -- User Manual}}
+\fancyhead[R]{\small\textcolor{upgray}{\leftmark}}
+\fancyfoot[C]{\small\textcolor{upgray}{\thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% -----------------------------------------------------------------------
+% Section formatting
+% -----------------------------------------------------------------------
+\titleformat{\section}[display]
+  {\normalfont\Large\bfseries\color{upblue}}
+  {\chaptertitlename\ \thechapter}{10pt}{\Huge}
+\titlespacing*{\section}{0pt}{20pt}{20pt}
+
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{upblue}}
+  {\thesection}{1em}{}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{upblue}}
+  {\thesubsection}{1em}{}
+
+% -----------------------------------------------------------------------
+% Custom boxes
+% -----------------------------------------------------------------------
+\tcbuselibrary{skins, breakable}
+
+\newtcolorbox{notebox}{
+  colback  = uplightgray,
+  colframe = upboxborder,
+  coltitle = upblue,
+  fonttitle= \bfseries\small,
+  title    = {\faInfoCircle\quad Note},
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt, arc=3pt,
+}
+
+\newtcolorbox{tipbox}{
+  colback  = green!5,
+  colframe = tipgreen!60,
+  coltitle = tipgreen,
+  fonttitle= \bfseries\small,
+  title    = {\faLightbulb\quad Tip},
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt, arc=3pt,
+}
+
+\newtcolorbox{warnbox}{
+  colback  = red!5,
+  colframe = upaccent!60,
+  coltitle = upaccent,
+  fonttitle= \bfseries\small,
+  title    = {\faExclamationTriangle\quad Warning},
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt, arc=3pt,
+}
+
+\newtcolorbox{stepbox}{
+  colback  = upblue,
+  colframe = upblue,
+  coltitle = upblue,
+  fonttitle= \bfseries\small,
+  title    = {\faListOl\quad Step-by-step},
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt, arc=3pt,
+}
+
+% -----------------------------------------------------------------------
+% Misc helpers
+% -----------------------------------------------------------------------
+\newcommand{\uipth}[1]{\textbf{\textcolor{upblue}{#1}}}
+\newcommand{\key}[1]{\fbox{\small\texttt{#1}}}
+\newcommand{\software}[1]{#1}
+
+\graphicspath{{Figs/}}
+
+% -----------------------------------------------------------------------
+% Document
+% -----------------------------------------------------------------------
+\begin{document}
+
+
+
+% ============================= TITLE PAGE ==============================
+\begin{titlepage}
+\thispagestyle{empty}
+
+\noindent\colorbox{upblue}{\rule{0pt}{5pt}\hspace{\dimexpr\textwidth+2\fboxsep\relax}}
+\vspace*{1.6cm}
+
+\begin{tikzpicture}[remember picture, overlay]
+  \foreach \x in {-1, -0.45, ..., 22} {
+    \foreach \y in {-2, -2.55, ..., -10} {
+      \fill[upblue] (current page.north west) ++(\x cm, \y cm) circle (1.2pt);
+    }
+  }
+\end{tikzpicture}
+
+\begin{center}
+  \includegraphics[width=4cm]{logo_upblue.png}\\[0.4cm]
+  {\large\itshape\textcolor{upgray}{Because u$'$ matters}}
+\end{center}
+
+\vspace{0.6cm}
+\noindent\textcolor{upblue}{\rule{\textwidth}{0.8pt}}
+\vspace{0.5cm}
+
+\begin{flushleft}
+  \hspace{2mm}{\LARGE\bfseries\textcolor{upblue}{User Manual}}\\[0.4cm]
+  \hspace{2mm}{\normalsize\textcolor{upgray}{Version 0.8.0\quad$\cdot$\quad Alpha Release}}
+\end{flushleft}
+
+\vfill
+
+\noindent\textcolor{upblue}{\rule{\textwidth}{0.4pt}}
+\vspace{0.5cm}
+
+\begin{flushleft}
+  \hspace{2mm}{\normalsize\textbf{Jibu Tom Jose}}\\[0.15cm]
+  \hspace{2mm}{\small\textcolor{upgray}{Transient Fluid Mechanics Laboratory (PI: Omri Ram)}}\\[0.05cm]
+  \hspace{2mm}{\small\textcolor{upgray}{Faculty of Mechanical Engineering, Technion}}\\[0.05cm]
+  \hspace{2mm}{\small\textcolor{upgray}{Israel Institute of Technology, Haifa}}\\[0.5cm]
+  \hspace{2mm}{\small\textcolor{upblue}{\faGithub\quad
+    \href{https://github.com/CmdrRyder/uPrime}{github.com/CmdrRyder/uPrime}}}\\[0.2cm]
+  \hspace{2mm}{\small\textcolor{upblue}{\faLink\quad
+    \href{https://doi.org/10.5281/zenodo.19376184}{doi.org/10.5281/zenodo.19376184}}}\\[0.3cm]
+  \hspace{2mm}{\small\textcolor{upgray}{Open source\quad$\cdot$\quad GNU GPL v3\quad$\cdot$\quad 2026}}
+\end{flushleft}
+
+\vspace{0.4cm}
+\noindent\colorbox{upblue}{\rule{0pt}{5pt}\hspace{\dimexpr\textwidth+2\fboxsep\relax}}
+\end{titlepage}
+
+% ============================= ABSTRACT ================================
+\clearpage
+\thispagestyle{empty}
+
+
+
+\include{user_guide/00_abstract}
+\include{user_guide/01_getting_started}
+\include{user_guide/02_main_window}
+\include{user_guide/03_coordinate_transform}
+\include{user_guide/04_mean_and_convergence}
+\include{user_guide/05_reynolds_stress_analysis}
+\include{user_guide/06_tke_budget}
+\include{user_guide/07_space-time_spectral_analysis}
+\include{user_guide/08_anisotropy_invariant_analysis}
+\include{user_guide/09_correlation_analysis}
+\include{user_guide/10_pod_analysis}
+\include{user_guide/11_dmd_analysis}
+\include{user_guide/12_vortex_identification}
+\include{user_guide/13_probability_analysis}
+\include{user_guide/14_multi-case_comparison}
+\include{user_guide/15_compare_cases}
+\include{user_guide/16_tips_workflow_and_troubleshooting}
+\include{user_guide/17_mouse_and_keyboard_reference}
+\include{user_guide/appendix_A_citing_uprime}
+\include{user_guide/appendix_B_sample_dataset}
+\include{user_guide/appendix_C_version_history}
+
+\end{document}
