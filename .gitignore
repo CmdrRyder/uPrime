@@ -48,3 +48,6 @@ Sample Data set/
 
 # PyInstaller-generated and miscellaneous outputs
 Py to exe_command.txt
+
+# TFML-internal build script (bundles proprietary lvpyio; must not be published)
+build_exe_TFML.bat

@@ -4,6 +4,349 @@ All notable changes to uPrime are documented here.
 
 ---
 
+## [0.9.2] - 2026-11-11
+
+Housekeeping after the PyPI launch: clearer install instructions, a
+release-only publishing workflow, and descriptions that stay intact on PyPI.
+
+### Added
+- **`uprime-piv` command alias** — the command can now be typed as the package
+  name, `uprime-piv`, as well as `uprime`; both launch the same app. The alias
+  is created only when uPrime 0.9.2 or later is installed, so an existing 0.9.1
+  install gets it with `pip install --upgrade uprime-piv`.
+
+### Changed
+- **Install instructions show the run command** — the README, `docs/API.md`,
+  `CONTRIBUTING.md` and the website now say that you install `uprime-piv` but
+  run `uprime`.
+- **Publishing is release-only** — `.github/workflows/publish.yml` no longer
+  has a manual TestPyPI run. Publishing a GitHub release is its only trigger,
+  and the upload still waits for approval in the protected `pypi` environment
+  after the tag check.
+- **README images and links pinned to the release tag** — the logo,
+  screenshots and the Manual, API and example links point at `v0.9.2` rather
+  than `main`, so the description frozen into each PyPI release keeps working
+  if files move.
+- **PyPI documentation link** — now opens the user manual instead of repeating
+  the homepage.
+- **CI actions on Node 24** — `actions/checkout` and `actions/setup-python` v7,
+  `actions/upload-artifact` v7 and `actions/download-artifact` v8, replacing
+  versions GitHub flagged as running on the deprecated Node 20.
+
+### Removed
+- **Hardcoded version badge in the README** — the PyPI badge shows the
+  current version and updates itself.
+
+---
+
+## [0.9.1] - 2026-11-11
+
+uPrime is now on PyPI, so Python users on Windows, macOS and Linux can install
+it with `pip install uprime-piv`.
+
+### Added
+- **Published to PyPI as `uprime-piv`** — `pip install uprime-piv` installs
+  uPrime and the `uprime` command; Python 3.10 or newer. The import name is
+  still `uprime`; the distribution name differs because `uprime` on PyPI is an
+  unrelated package.
+- **Release publishing workflow** — `.github/workflows/publish.yml` uploads to
+  PyPI when a GitHub release is published, using Trusted Publishing with no
+  API token, and to TestPyPI on a manual run.
+
+### Changed
+- **pyFFTW is now an optional extra** — install it with
+  `pip install "uprime-piv[fft]"` (or `[all]`). Without it only the
+  **Spatial E(k) using FFT** tab is disabled, so uPrime now installs on a Python
+  for which no pyFFTW wheel exists. This reverses the 0.9.0 change that made it
+  required. The Windows executable still bundles it, and `requirements.txt`
+  keeps it for running from source.
+
+---
+
+## [0.9.0] - 2026-11-08
+
+uPrime is now an installable Python package with a documented API, and drops
+the "alpha" label. This release also corrects how invalid vectors are handled
+when loading data — **see the first entry under Fixed before reusing any
+result produced by an earlier version.**
+
+### Breaking
+- **Code now lives in the `uprime` package.** `from core.loader import ...`
+  becomes `from uprime.core.loader import ...`; likewise for `gui`.
+- **`core.dmd.build_snapshot_matrix` returns `(X, n_per, info)`** instead of
+  `(X, n_per)`. Pass `info["mask"]` to `get_mode_components`, not the dataset
+  `MASK` — gappy points are dropped, so it no longer matches `n_per`.
+- **`pyfftw` is now a required dependency**, not an optional extra. The
+  `fftw` extra is gone; `spatial_spectra_fft` imports it at module level.
+
+### Added
+- **`pip install -e .` and a `uprime` command.** The GUI launches from the
+  console script; `python main.py` still works.
+- **Distribution name `uprime-piv`** on PyPI, since `uprime` is taken by an
+  unrelated package. The import name is still `uprime`.
+- **`docs/API.md`**, documenting every public function in `uprime.core`, with
+  a runnable `examples/core_api_example.py` covering the common workflow.
+- **CI on Windows, macOS and Linux**, running the suite across Python 3.10
+  and 3.12 on every push.
+- **`CONTRIBUTING.md` and `CITATION.cff`**, covering development setup, the
+  build variants, the version-bump checklist and how to cite uPrime.
+- **`filled_fraction` in POD and DMD results**, the fraction of values
+  entering the decomposition that had to be gap-filled; both windows show it
+  in their status line when it is non-zero.
+
+### Fixed
+- **Invalid vectors from every snapshot after the first were treated as real
+  data when loading `.dat` files (v0.4.1 through v0.8.2).** `load_single_file`
+  read each snapshot's `isValid` column, but `load_dataset` kept only the
+  first snapshot's. Every later snapshot's invalid vectors stayed in `U`, `V`
+  and `W` as whatever the file contained — for a DaVis export that is
+  normally `0.0` — and were averaged in as genuine measurements. This biases
+  the mean toward zero and inflates every fluctuation statistic. On a
+  synthetic case with 5% of vectors invalid and written as zero, the mean
+  streamwise velocity read 4.75 m/s instead of 5.00, and `<u'u'>` read 1.42
+  (m/s)² instead of 0.25 — a factor of 5.7.
+
+  **If your `.dat` data contains invalid vectors, any mean, Reynolds stress,
+  TKE, spectrum, correlation or modal result produced by v0.4.1 through
+  v0.8.2 should be recomputed.** Datasets with no invalid vectors, or whose
+  files have no `isValid` column, are unaffected.
+
+  All three loaders now follow one rule: a vector invalid in a snapshot is
+  NaN in that snapshot, and `MASK` marks a grid point invalid only if it is
+  invalid in every snapshot. This also fixes the opposite problem in the
+  `.vc7` and `.mat` loaders, which set `MASK` to the points valid in *all*
+  snapshots, so a single bad vector blanked that grid point for the whole
+  series.
+
+- **DMD crashed on data with invalid vectors, and filled raw velocity with
+  zero.** `compute_dmd` had no gap handling and failed inside the SVD with
+  `LinAlgError: SVD did not converge` on a snapshot matrix containing NaN.
+  The DMD window did not crash, because `DMDWorker` called `np.nan_to_num`
+  first, but that fills with a literal zero: with **subtract mean** switched
+  off the matrix holds raw velocity, so every invalid vector became a spike
+  of `-U` against the local mean, injecting broadband energy and shifting the
+  mode frequencies. Gap handling now lives in
+  `core.dmd.build_snapshot_matrix` on the same terms as POD — grid points
+  that are NaN in 10% or more of the snapshots are dropped, and the remaining
+  gaps are filled with that point's own temporal mean, which is zero for a
+  mean-subtracted field and the local mean velocity for a raw one. The two
+  settings now agree. `compute_dmd` additionally rejects non-finite input
+  with a clear `ValueError` instead of failing in the SVD.
+
+- **`.dat` files written with y ascending loaded mirrored vertically.**
+  `load_grid` flips rows only when y descends, so that row 0 always holds the
+  smallest y, but `load_single_file` flipped unconditionally. DaVis writes y
+  descending, so the two cancelled out on real exports and the bug never
+  showed there; a file written the other way round — a Tecplot export from a
+  non-DaVis source, or a hand-built file — loaded with the velocities
+  upside down relative to `x` and `y`. Nothing warned, and no summary
+  statistic changes under a row flip. `load_grid` now records its decision in
+  `header["flip_rows"]` and `load_single_file` follows it. The flag defaults
+  to `True` when absent, so a caller that skips `load_grid` keeps the old
+  behaviour.
+
+- **`.mat` files written with y descending loaded upside down relative to
+  `.dat` and `.vc7` cases.** uPrime's convention is row 0 = smallest y;
+  `core.loader.load_grid` and `core.davis_io` both enforce it, but
+  `mat_loader` took the file's own row order as given. Such a file loaded
+  self-consistently — `y` descended too, so every plot looked right — and
+  nothing warned, but row indices were mirrored and a `.mat` case could not
+  be compared with a `.dat` or `.vc7` case of the same flow. `x`, `y`, `U`,
+  `V`, `W` and the validity mask are now flipped together when y descends,
+  and the decision is recorded in `dataset["header"]["flip_rows"]`. The flip
+  uses reversed views, and the per-snapshot `isValid` path flips one plane at
+  a time, so a multi-GB HDF5 case costs no extra memory.
+
+- **Column order is now normalised too, so column 0 holds the smallest `x`.**
+  `davis_io` already flipped columns to make `x` ascend, but the `.dat` and
+  `.mat` loaders took the file's column order as given. A file written with
+  `x` descending loaded with column 0 at the far end of the domain. As with
+  the row case it was self-consistent — `x` descended too, so every plot was
+  correct and `dx` stayed positive — but column indices, line profiles taken
+  by column, and Compare Cases were mirrored against a `.vc7` case of the
+  same flow. `core.loader` and `core.mat_loader` now reverse `x`, `y`, `U`,
+  `V`, `W`, the vorticity and the validity mask along the column axis when
+  `x` descends. `load_grid` records the decision in `header["flip_cols"]`
+  and `load_single_file` follows it, exactly as for `flip_rows`; the flag
+  defaults to `False` when absent, so a caller that skips `load_grid` is
+  unaffected. All three loaders now share one convention: **row 0 = smallest
+  `y`, column 0 = smallest `x`**.
+
+---
+
+## [0.8.2] - 2026-09-03
+
+Adds a Lumley-triangle comparison mode to Compare Cases.
+
+### Added
+- **Lumley triangle comparison mode in Compare Cases (1D tab)** — anisotropy
+  line exports now pair their `-II` and `III` columns into a new "Lumley
+  (-II vs III)" entry in the Variable dropdown, plotted as a scatter of
+  `-II` vs `III` across cases with the same boundary artwork (limit lines,
+  corner markers, plane-strain line, axis limits) the Anisotropy Invariant
+  module itself draws — factored into a shared `gui/lumley_plot.py` helper
+  so both views stay byte-for-byte identical. A **Color by distance along
+  line** checkbox, visible only for this variable, switches between one
+  scatter per case in its own style color (default) and a single shared
+  plasma colorbar keyed to distance along each case's line, with cases then
+  distinguished by marker symbol instead of color.
+- **Merged CSV export for the Lumley mode** — since each case has its own
+  independent `III` values, Export Merged CSV writes one `<label>_III` /
+  `<label>_-II` (and `<label>_s` when distance data is available) column
+  pair per case for this variable, padded to the longest case, instead of
+  the shared-x long format used by every other quantity.
+
+---
+
+## [0.8.1] - 2026-09-02
+
+Adds manual line-coordinate entry to the Anisotropy Invariant module.
+
+### Added
+- **Manual x/y line entry in Anisotropy Invariants** — the Lumley-triangle
+  line can now be typed as numeric `x0`/`y0`/`x1`/`y1` instead of dragged,
+  bringing the module in line with Reynolds Stress, TKE Budget and Mean
+  Velocity. A **Line Entry** group offers Draw (unchanged) or Manual; picking
+  Manual reveals four coordinate boxes and a **Plot** button, and hides the
+  LineSelector snap controls, since manual lines are always free
+  point-to-point. Box ranges and defaults initialise from the data extents in
+  mm — a full-width line at mid-height. Unlike the other modules, Plot goes
+  straight through to the Lumley triangle rather than only arming Compute,
+  because Compute is this window's equivalent of plotting.
+- **Line entry provenance in the export** — exported line CSVs now carry a
+  `Line entry` header row reading `Manual` or `Drawn`, spelled identically to
+  the other line-profile modules so exports stay comparable across them.
+
+### Changed
+- **Manual lines sample through `core/line_sample.py`** — a manually entered
+  line is interpolated point-to-point via `sample_along_line`, the same path
+  `reynolds_window._profile_values` takes, so both entry methods sample
+  identically. Drawn lines are untouched and keep the LineSelector free,
+  horizontal and vertical modes exactly as before. Manual entry applies to the
+  Lumley line only; the Barycentric rectangle is unaffected and the Line Entry
+  group hides entirely in Rectangle mode.
+
+---
+
+## [0.8.0] - 2026-09-01
+
+Adds the Probability Analysis module.
+
+### Added
+- **Probability Analysis module** — a new analysis window (`◔  Probability
+  Analysis`) holding four tabs, three of which work on uncorrelated snapshots:
+  - **PDF** — probability density of `u`, `v`, `w`, `|V|`, or the fluctuations
+    `u'`, `v'`, `w'`, sampled over a picked point, a line (drawn or entered by
+    numeric x0/y0/x1/y1), a dragged ROI, or the whole field. Robust or manual
+    range, density/counts normalisation, optional same-mean/std Gaussian overlay,
+    log-y, and a stats readout (N, mean, std, skewness, and non-excess kurtosis
+    labelled "Gaussian = 3"). CSV export of bin centres/edges/counts/density.
+  - **Flow Direction** — per-point forward/reverse probability map. The
+    forward/reverse convention is explicit everywhere: **FFP** `P(q > 0)` (default)
+    vs **RFP** `P(q < 0)`, surfaced in the title, colorbar, status line and every
+    export header; toggling it re-plots from the same result. Solid 0.5 contour
+    always drawn, optional Simpson 0.01 / 0.20 detachment-state contours, an
+    indeterminate-fraction and valid-samples view, and Tecplot 2D export. A drawn
+    ROI **restricts the computation** to the selected rectangle (only that slice is
+    read); the map keeps the full-domain shape with NaN outside the ROI, shown as
+    grey, and the export records the ROI extent in mm and grid indices.
+  - **Binary Space-Time** (time-resolved only; the tab disables itself with an
+    inline notice on non-TR data) — the classic one-space-coordinate-vs-time map,
+    two-colour by flow direction, along a horizontal or vertical line (free-line
+    mode intentionally unavailable — rotate with Transform first). ± grid-point
+    band averaging on the raw velocity before the sign test, optional normalised
+    axes (`s*`, `t*`), reference lines, and export of both the raw `q(s, t)` and
+    the int8 state array so the map can be replotted at native resolution.
+  - **Quadrant** — Lu & Willmarth quadrant analysis of a fluctuation pair
+    (`u'-v'` default), with per-point time- and stress-fraction maps, a joint PDF
+    with the hole hyperbola, a Q1–Q4 bar chart, Q2/Q4 stress maps, and the
+    hole-size sweep. A drawn ROI **restricts the computation** (maps, joint
+    histogram and hole sweep all read only that slice; the Q2/Q4 maps keep the
+    full domain shape with NaN/grey outside). A visible note states the
+    x-streamwise / y-wall-normal assumption.
+- **Deadband ε** on the direction and binary tabs: ε = 0 is the strict sign test
+  (`q ≥ 0` forward, `q < 0` reverse); ε > 0 adds a third *indeterminate* state
+  (`|q| ≤ ε`). All three probabilities divide by the same per-point valid-sample
+  count, so `p_forward + p_reverse + p_indeterminate = 1` at every valid point.
+- `ProbabilityWorker` (`core/workers.py`) — the probability computations run on the
+  existing background-worker path, so the window stays responsive and reports
+  progress like the other analysis modules.
+- Memmap-safe core (`core/probability.py`): every time-axis walk is chunked
+  (`CHUNK_DEFAULT = 200` frames/block) so datasets above 4 GB are never pulled
+  fully into RAM, and **every accumulator counts valid samples per point** and
+  divides by that count — returning NaN where a point has no valid frames — rather
+  than dividing by `Nt` (which `np.nanmean(field < 0)` would silently do and bias
+  the near-wall probabilities low).
+
+### Changed
+- `LineSelectorWidget` accepts a new `show_free=False` keyword (default `True`, so
+  existing callers are unaffected). When false the Free radio button is not created
+  at all and the widget defaults to Horizontal, so `get_mode()` can never return
+  `"free"`. The PDF and Binary Space-Time tabs pass `show_free=False` because a
+  free, arbitrarily angled line is not physically meaningful for either: the PDF
+  tab samples along grid rows or columns, and the binary map needs a single space
+  coordinate. Rotate the field with Transform first if an angled cut is wanted.
+- `export_2d_tecplot` accepts a new `nan_repr` keyword (default `None`, which keeps
+  the historical behaviour of writing `0` for a non-finite value). The probability
+  maps pass `"NaN"` so a point that was never computed stays distinguishable from a
+  genuine zero in the exported file.
+- A drawn ROI now restricts the computation rather than only the display. The Flow
+  Direction and Quadrant tabs read only the selected slice of the time axis, so a
+  small ROI on a large dataset is correspondingly cheaper. Results keep the
+  full-domain array shape with NaN outside the ROI, and the untouched region is
+  drawn as a distinct grey (`#BFBFBF`) so a restricted map is never mistaken for a
+  full-field one. Exports record the ROI extent in both millimetres and grid
+  indices.
+
+### Fixed
+- **Frozen builds reported the wrong version.** `_read_app_version()` looks for
+  `version.txt` next to the bundle root (`sys._MEIPASS`) when frozen, but no build
+  recipe ever bundled that file, so every packaged executable silently fell back to
+  the hardcoded default and could report a stale version. All three build paths
+  (`build_exe.bat`, `build_exe_TFML.bat`, `build_uprime.py`) now add `version.txt`
+  as bundled data, so a packaged build reports the same version as a source
+  checkout.
+
+---
+
+## [0.7.1] - 2026-07-26
+
+### Fixed
+- Orphaned memmap temp files (`uprime_memmap_*.bin_*`) left by crashed or
+  force-killed sessions are now swept automatically at startup and before
+  each data load. The current session's live files, and any locked by a
+  concurrently running instance, are never removed.
+- Main window now opens about 10% larger (1540x990, clamped to the available
+  screen) so the left sidebar no longer shows a vertical scrollbar with the
+  v0.7.0 control set. Window centering derives from the actual window size.
+
+---
+
+## [0.7.0] - 2026-07-20
+
+Start of the 0.7 development cycle.
+
+### Added
+- **Optional LaVision DaVis support (via `lvpyio`).** A new guarded loader `core/davis_io.py` reads DaVis **`.vc7` / `.vec` vector files only** (one field per file — select multiple files for a time series, stacked into the snapshot axis like the `.dat` loader). Files are natural/numeric sorted (`B0001, B0002, … B0010`); all files must share the same grid, axes and component set (2D2C/2D3C, auto-detected from the first) or the load aborts naming the offending file. The result uses the exact same dataset contract as the `.dat`/`.mat` loaders (2-D `x`/`y` in mm, `U`/`V`/`W` float32 `(Ny,Nx,Nt)`, `MASK` with True = valid, `is_stereo`, `dx`/`dy`, per-snapshot mask → NaN, memmap over 4 GB), so DaVis data flows through the whole pipeline with no downstream changes; the existing snapshot-subset dialog is reused. A single file (one snapshot), `.set` files, and DaVis images (`.im7`/`.imx`) are rejected with clear messages ("uPrime reads DaVis .vc7/.vec vector files; export or convert .set to .vc7"). A **Load from DaVis (.vc7 / .vec)** button (always visible, multi-select, loaded via a background `QThread`) and an About-dialog line report runtime availability. `lvpyio` is a **separately-licensed, non-GPL** LaVision library kept strictly optional and guarded — the core never hard-imports it, it stays out of `requirements.txt` (see `requirements-lvpyio.txt`), and it is never in a public build. **Distribution Option A:** the public exe does not include DaVis and cannot use a system-installed `lvpyio` (a frozen exe only sees bundled packages); DaVis is enabled only by running from source with `lvpyio`, or via a `--with-lvpyio` build.
+- **Dual build recipe (`build_uprime.py`).** One PyInstaller script, two outputs: default → `uPrime_v0.7.0.exe` (public; `lvpyio`/`lvpyio_wrapped` excluded); `--with-lvpyio` (or `UPRIME_BUNDLE_LVPYIO=1`) → `uPrime_v0.7.0_davis.exe` (bundles `lvpyio` via `--collect-all`/`--collect-binaries`, fails early if it isn't installed). New `requirements-lvpyio.txt` and a README "DaVis support (optional)" section.
+- **Dual PyInstaller `.bat` build scripts (Windows).** `build_exe.bat` builds the PUBLIC `dist\uPrime_v0.7.0.exe` with `--exclude-module lvpyio` / `lvpyio_wrapped` (no DaVis); `build_exe_TFML.bat` builds the internal `dist\uPrime_v0.7.0_TFML.exe` that bundles `lvpyio` (`--collect-all` + `--collect-binaries` + explicit compiled `lvpyio.io.*` hidden-imports and native/Qt5 DLLs), guarded by an `import lvpyio` check that aborts if it is missing. Both add `--hidden-import openpyxl` for the Compare viewer's optional `.xlsx` reading. The TFML exe must not be redistributed (lvpyio is a separately-licensed, non-GPL LaVision library).
+- **Compare Cases — Field Compare (2D) tab (Stage B).** A new **Field Compare (2D)** tab in the Compare Cases viewer works with the 2D Tecplot fields it loads. `core.case_io` now lazily loads the full field on demand (`FileRecord.load_field()`), returning 1D `x`/`y` axes (mm) and a dict of component arrays keyed by canonical component (velocity → `U`/`V`/`W`, Reynolds → `R_uu`…`R_vw`, `TKE`, mapped from the Tecplot `VARIABLES` names), preserving NaN/masked regions as NaN in float32, plus per-component value ranges for shared color scaling. The tab is variable-driven like Stage A. **Tiled view**: up to 6 same-variable cases as contour tiles with one shared color scale + shared colorbar by default (RdBu_r for signed components, viridis for positive), a per-tile scale override (own vmin/vmax + colorbar) and "Reset to shared scale", and equal aspect (no click dead-zones). **Line extract**: pick one case, draw a line (reusing the analysis modules' Draw/Manual + Free/Horizontal/Vertical + ± grid-pts averaging), and extract **all components** along it via `sample_along_line`/`extract_line_profile`; an "Apply to all loaded cases (same origin)" option samples the identical `p0→p1` from every loaded case. Extracted profiles are pushed into the Stage A 1D basket as `CaseSeries` keyed by component (tagged "extracted", label `<case>_<component>`) so they can be compared across cases in the 1D tab.
+- **Standalone "Compare Cases" viewer (Stage A, 1D).** A new `Compare Cases` button in the main window (always available, independent of any loaded dataset) opens a non-modal, **variable-driven** viewer that reads uPrime's own 1D exports (`.csv` / `.xlsx` / `.dat`) via the new `core.case_io` reader. Each plottable column is assigned a canonical `quantity_key` (mean velocity → `U`/`V`/`W`, Reynolds stresses → `R_uu`…`R_vw`, `TKE`, and a fallback to the raw column label for budget terms, spectra PSD, etc.), each carrying fixed x/y axis metadata. A **Variable** dropdown lists the quantities present; selecting one filters the basket and plots only those cases — different quantities are never overlaid. Series are styled through the existing Case Manager dialog with TAB10 auto-colors; a Um-normalization mismatch across cases raises the existing-style status-bar warning. 2D Tecplot fields are parsed for module/quantity metadata and handled in the Field Compare (2D) tab (see above). Exports reuse the existing 300 DPI PNG/PDF/SVG figure path and the merged long-format CSV writer. Supports drag-and-drop and inline renaming.
+- **Manual start/end coordinates for line profiles** in the Reynolds Stresses, TKE Budget, and Mean Velocity modules. A *Line Entry* toggle (Draw / Manual) reveals four coordinate spin boxes (x0, y0, x1, y1, ranges taken from the data extents) and a *Plot* button. Manual and drawn lines now flow through one shared internal method that draws the line on the field and renders the profile through the same downstream plotting path; endpoints are recorded identically in the CSV export header for both entry methods.
+- **`core.line_sample.sample_along_line(x, y, field, p0, p1)`** — shared free-line sampler that interpolates a 2D field along a straight line using `scipy.interpolate.RegularGridInterpolator` (linear, `bounds_error=False`, `fill_value=NaN`), sampling `max(2, ceil(length / min(dx, dy)))` evenly spaced points and returning `(arc_length, values)`. Points over masked/NaN regions return NaN.
+
+### Changed
+- **2D `.dat` exports now default to `<casename>_<module>.dat`.** Tecplot 2D field exports (Reynolds, TKE, TKE Budget, DMD, spatial correlation, and the others) now prepend the session case name to the default save-dialog filename, matching the 1D CSV export pattern (same `QApplication` case-name lookup, same `Data_1` fallback when unset); file contents/format are unchanged and the name is still freely editable.
+- **Compare Cases — shared Add Files, top colorbars, and Plot/Save extraction.** Refinements to the Field Compare (2D) work: (1) **Add Files** and its drag-and-drop zone moved to a shared strip above the tab bar so one action feeds both tabs — loaded files auto-route by content (1D → 1D basket, 2D → Field Compare list) — and the drag-drop label typo (`&amp;`) is fixed. (2) In Tiled view the shared colorbar now draws as a single **horizontal** bar along the top of the tiled area (its own thin gridspec row, never over a field); a tile overridden to its own vmin/vmax gets its own small horizontal colorbar directly above it while shared-scale tiles keep the top bar. (3) The single "Extract to 1D" button is split into **Plot** (push extracted component series into the 1D basket, auto-switch to the 1D tab and render — overlaying on equal footing with any imported CSV/XLSX of the same variable) and **Save** (write the extracted series straight to a merged CSV in the existing Export-Merged-CSV format, without adding to the basket).
+- **Neutral-grey radio/checkbox indicators (app-wide).** `QRadioButton`/`QCheckBox` indicators previously rendered with an orange accent; they are now a restrained neutral grey (light grey when checked on dark themes, a mid/dark grey on light themes) so color lives in the plots, not the controls. Scoped strictly to the indicator subcontrols via an app-level stylesheet — matplotlib colors, colormaps, and the status-bar colors are untouched.
+- **"Compare Cases" button repositioned and given a distinct indigo accent.** The button is separated from the "3. Analysis" module list by a spacer and a thin divider, and filled with a clearly-visible indigo/violet accent (its own hue vs the blue Reload / teal Subset buttons, with hover/pressed states, theme-aware for dark and light), so it reads as a standalone tool rather than an analysis module. It remains enabled at all times (including with no dataset loaded) and opens the viewer non-modally.
+- **Consistent Line Entry / Line Mode ordering.** In the Reynolds Stresses, TKE Budget, and Mean Velocity sidebars the line-profile control groups now appear adjacent and in the same order everywhere: *Line Entry* (Draw / Manual) → *Line Mode* (Free / Horizontal / Vertical) → *Spatial Averaging* (H/V only). Control behavior is unchanged; only placement.
+- **TKE Budget normalization corrected and made explicit per panel.** When *Normalize* is on, the upper panel (TKE *k*) is divided by `Um²` and the lower panel budget terms (P, C, D, R, and ∂k/∂t) are divided by `Um³/L`, using the existing Um and L inputs. Axis labels now read `k/Um² [-]` (upper) and `(P L)/Um³ [-]` (lower); with normalization off, raw dimensional values and labels are shown. The normalize checkbox is relabeled from "Normalize by Um³/L" to simply **"Normalize"**.
+- **Unified 2D `.dat` export.** All 2D-field `.dat` exports now route through a single canonical writer, `core.export.export_2d_tecplot(...)`, which emits the standard Tecplot ASCII structure: a `#`-comment settings header block, `VARIABLES = "x [mm]", "y [mm]", <fields>`, `ZONE T=..., I=NX, J=NY, F=POINT`, and data rows in POINT order formatted with `%.6e` (configurable via the new `fmt` argument). The velocity **Export Mean** path previously used a separate divergent writer (`core/export_tecplot.py`, `DATAPACKING=POINT`, `%.6f`); that module has been removed and Export Mean now produces byte-identical header structure to the Reynolds/TKE exports.
+- The application version is now read from `version.txt` at runtime (window title and About dialog), so future version bumps only require editing that file.
+
+---
+
 ## [v0.6.1]
 
 ### Fixed

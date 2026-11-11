@@ -1,9 +1,15 @@
 @echo off
 REM ============================================================
-REM  build_exe.bat -- uPrime v0.6.1
+REM  build_exe.bat -- uPrime v0.9.2  (PUBLIC build)
 REM  Builds a single-file windowed executable via PyInstaller
 REM  Target: Python 3.11
 REM  Usage:  double-click or run from project root
+REM
+REM  VARIANT: PUBLIC.  DaVis support is NOT included -- lvpyio is
+REM  explicitly excluded so it can never be swept in, even if it
+REM  happens to be installed in the build environment.  To use DaVis
+REM  (.vc7/.vec) loading, run uPrime from source with lvpyio
+REM  installed.
 REM
 REM  Packages bundled:
 REM    matplotlib  -- collect-all (backends, fonts, style data)
@@ -13,27 +19,75 @@ REM    scipy       -- collect-all (signal, ndimage, interpolate, io.matlab)
 REM    pyfftw      -- collect-all + collect-binaries (FFTW DLLs)
 REM    h5py        -- collect-all (v7.3 .mat file reading)
 REM    PIL/Pillow  -- collect-all (image handling)
+REM    openpyxl    -- hidden-import (optional .xlsx reading in Compare
+REM                   Cases; harmless warning if openpyxl is absent)
 REM
-REM  New in v0.6.1:
-REM    Bugfix release on top of v0.6.0.
-REM    - get_masked() preserves input dtype (no longer promotes to float64)
-REM    - .mat loader fills masked regions with NaN (not 0) for display
-REM    - contourf wrapped with np.ma.masked_invalid so NaN renders as
-REM      axes background (white) instead of colormap minimum
-REM    - explicit "Mask convention" dropdown in .mat variable dialog
-REM      replaces the brittle auto-invert heuristic
+REM  New in v0.9.2 (public build):
+REM    - uprime-piv is installed as an alias of the uprime command for pip
+REM      users. This exe is unaffected: it is launched directly.
+REM    - Housekeeping: release-only PyPI publishing, CI actions on Node 24.
 REM
-REM  Carried from v0.6.0:
-REM    MATLAB .mat file input (classic v5/v7 via scipy.io.matlab,
-REM      v7.3 HDF5 via h5py); variable confirmation dialog with
-REM      snapshot subset spinboxes; opt-in float16 storage for
-REM      files >5 GB; TKE Budget stacked-panel line plot
+REM  Carried from v0.9.1 (public build):
+REM    - Published to PyPI as uprime-piv (pip install uprime-piv).
+REM    - pyFFTW is an optional [fft] extra for pip installs. This exe is
+REM      built from requirements.txt and still bundles it, so the FFT tab
+REM      works here as before.
 REM
-REM  Carried from v0.5.1:
-REM    Mean & Convergence module (first tab in main window)
-REM      Tab 1: mean velocity line plots (free / horizontal / vertical)
-REM      Tab 2: cumulative convergence with Welford online algorithm,
-REM             sustained-crossing N* detection
+REM  Carried from v0.9.0 (public build):
+REM    - Installable as a package: pip install -e . and a uprime command.
+REM      Distribution name on PyPI is uprime-piv.
+REM    - Invalid vectors are now honoured per snapshot in all three
+REM      loaders. .dat statistics from v0.4.1-v0.8.2 should be recomputed.
+REM    - DMD handles gaps like POD and reports filled_fraction.
+REM    - One grid convention everywhere: row 0 = smallest y,
+REM      column 0 = smallest x, for .dat, .vc7 and .mat alike.
+REM    - Documented Python API in docs/API.md; CI on Windows, macOS, Linux.
+REM
+REM  Carried from v0.8.2 (public build):
+REM    - Lumley triangle comparison mode in Compare Cases (1D tab):
+REM      -II vs III scatter across cases, drawn with the same boundary
+REM      artwork as the Anisotropy Invariant module (shared gui.lumley_plot
+REM      helper), with an optional shared colorbar for distance-along-line.
+REM
+REM  Carried from v0.8.1:
+REM    - Manual x/y line-coordinate entry in the Anisotropy Invariant
+REM      module, matching Reynolds Stress, TKE Budget and Mean Velocity.
+REM
+REM  Carried from v0.8.0:
+REM    - Probability Analysis module (PDF, Flow Direction, Binary Space-Time,
+REM      Quadrant tabs). Chunked, memmap-safe, NaN-correct accumulators.
+REM
+REM  Carried from v0.7.1:
+REM    - lvpyio EXCLUDED. LaVision DaVis (.vc7/.vec) loading is unavailable
+REM      in this exe. To use DaVis input, run from source with lvpyio
+REM      installed.
+REM    - Orphaned memmap temp-file sweep at startup and before each load.
+REM    - Main window opens ~10% larger (no sidebar scrollbar).
+REM
+REM  New in v0.7.0:
+REM    - Compare Cases viewer (standalone, dataset-independent):
+REM        1D Compare tab -- overlay/compare uPrime's own 1D exports
+REM          (.csv/.xlsx) grouped by variable; styling, merged-CSV +
+REM          300 DPI PNG/PDF/SVG export.
+REM        Field Compare (2D) tab -- tiled contour comparison of 2D
+REM          .dat fields with shared/per-tile colour scaling, plus a
+REM          line-extract mode that samples all components along a
+REM          drawn/manual line into the 1D basket.
+REM    - Manual start/end coordinates for line profiles (Reynolds,
+REM      TKE Budget, Mean Velocity), alongside drawn lines.
+REM    - TKE normalization fix: k/Um^2 (upper) and (P L)/Um^3 (lower)
+REM      applied per panel; normalize checkbox relabelled.
+REM    - Unified 2D .dat export (single canonical Tecplot writer) and
+REM      case-name-prefixed default filenames for .dat exports.
+REM    - Optional DaVis (.vc7/.vec) vector-file support via lvpyio
+REM      (EXCLUDED from this public build).
+REM    - Neutral-grey control indicators; version read from version.txt.
+REM
+REM  Carried from v0.6.x:
+REM    MATLAB .mat input (classic via scipy.io.matlab, v7.3 via h5py);
+REM    variable dialog with snapshot subset + mask convention; opt-in
+REM    float16 for files >5 GB; memory-mapped large datasets; TKE
+REM    Budget stacked-panel line plot; Mean & Convergence module.
 REM
 REM  Carried from v0.5.0:
 REM    PyQt6.QtCore.QThread -- background workers
@@ -45,8 +99,9 @@ python -m pip install pyinstaller --quiet
 pyinstaller ^
     --onefile ^
     --windowed ^
-    --name uPrime_v0.6.1 ^
-    --add-data "assets;assets" ^
+    --name uPrime_v0.9.2 ^
+    --add-data "uprime/assets;assets" ^
+    --add-data "uprime/version.txt;." ^
     --collect-all matplotlib ^
     --hidden-import matplotlib.backends.backend_qtagg ^
     --hidden-import matplotlib.backends.backend_qt ^
@@ -97,6 +152,7 @@ pyinstaller ^
     --collect-all PIL ^
     --hidden-import PIL.Image ^
     --hidden-import PIL.ImageDraw ^
+    --hidden-import openpyxl ^
     --hidden-import concurrent.futures ^
     --hidden-import tempfile ^
     --hidden-import mmap ^
@@ -107,11 +163,13 @@ pyinstaller ^
     --hidden-import threading ^
     --hidden-import queue ^
     --hidden-import gc ^
+    --exclude-module lvpyio ^
+    --exclude-module lvpyio_wrapped ^
     main.py
 echo.
 if errorlevel 1 (
     echo BUILD FAILED. Check output above.
 ) else (
-    echo BUILD COMPLETE: dist\uPrime_v0.6.1.exe
+    echo BUILD COMPLETE: dist\uPrime_v0.9.2.exe
 )
 pause

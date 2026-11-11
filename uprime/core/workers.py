@@ -1,0 +1,256 @@
+"""
+core/workers.py
+---------------
+Reusable QThread worker base class and one worker per heavy computation.
+"""
+
+from PyQt6.QtCore import QThread, pyqtSignal
+import numpy as np
+import traceback
+
+
+class BaseWorker(QThread):
+    """Base class for all uPrime background workers."""
+    finished = pyqtSignal(object)   # emits result dict on success
+    error    = pyqtSignal(str)      # emits traceback string on failure
+    progress = pyqtSignal(int)      # emits 0-100
+
+    def run(self):
+        try:
+            result = self.compute()
+            self.finished.emit(result)
+        except Exception:
+            self.error.emit(traceback.format_exc())
+
+    def compute(self):
+        raise NotImplementedError
+
+
+class PODWorker(BaseWorker):
+    def __init__(self, U, V, W, n_modes):
+        super().__init__()
+        self.U, self.V, self.W = U, V, W
+        self.n_modes = n_modes
+
+    def compute(self):
+        from uprime.core.pod import compute_pod
+        return compute_pod(self.U, self.V, self.W, n_modes=self.n_modes)
+
+
+class DMDWorker(BaseWorker):
+    def __init__(self, U, V, W, mask, component, n_modes, subtract_mean, fs):
+        super().__init__()
+        self.U, self.V, self.W = U, V, W
+        self.mask = mask
+        self.component = component
+        self.n_modes = n_modes
+        self.subtract_mean = subtract_mean
+        self.fs = fs
+
+    def compute(self):
+        from uprime.core.dmd import build_snapshot_matrix, compute_dmd, scale_to_physical
+        U = self.U.copy()
+        V = self.V.copy()
+        W = self.W.copy() if self.W is not None else None
+        if self.subtract_mean:
+            U -= np.nanmean(U, axis=2, keepdims=True)
+            V -= np.nanmean(V, axis=2, keepdims=True)
+            if W is not None:
+                W -= np.nanmean(W, axis=2, keepdims=True)
+        # build_snapshot_matrix resolves the gaps: it drops grid points that
+        # are NaN in 10 % or more of the snapshots and fills the rest with the
+        # point's own temporal mean. That is zero for a mean-subtracted field
+        # and the local mean velocity otherwise, so raw velocity no longer
+        # gets false zeros where vectors were invalid.
+        X, n_per, info = build_snapshot_matrix(U, V, W,
+                                               component=self.component,
+                                               mask=self.mask)
+        rank = min(X.shape[0], X.shape[1] - 1, self.n_modes)
+        result = compute_dmd(X, rank=rank)
+        result = scale_to_physical(result, self.fs)
+        result['n_per'] = n_per
+        # The reduced mask, which the mode viewer must use to map modes back
+        # onto the grid -- its True count is n_per.
+        result['mask'] = info['mask']
+        result['filled_fraction'] = info['filled_fraction']
+        result['n_components'] = info['n_components']
+        return result
+
+
+class TKEBudgetWorker(BaseWorker):
+    def __init__(self, U, V, W, x, y, mask, smooth_kernel, compute_dkdt):
+        super().__init__()
+        self.U, self.V, self.W = U, V, W
+        self.x, self.y = x, y
+        self.mask = mask
+        self.smooth_kernel = smooth_kernel
+        self.compute_dkdt = compute_dkdt
+
+    def compute(self):
+        from uprime.core.tke_budget import compute_tke_budget
+        return compute_tke_budget(self.U, self.V, self.W,
+                                   self.x, self.y,
+                                   mask=self.mask,
+                                   smooth_kernel=self.smooth_kernel,
+                                   compute_dkdt=self.compute_dkdt)
+
+
+class CorrelationWorker(BaseWorker):
+    def __init__(self, U, V, W, x, y, mode, ref_row, ref_col,
+                 component, use_kernel, max_lag_frac, dt,
+                 roi_coords=None):
+        super().__init__()
+        self.U, self.V, self.W = U, V, W
+        self.x, self.y = x, y
+        self.mode = mode
+        self.ref_row = ref_row
+        self.ref_col = ref_col
+        self.component = component
+        self.use_kernel = use_kernel
+        self.max_lag_frac = max_lag_frac
+        self.dt = dt
+        self.roi_coords = roi_coords
+
+    def compute(self):
+        from uprime.core.two_point_corr import (
+            compute_spatial_correlation_point,
+            compute_spatial_correlation_roi,
+            compute_temporal_correlation,
+        )
+        if self.mode == 'spatial_point':
+            R_norm, R_x, R_y = compute_spatial_correlation_point(
+                self.U, self.V, self.W,
+                self.ref_row, self.ref_col,
+                component=self.component,
+                use_kernel=self.use_kernel)
+            return {'mode': 'spatial_point',
+                    'R_norm': R_norm, 'R_x': R_x, 'R_y': R_y}
+
+        elif self.mode == 'spatial_roi':
+            x0, x1, y0, y1 = self.roi_coords
+            dx_arr, R_x, dy_arr, R_y, _Lx, _Ly = compute_spatial_correlation_roi(
+                self.U, self.V, self.W,
+                self.x, self.y,
+                x0, x1, y0, y1,
+                component=self.component)
+            return {'mode': 'spatial_roi',
+                    'dx_arr': dx_arr, 'R_x': R_x,
+                    'dy_arr': dy_arr, 'R_y': R_y}
+
+        else:  # temporal
+            roi_kw  = {}
+            ref_row = self.ref_row
+            ref_col = self.ref_col
+            use_k   = self.use_kernel
+            if self.roi_coords is not None:
+                roi_kw  = dict(roi_coords=self.roi_coords,
+                               x=self.x, y=self.y)
+                ref_row = ref_col = 0
+                use_k   = False
+            R_tau, lags = compute_temporal_correlation(
+                self.U, self.V, self.W,
+                ref_row, ref_col,
+                component=self.component,
+                use_kernel=use_k,
+                max_lag_fraction=self.max_lag_frac,
+                **roi_kw)
+            return {'mode': 'temporal', 'R_tau': R_tau, 'lags': lags}
+
+
+class SpectraWorker(BaseWorker):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.kwargs = kwargs
+
+    def compute(self):
+        from uprime.core.spectra import compute_spectra
+        return compute_spectra(**self.kwargs)
+
+
+class VortexWorker(BaseWorker):
+    """U, V are 2D arrays (pre-averaged or single frame)."""
+    def __init__(self, U, V, x, y, mask, field_key, S):
+        super().__init__()
+        self.U, self.V = U, V
+        self.x, self.y = x, y
+        self.mask = mask
+        self.field_key = field_key
+        self.S = S
+
+    def compute(self):
+        from uprime.core.vortex_id import (compute_gradients, compute_vortex_fields,
+                                     compute_gamma)
+        U, V = self.U, self.V
+        if self.field_key == 'gamma1':
+            g1, g2 = compute_gamma(U, V, self.x, self.y, S=self.S)
+            grads  = compute_gradients(U, V, self.x, self.y, self.mask)
+            omega  = compute_vortex_fields(grads)['omega']
+            return dict(field=g1, gamma2=g2, omega=omega)
+        else:
+            grads  = compute_gradients(U, V, self.x, self.y, self.mask)
+            fields = compute_vortex_fields(grads)
+            return dict(field=fields[self.field_key],
+                        omega=fields['omega'], gamma2=None)
+
+
+class ProbabilityWorker(BaseWorker):
+    """task is one of: 'direction', 'histogram', 'quadrant', 'hole_sweep'."""
+    def __init__(self, task, **kwargs):
+        super().__init__()
+        self.task   = task
+        self.kwargs = kwargs
+
+    def compute(self):
+        from uprime.core import probability as prob
+        cb = self.progress.emit
+        task = self.task
+        kw = self.kwargs
+
+        if task == 'direction':
+            return prob.compute_direction_probability(
+                kw['field'], kw['mask_2d'],
+                deadband=kw.get('deadband', 0.0),
+                chunk=kw.get('chunk', prob.CHUNK_DEFAULT),
+                progress_cb=cb, region=kw.get('region'))
+
+        elif task == 'histogram':
+            edges = prob.estimate_bin_edges(
+                kw['field'], kw['mask_2d'], kw['region'],
+                nbins=kw.get('nbins', 101),
+                robust=kw.get('robust', True)) \
+                if kw.get('bin_edges') is None else kw['bin_edges']
+            counts, n_valid = prob.accumulate_histogram(
+                kw['field'], kw['mask_2d'], kw['region'], edges,
+                chunk=kw.get('chunk', prob.CHUNK_DEFAULT), progress_cb=cb)
+            stats = prob.histogram_stats(counts, edges)
+            return {'counts': counts, 'bin_edges': edges,
+                    'n_valid': n_valid, 'stats': stats}
+
+        elif task == 'quadrant':
+            return prob.compute_quadrant(
+                kw['field_a'], kw['field_b'], kw['mask_2d'],
+                hole=kw.get('hole', 0.0), region=kw.get('region'),
+                joint_bins=kw.get('joint_bins', 101),
+                chunk=kw.get('chunk', prob.CHUNK_DEFAULT), progress_cb=cb)
+
+        elif task == 'hole_sweep':
+            stress_frac, holes = prob.quadrant_hole_sweep(
+                kw['field_a'], kw['field_b'], kw['mask_2d'], kw.get('region'),
+                holes=kw.get('holes'),
+                chunk=kw.get('chunk', prob.CHUNK_DEFAULT), progress_cb=cb)
+            return {'stress_frac': stress_frac, 'holes': holes}
+
+        raise ValueError(f"unknown ProbabilityWorker task: {task!r}")
+
+
+class ReynoldsWorker(BaseWorker):
+    def __init__(self, U, V, W):
+        super().__init__()
+        self.U, self.V, self.W = U, V, W
+
+    def compute(self):
+        from uprime.core.reynolds_stress import (compute_reynolds_stresses,
+                                           compute_reynolds_stress_std)
+        stresses, k = compute_reynolds_stresses(self.U, self.V, self.W)
+        std = compute_reynolds_stress_std(self.U, self.V, self.W)
+        return dict(stresses=stresses, k=k, std=std)

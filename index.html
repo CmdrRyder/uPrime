@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>uPrime - PIV & CFD Velocity Field Analysis Software</title>
-  <meta name="description" content="GUI-based velocity field analysis software for PIV and CFD. Turbulence analysis without scripting. Reads Tecplot .dat and MATLAB .mat files.">
-  <meta name="keywords" content="PIV, CFD, turbulence, Reynolds stresses, TKE budget, POD, DMD, vortex identification, MATLAB mat, DaVis, open source">
+  <meta name="description" content="GUI-based velocity field analysis software for PIV and CFD. Turbulence analysis without scripting. Velocity PDFs, backflow probability and quadrant analysis. Reads Tecplot .dat and MATLAB .mat files.">
+  <meta name="keywords" content="PIV, CFD, turbulence, Reynolds stresses, TKE budget, POD, DMD, vortex identification, probability density function, quadrant analysis, backflow, MATLAB mat, DaVis, open source">
+  <meta name="msvalidate.01" content="B8145C4EA0D9F4D5F2A67E683A145639" />
   <meta property="og:title" content="uPrime - PIV & CFD Velocity Field Analysis">
   <meta property="og:description" content="Standalone desktop application for turbulence post-processing. No scripting required.">
   <meta property="og:type" content="website">
@@ -46,6 +47,19 @@
     }
     .buttons {
       margin-bottom: 32px;
+    }
+    .pip-install {
+      margin: 4px 0 0;
+      font-size: 0.88rem;
+      color: #8b949e;
+    }
+    .pip-install code {
+      background: #0d1117;
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: #79c0ff;
+      font-size: 0.9rem;
+      border: 1px solid #21262d;
     }
     a.button {
       display: inline-block;
@@ -240,18 +254,18 @@
 <div class="container">
 
   <!-- Logo -->
-  <img class="logo" src="assets/logo_dark.png" alt="uPrime logo">
+  <img class="logo" src="uprime/assets/logo_dark.png" alt="uPrime logo">
 
   <!-- Tagline -->
   <p class="tagline">Turbulence is complex. Analysis shouldn't be.</p>
 
   <!-- Badges -->
   <div class="badges">
-    <span class="badge highlight">v0.6.1 alpha</span>
+    <span class="badge highlight">v0.9.2</span>
     <span class="badge">Python 3.10+</span>
     <span class="badge">GPLv3</span>
     <span class="badge">Windows · macOS · Linux</span>
-    <span class="badge">.dat &middot; .mat</span>
+    <span class="badge">.dat &middot; .mat &middot; .vc7</span>
   </div>
 
   <!-- Description -->
@@ -263,26 +277,50 @@
 
   <!-- Buttons -->
   <div class="buttons">
-    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/latest">Download v0.6.1</a>
+    <a class="button" href="https://github.com/CmdrRyder/uPrime/releases/latest">Download v0.9.2</a>
     <a class="button secondary" href="https://github.com/CmdrRyder/uPrime">View on GitHub</a>
     <a class="button secondary" href="https://doi.org/10.5281/zenodo.19376184">DOI</a>
-    <a class="button secondary" href="https://github.com/CmdrRyder/uPrime/tree/main/docs/Manual.pdf">Manual (PDF)</a>
+    <a class="button secondary" href="docs/Manual.pdf">Manual (PDF)</a>
+    <p class="pip-install">Python users: <code>pip install uprime-piv</code> &rarr; run with: <code>uprime</code></p>
   </div>
 
   <!-- GUI Screenshot -->
-  <img class="gui-img" src="docs/images/gui_v061.png" alt="uPrime v0.6.1 GUI"
-       onerror="this.onerror=null;this.src='docs/images/gui_v061.png';">
+  <img class="gui-img" src="docs/images/gui_v08.png" alt="uPrime v0.8 GUI">
 
   <!-- What's New -->
   <div class="whats-new">
-    <h2>NEW IN v0.6</h2>
+    <h2>NEW IN v0.9.0</h2>
     <ul>
-      <li><strong>Mean &amp; Convergence module</strong>: mean velocity line profiles plus point-wise statistical convergence check using Welford's online algorithm with sustained-crossing N* detection.</li>
-      <li><strong>MATLAB .mat file input</strong>: classic v5/v7 and v7.3 (HDF5). Variable confirmation dialog with auto-detection, snapshot subset spinboxes, single-snapshot rejection.</li>
-      <li><strong>Multi-case comparison</strong>: import previous results as CSV and overlay in Reynolds stress, TKE budget, spectra, correlation, anisotropy, and mean velocity plots.</li>
-      <li><strong>Inline non-convergence notice</strong>: persistent amber top-bar on Reynolds, TKE, and Spectra modules when fewer than 500 snapshots are loaded.</li>
-      <li><strong>TKE budget split panels</strong>: TKE k now plotted in a dedicated upper panel, P/C/D/R in the lower panel sharing the x-axis.</li>
-      <li><strong>Float16 storage option</strong> for .mat files exceeding 5 GB, with explicit warning about reduced numerical precision.</li>
+      <li><strong>Installable with pip</strong>: <code>pip install uprime-piv</code> (on PyPI
+          since v0.9.1) gives you a <code>uprime</code> command and an importable
+          <code>uprime</code> package. The package name and the command differ: you
+          install <code>uprime-piv</code> and run <code>uprime</code>.</li>
+      <li><strong>Corrected invalid-vector handling</strong>: a vector marked invalid is now
+          excluded in every snapshot it is invalid in, not just the first. <strong>Statistics
+          produced from <code>.dat</code> data by v0.4.1&ndash;v0.8.2 should be
+          recomputed.</strong></li>
+      <li><strong>Documented Python API</strong>: <code>docs/API.md</code> describes every
+          public function in <code>uprime.core</code>, with a worked example in
+          <code>examples/</code>, so the analysis can be scripted as well as clicked.</li>
+      <li><strong>Consistent grid orientation</strong>: <code>.dat</code>, <code>.vc7</code> and
+          <code>.mat</code> now share one convention &mdash; row 0 at the smallest y, column 0 at
+          the smallest x &mdash; so cases from different sources are directly comparable.</li>
+      <li><strong>Tested on Windows, macOS and Linux</strong>: the suite runs in CI on all three
+          across Python 3.10 and 3.12.</li>
+    </ul>
+  </div>
+
+  <div class="whats-new">
+    <h2>NEW IN v0.8</h2>
+    <ul>
+      <li><strong>Probability Analysis module</strong>: a new window with four tabs covering velocity probability, flow direction, binary space-time maps, and quadrant analysis.</li>
+      <li><strong>PDF tab</strong>: probability density of <code>u</code>, <code>v</code>, <code>w</code>, <code>|V|</code> or their fluctuations, sampled at a point, along a line, inside a dragged ROI, or over the whole field, with an optional matched Gaussian overlay and a mean/std/skewness/kurtosis readout.</li>
+      <li><strong>Flow Direction tab</strong>: per-point forward and reverse flow probability maps, with an explicit FFP <code>P(q &gt; 0)</code> versus RFP <code>P(q &lt; 0)</code> convention carried through the title, colorbar and every export, plus optional Simpson detachment-state contours.</li>
+      <li><strong>Binary Space-Time tab</strong>: the classic space-versus-time map coloured by flow direction along a horizontal or vertical line, with band averaging and normalised axes. Time-resolved data only.</li>
+      <li><strong>Quadrant tab</strong>: Lu &amp; Willmarth quadrant decomposition of a fluctuation pair, with time- and stress-fraction maps, a joint PDF with the hole hyperbola, Q2/Q4 stress maps, and a hole-size sweep.</li>
+      <li><strong>ROI restricts computation</strong>: a dragged ROI limits what is read and computed rather than only what is displayed, so a small ROI on a large dataset is correspondingly cheaper. Regions outside the ROI render in a distinct grey.</li>
+      <li><strong>Compare Cases viewer</strong> (v0.7): standalone window comparing up to six datasets at once, with a 1D overlay plus value table and a 2D Field Compare tiled contour view sharing one color scale.</li>
+      <li><strong>DaVis native input</strong> (v0.7): read LaVision DaVis <code>.vc7</code> and <code>.vec</code> files directly when the optional <strong>lvpyio</strong> package is installed separately (<code>pip install lvpyio</code>). Not bundled in the Windows executable; available when running uPrime from source.</li>
     </ul>
   </div>
 
@@ -353,13 +391,21 @@
       coordinates as 1D vectors or 2D meshgrid (auto-transposed if needed). Variable confirmation dialog
       reads metadata first, so even a 10+ GB file opens the dialog within seconds.
     </p>
+    <p>
+      <strong>LaVision DaVis <code>.vc7</code> / <code>.vec</code></strong> (optional):
+      read DaVis vector files natively when the <strong>lvpyio</strong> package is installed
+      separately (<code>pip install lvpyio</code>). lvpyio is not bundled in the Windows
+      executable, so this input is available when running uPrime from source; once installed,
+      <code>.vc7</code>/<code>.vec</code> files load through the same workflow as <code>.dat</code> and <code>.mat</code>.
+    </p>
   </div>
 
   <!-- Analysis Modules -->
   <div class="modules">
     <h2>Analysis Modules</h2>
     <div class="module-grid">
-      <div class="module-item new"><span class="check">✓</span>Mean &amp; Convergence <span class="module-badge new">v0.6</span></div>
+      <div class="module-item"><span class="check">✓</span>Mean &amp; Convergence</div>
+      <div class="module-item"><span class="check">✓</span>Compare Cases</div>
       <div class="module-item"><span class="check">✓</span>Reynolds Stress Analysis</div>
       <div class="module-item"><span class="check">✓</span>TKE Budget</div>
       <div class="module-item"><span class="check">✓</span>Space-Time Spectral Analysis</div>
@@ -368,6 +414,7 @@
       <div class="module-item"><span class="check">✓</span>POD Analysis</div>
       <div class="module-item"><span class="check">✓</span>DMD Analysis <span class="module-badge">TR only</span></div>
       <div class="module-item"><span class="check">✓</span>Vortex Identification</div>
+      <div class="module-item new"><span class="check">✓</span>Probability Analysis <span class="module-badge new">v0.8</span></div>
       <div class="module-item"><span class="check">✓</span>Mask Editor</div>
       <div class="module-item"><span class="check">✓</span>Coordinate Transform</div>
     </div>

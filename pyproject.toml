@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uprime-piv"
+dynamic = ["version"]
+description = "Open-source velocity field and turbulence analysis for PIV and CFD data"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Jibu Tom Jose", email = "jibu.jose@campus.technion.ac.il" },
+    { name = "Omri Ram", email = "omri.ram@technion.ac.il" },
+]
+keywords = [
+    "particle image velocimetry",
+    "PIV",
+    "CFD",
+    "turbulence",
+    "fluid mechanics",
+    "POD",
+    "DMD",
+    "vortex identification",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "PyQt6>=6.5",
+    "h5py>=3.8",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+# pyFFTW powers only the "Spatial E(k) using FFT" tab. It is an extra rather
+# than a dependency so that uPrime still installs on a Python for which no
+# pyFFTW wheel exists; without it that one tab is disabled.
+fft = ["pyfftw>=0.13"]
+all = ["pyfftw>=0.13"]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://cmdrryder.github.io/uPrime/"
+Repository = "https://github.com/CmdrRyder/uPrime"
+Documentation = "https://cmdrryder.github.io/uPrime/docs/Manual.pdf"
+Issues = "https://github.com/CmdrRyder/uPrime/issues"
+
+[project.scripts]
+uprime = "uprime.app:main"
+# Alias, so the command can also be typed as the package name.
+uprime-piv = "uprime.app:main"
+
+[tool.setuptools.dynamic]
+version = { file = "uprime/version.txt" }
+
+[tool.setuptools.packages.find]
+include = ["uprime*"]
+
+[tool.setuptools.package-data]
+uprime = ["version.txt", "assets/*"]
