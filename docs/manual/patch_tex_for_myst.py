@@ -216,7 +216,6 @@ TRANSFORMS = [
     convert_accents,
     fix_color_mixing,
     demote_headings,
-    remove_includes,
 ]
 
 
