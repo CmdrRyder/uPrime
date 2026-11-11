@@ -50,17 +50,23 @@ def replace_macro(text: str, macro: str, replacement_fn) -> str:
 # ---------------------------------------------------------------------------
 
 ADMONITION_MAP = {
-    'notebox': 'note',
-    'tipbox': 'tip',
-    'warnbox': 'warning',
-    'stepbox': 'note',       # step-by-step → note (MyST has no "step" admonition)
-    'mdframed': 'note',      # mdframed → note
+    'notebox': 'Note',
+    'tipbox': 'Tip',
+    'warnbox': 'Warning',
+    'stepbox': 'Step',
+    'mdframed': 'Note',
 }
 
 
 def convert_admonitions(text: str) -> str:
-    """Convert \\begin{xbox}...\\end{xbox} and mdframed to MyST admonition fences."""
-    for env, directive in ADMONITION_MAP.items():
+    """Convert \\begin{xbox}...\\end{xbox} and mdframed to a quote + textbf block.
+
+    MyST's LaTeX parser does not support `framed` or backtick admonition
+    fences inside .tex files. The `quote` environment is supported and renders
+    as a blockquote, so we pair it with \\textbf{Label:} for the admonition
+    title.
+    """
+    for env, label in ADMONITION_MAP.items():
         # mdframed may have optional [args]
         if env == 'mdframed':
             begin_pat = re.compile(
@@ -80,7 +86,7 @@ def convert_admonitions(text: str) -> str:
             inner = text[bmatch.end():ematch.start()]
             # Strip leading/trailing blank lines from inner content
             inner = inner.strip('\n')
-            replacement = f'```{{{directive}}}\n{inner}\n```'
+            replacement = f'\\begin{{quote}}\n\\textbf{{{label}:}}\n{inner}\n\\end{{quote}}'
             text = text[:bmatch.start()] + replacement + text[ematch.end():]
     return text
 

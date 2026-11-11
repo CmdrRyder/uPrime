@@ -3,9 +3,10 @@
 
 Open from `3.\ Analysis $\to$ DMD Analysis`.
 
-```{note}
+\begin{quote}
+\textbf{Note:}
 DMD requires \textbf{time-resolved} data and at least 50 snapshots. The button is greyed out for non-TR datasets.
-```
+\end{quote}
 
 Dynamic Mode Decomposition (DMD) extracts spatial modes that oscillate at a single frequency and grow or decay at a single rate. Unlike POD, DMD modes are not ordered by energy but by their dynamic content. This makes DMD ideal for isolating periodic phenomena such as vortex shedding, acoustic resonances, or shear layer flapping (Schmid, 2010; Tu et al., 2014).
 
@@ -13,13 +14,14 @@ Dynamic Mode Decomposition (DMD) extracts spatial modes that oscillate at a sing
 
 \subsection{Computing DMD}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Set `Rank truncation` (default 50). This caps the number of DMD modes.
   \item Optionally enable a Strouhal number normalization with a reference length and velocity.
   \item Click `Compute DMD`.
 \end{enumerate}
-```
+\end{quote}
 
 \subsection{Spectrum tab}
 
@@ -36,9 +38,10 @@ Displays the spatial structure (real and imaginary parts) of the currently selec
   \label{fig:dmd_mode}
 \end{figure}
 
-```{tip}
+\begin{quote}
+\textbf{Tip:}
 The real and imaginary parts of a DMD mode represent the two phases of the oscillation separated by a quarter period. Animating between them (real $\to$ imaginary $\to$ $-$real $\to$ $-$imaginary) gives a physical sense of how the structure evolves in time.
-```
+\end{quote}
 
 \subsection{Exporting}
 

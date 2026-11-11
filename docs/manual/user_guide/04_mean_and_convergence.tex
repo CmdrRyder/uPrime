@@ -12,14 +12,15 @@ The module has two tabs: `Mean Velocity` (line profiles) and `Convergence` (cumu
 
 This tab plots $\langle U \rangle$, $\langle V \rangle$, and (for stereo data) $\langle W \rangle$ along a user-drawn line, in the same style as Reynolds stress line profiles.
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Choose line orientation: `Free`, `Horizontal`, or `Vertical`.
   \item For Horizontal or Vertical, set `Spatial avg $\pm$ pts` to average over neighboring rows or columns and reduce noise.
   \item Left-click and drag on the |⟨U⟩| field (left panel) to draw the line, \emph{or} enter the endpoints $(x_0, y_0)$ and $(x_1, y_1)$ numerically and click `Set Line` (v0.7.0; see Figure~\ref{fig:coordentry}).
   \item Click `Plot Profile`.
 \end{enumerate}
-```
+\end{quote}
 
 \begin{figure}[htbp]
   \centering
@@ -32,16 +33,18 @@ This tab plots $\langle U \rangle$, $\langle V \rangle$, and (for stereo data) $
 
 A checkbox labeled `Normalize by $U_m$` and a paired spinbox let you divide the plotted velocity components by a user-supplied bulk or reference velocity. When checked, the y-axis labels switch to \texttt{U/U\_m [-]}, \texttt{V/U\_m [-]}, etc. The arc-length axis is not normalized, matching the convention used elsewhere in \href{https://cmdrryder.github.io/uPrime/}{uPrime}.
 
-```{tip}
+\begin{quote}
+\textbf{Tip:}
 Set $U_m$ to the bulk velocity, free-stream velocity, or any reference value for your flow. Profiles are then directly comparable across cases at different Reynolds numbers.
-```
+\end{quote}
 
 \subsubsection{Multi-case comparison}
 \label{sec:meanvel_compare}
 
 \href{https://cmdrryder.github.io/uPrime/}{uPrime} can overlay imported cases (CSV files exported from previous \href{https://cmdrryder.github.io/uPrime/}{uPrime} sessions or other tools that follow the same column layout) on top of the current profile. This is useful for comparing experimental runs, conditions, or numerical-versus-experimental data.
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Click `Import Case\ldots` and select a CSV file.
   \item The imported case is added to the case list with an auto-assigned color and dashed linestyle.
@@ -49,7 +52,7 @@ Set $U_m$ to the bulk velocity, free-stream velocity, or any reference value for
   \item Use `Manage Cases\ldots` to rename or remove cases.
   \item The current $U_m$ setting is compared against the \texttt{\# U\_m =} header in each imported CSV. If they differ, a status-bar warning is shown for that specific case so you can manually re-normalize before publishing.
 \end{enumerate}
-```
+\end{quote}
 
 The same multi-case workflow is available in Reynolds Stress, TKE Budget, Spectra, Correlation, and Anisotropy windows (see Chapter~\ref{ch:multicase}).
 
@@ -84,7 +87,8 @@ where $W = \max(50, N/10)$ and $\sigma_{\mathrm{scale}}$ is component-aware: $\s
 
 \subsubsection{Using the tab}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Set `Kernel size` (odd integer, default 3). The picked point is averaged over a $k \times k$ neighborhood. Larger kernels reduce noise but cannot pick points within $\lfloor k/2 \rfloor$ of the boundary.
   \item Left-click on the field to pick a point. Points within the boundary margin (shaded grey) are rejected with a status-bar message.
@@ -93,7 +97,7 @@ where $W = \max(50, N/10)$ and $\sigma_{\mathrm{scale}}$ is component-aware: $\s
   \item Choose `Grid layout` (one subplot per component-order combination, raw values) or `Single plot` (all selected curves overlaid, normalized).
   \item Click `Compute Convergence`.
 \end{enumerate}
-```
+\end{quote}
 
 \begin{figure}[htbp]
   \centering
@@ -128,9 +132,10 @@ In single-plot mode, every selected curve is normalized by its own scale $\sigma
 
 Click `Export CSV\ldots` to save the cumulative moments. The header block records the picked point indices and physical coordinates, the kernel size, the three thresholds, the dataset $N_{\mathrm{total}}$, and the $N^*$ value computed for each quantity. The columns are $N$, $\langle u' \rangle_N$, $\langle u'u' \rangle_N$, $\langle u'u'u' \rangle_N$, $\langle v' \rangle_N$, ..., adding $w$ components for stereo data.
 
-```{tip}
+\begin{quote}
+\textbf{Tip:}
 First and second moments typically converge with a few hundred snapshots in well-mixed regions. Third moments often require 5000 or more, and may not converge at all in regions of low intensity. A non-converging $\langle u'u'u' \rangle$ is not necessarily a problem for second-order statistics; the convergence module simply makes this explicit.
-```
+\end{quote}
 
 \subsection{Inline non-convergence notice}
 \label{sec:convnotice}

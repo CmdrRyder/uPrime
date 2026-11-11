@@ -26,11 +26,11 @@ Transforms custom LaTeX constructs that MyST can't parse:
 
 | LaTeX | Becomes |
 |-------|---------|
-| `\begin{notebox}…\end{notebox}` | ` ```{note} … ``` ` |
-| `\begin{tipbox}…\end{tipbox}` | ` ```{tip} … ``` ` |
-| `\begin{warnbox}…\end{warnbox}` | ` ```{warning} … ``` ` |
-| `\begin{stepbox}…\end{stepbox}` | ` ```{note} … ``` ` |
-| `\begin{mdframed}[…]…\end{mdframed}` | ` ```{note} … ``` ` |
+| `\begin{notebox}…\end{notebox}` | `\begin{quote} \textbf{Note:} … \end{quote}` |
+| `\begin{tipbox}…\end{tipbox}` | `\begin{quote} \textbf{Tip:} … \end{quote}` |
+| `\begin{warnbox}…\end{warnbox}` | `\begin{quote} \textbf{Warning:} … \end{quote}` |
+| `\begin{stepbox}…\end{stepbox}` | `\begin{quote} \textbf{Step:} … \end{quote}` |
+| `\begin{mdframed}[…]…\end{mdframed}` | `\begin{quote} \textbf{Note:} … \end{quote}` |
 | `\uipth{X}` | `` `X` `` |
 | `\software{uPrime}` | `\href{https://cmdrryder.github.io/uPrime/}{uPrime}` |
 | `\chapter{X}` | `\section{X}` (headings demoted one level) |

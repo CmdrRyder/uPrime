@@ -14,9 +14,10 @@ From planar PIV, the dissipation $\varepsilon$ and pressure diffusion cannot be 
 
 Spatial gradients are computed using central differences with NaN-inpainting near mask boundaries to prevent spurious gradients at wall and shadow edges. Triple correlations for turbulent diffusion are optionally smoothed with a median filter before differentiation to reduce noise amplification.
 
-```{note}
+\begin{quote}
+\textbf{Note:}
 The residual $R$ absorbs pressure diffusion and viscous dissipation, which cannot be computed from planar PIV. A non-zero residual is expected and is \emph{not} an error in the calculation.
-```
+\end{quote}
 
 \noindent\textbf{Reference:} Pope, S.B. (2000). \textit{Turbulent Flows}. Cambridge University Press.
 
@@ -39,7 +40,8 @@ $\partial k/\partial t$ & Unsteady term             & TR data only \\
 
 \subsection{Using the window}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Set parameters: enter $U_m$ and $L$ if normalising. Adjust the smoothing kernel if the field is noisy.
   \item Click `Compute Budget` (only needs to be done once per session).
@@ -47,7 +49,7 @@ $\partial k/\partial t$ & Unsteady term             & TR data only \\
   \item Choose `2D Contour` or `Line Profile`.
   \item Click `Plot`.
 \end{enumerate}
-```
+\end{quote}
 
 In line profile mode the line can be drawn by click-and-drag on the field or set exactly via the $(x_0, y_0)$--$(x_1, y_1)$ coordinate boxes (v0.7.0; see Figure~\ref{fig:coordentry}). TKE $k$ is always overlaid as a dashed reference line regardless of which budget term is selected. Term-visibility checkboxes (`P`, `C`, `D`, `R`) below the plot control which budget terms appear. All four are checked by default; unchecking one hides it without recomputing.
 
@@ -58,9 +60,10 @@ In line profile mode the line can be drawn by click-and-drag on the field or set
   \label{fig:tkebudget}
 \end{figure}
 
-```{tip}
+\begin{quote}
+\textbf{Tip:}
 Enable `Normalize by $U_m^3/L$` to make the budget terms non-dimensional. TKE $k$ is normalized by $U_m^2$. This is essential when comparing results across different flow conditions or Reynolds numbers.
-```
+\end{quote}
 
 \subsection{Multi-case comparison}
 

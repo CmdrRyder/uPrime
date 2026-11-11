@@ -3,9 +3,10 @@
 
 Open from `2.\ Preprocess $\to$ Transform / Align\ldots`.
 
-```{warning}
+\begin{quote}
+\textbf{Warning:}
 Transforms modify the dataset \textbf{in memory} and cannot be undone. If you make a mistake, click `Reload Last Dataset` in the sidebar to reload from disk and start again.
-```
+\end{quote}
 
 In PIV experiments, the camera is rarely perfectly aligned with the flow geometry. Even a $1^\circ$ tilt introduces errors in all derived quantities, including mean profiles, Reynolds stresses, line profiles, and integral scales. Always apply the transform \emph{before} opening any analysis module.
 
@@ -18,18 +19,20 @@ In PIV experiments, the camera is rarely perfectly aligned with the flow geometr
 
 \subsection{Rotation}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Left-click and drag on the field preview to draw a reference line along any feature that should be perfectly horizontal or vertical (wall, step edge, pipe centerline).
   \item The misalignment angle is computed automatically and shown in the `Correction angle` field.
   \item Choose `Linear` (fast) or `Cubic` (smoother, recommended for final results).
   \item Click `Apply Rotation`.
 \end{enumerate}
-```
+\end{quote}
 
-```{note}
+\begin{quote}
+\textbf{Note:}
 Rotation is limited to $\pm10^\circ$. For larger corrections, fix the calibration in DaVis and re-export your data.
-```
+\end{quote}
 
 \subsection{Origin shift}
 

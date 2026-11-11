@@ -3,9 +3,10 @@
 
 Open from `3.\ Analysis $\to$ Anisotropy Invariants`.
 
-```{note}
+\begin{quote}
+\textbf{Note:}
 This module requires \textbf{stereo PIV (2D3C)} data. It is not available for 2D2C datasets.
-```
+\end{quote}
 
 The Reynolds stress tensor $b_{ij} = \langle u'_i u'_j \rangle / (2k) - \delta_{ij}/3$ is a symmetric, traceless tensor that describes the anisotropy of the turbulence. Its eigenvalues $\lambda_1 \geq \lambda_2 \geq \lambda_3$ satisfy $\lambda_1 + \lambda_2 + \lambda_3 = 0$. The invariants of $b_{ij}$,
 \[
@@ -17,14 +18,15 @@ define a two-dimensional state space. All physically realizable turbulence state
 
 \subsection{Lumley triangle mode}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Ensure `Line (Lumley triangle)` is selected.
   \item Choose `Free`, `Horizontal`, or `Vertical` line orientation.
   \item Left-click and drag on the mean field to draw the sampling line.
   \item Click `Compute`.
 \end{enumerate}
-```
+\end{quote}
 
 Reading the triangle: the top vertex represents one-component turbulence; the bottom-left vertex represents two-component axisymmetric (disk-like) turbulence; the bottom-right vertex represents two-component axisymmetric (rod-like) turbulence; the origin represents isotropic turbulence. Points outside the boundary indicate numerical issues (insufficient snapshots or masked regions).
 
@@ -37,13 +39,14 @@ Reading the triangle: the top vertex represents one-component turbulence; the bo
 
 \subsection{Barycentric map mode}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Select `Rectangle (Barycentric map)`.
   \item Left-click and drag to draw a rectangular region on the field.
   \item Click `Compute`.
 \end{enumerate}
-```
+\end{quote}
 
 The map colors each grid point by its anisotropy state: red = one-component, blue = two-component axisymmetric, green = three-component (near isotropic). Check `Median filter` to apply a $3\times3$ spatial smoothing to reduce noise.
 

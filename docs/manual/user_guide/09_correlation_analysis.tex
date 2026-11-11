@@ -20,14 +20,15 @@ measures the degree to which velocity fluctuations at two different locations ar
 
 \subsection{Spatial correlation}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Select Point or ROI mode and pick your reference on the field.
   \item Choose the velocity component: R$_{uu}$, R$_{vv}$, or R$_{ww}$.
   \item Select the `Scale method` (Table~\ref{tab:scalemethods}).
   \item Click `Compute Spatial Correlation`.
 \end{enumerate}
-```
+\end{quote}
 
 In Point mode you see the full 2D correlation map and two independent 1D slice panels. In ROI mode only the 1D panels are shown. The computed $L_x$ and $L_y$ are displayed in the readout strip at the bottom of the window. A vertical dashed line marks the crossing lag used by the selected scale method; for the zero-crossing method, this line is placed at the lag where $R$ first crosses zero, while $L$ is reported as the integral of $R$ up to that crossing. Click `Show Diagnostic Plot` to see the cumulative integral of $R(\Delta r)$.
 
@@ -54,13 +55,15 @@ Domain integral & When no zero crossing exists and you want a conservative upper
 \end{tabular}
 \end{table}
 
-```{tip}
+\begin{quote}
+\textbf{Tip:}
 If unsure, start with \textbf{Zero crossing}. If the correlation does not have a clean crossing (common for low-Reynolds-number flows or short datasets), switch to \textbf{Exponential fit}.
-```
+\end{quote}
 
 \subsection{Temporal correlation (TR only)}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Click the `Temporal` tab.
   \item Pick a reference point or draw an ROI as before.
@@ -68,7 +71,7 @@ If unsure, start with \textbf{Zero crossing}. If the correlation does not have a
   \item Select the Scale method.
   \item Click `Compute Temporal Correlation`.
 \end{enumerate}
-```
+\end{quote}
 
 Results show $R(\tau)$ vs time lag $\tau$ in milliseconds, with integral time scale $T$ and Taylor microscale $\lambda_t$ marked.
 

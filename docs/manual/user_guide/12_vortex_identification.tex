@@ -38,14 +38,15 @@ where $\mathcal{S}$ is a local neighborhood of $N$ points around $P$, $\widehat{
 
 \subsection{Field View tab}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Select the scalar field and input (mean or instantaneous frame).
   \item Click `Compute Field`.
   \item Set the threshold fraction and sign filter, then click `Detect Vortices`.
   \item Check `Show vortex boundaries` to overlay detected contours on the colormap.
 \end{enumerate}
-```
+\end{quote}
 
 The threshold is expressed as a fraction of the field maximum, making it dataset-agnostic. The actual physical value is shown in the readout next to the slider. For the $\Gamma$ criteria the threshold has a universal meaning ($|\Gamma_1| = 0.6$ corresponds to the standard core boundary); for gradient-based criteria it is dataset-dependent and must be chosen by the user.
 
@@ -56,9 +57,10 @@ The threshold is expressed as a fraction of the field maximum, making it dataset
   \label{fig:vortex_field}
 \end{figure}
 
-```{tip}
+\begin{quote}
+\textbf{Tip:}
 For PIV data, start with $\Gamma_1/\Gamma_2$, which is most robust to measurement noise. Cross-check with Q-criterion or $\lambda_{ci}$. If the two methods agree, the detected structures are reliable.
-```
+\end{quote}
 
 \subsection{Vortex Statistics tab}
 

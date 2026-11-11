@@ -15,17 +15,19 @@ The modes are ordered by their energy content: Mode 1 captures the largest fract
 
 \subsection{Computing POD}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Set `Modes to compute` (default 25). Increasing this takes longer.
   \item Click `Compute POD`. For large datasets this may take several seconds to a minute.
   \item All four tabs populate automatically when done.
 \end{enumerate}
-```
+\end{quote}
 
-```{note}
+\begin{quote}
+\textbf{Note:}
 POD uses all velocity components simultaneously (U+V for 2D2C; U+V+W for 2D3C). The energy percentage of each mode reflects the combined energy across all components.
-```
+\end{quote}
 
 \subsection{Energy Spectrum tab}
 
@@ -62,13 +64,14 @@ Shows the temporal coefficient time series $a_n(t)$ for the selected mode and it
   \label{fig:pod_recon}
 \end{figure}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Drag the `Snapshot` slider to select a snapshot.
   \item Set `Modes for reconstruction` (minimum 1).
   \item Click `Reconstruct`.
 \end{enumerate}
-```
+\end{quote}
 
 The three panels show the original field, the low-order reconstruction, and the residual. A residual below 10--20\% RMS generally means the selected modes capture the dominant structure.
 

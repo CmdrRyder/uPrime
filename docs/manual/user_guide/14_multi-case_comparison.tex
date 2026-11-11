@@ -43,8 +43,9 @@ Click `Export All Cases\ldots` to save the current dataset and all visible impor
 
 \href{https://cmdrryder.github.io/uPrime/}{uPrime} reads metadata from CSV headers when available. For Mean Velocity profiles, the \texttt{\# U\_m =} header is read per imported case. If the imported $U_m$ differs from the current setting, a status-bar warning is shown for that specific case so you can manually re-normalize before publishing.
 
-```{warning}
+\begin{quote}
+\textbf{Warning:}
 \href{https://cmdrryder.github.io/uPrime/}{uPrime} does not automatically convert units between cases. If your imported CSV uses different units (mm vs m, m/s vs U/U\_m, etc.), the comparison will be misleading. Check the header values and re-export the source data in a consistent format if needed.
-```
+\end{quote}
 
 % ============================= CHAPTER 15 ==============================

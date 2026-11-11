@@ -11,22 +11,24 @@ The diagonal components $\langle u'u' \rangle$, $\langle v'v' \rangle$, $\langle
 
 For 2D2C data, only $\langle u'u' \rangle$, $\langle v'v' \rangle$, and $\langle u'v' \rangle$ are available. All six components are computed for stereo (2D3C) data.
 
-```{tip}
+\begin{quote}
+\textbf{Tip:}
 The shear stress $\langle u'v' \rangle$ is particularly useful for identifying shear layers and recirculation zones: it changes sign across the centreline of a jet or shear layer, and its peak magnitude locates the region of maximum turbulent momentum transfer.
-```
+\end{quote}
 
 \noindent\textbf{Reference:} Pope, S.B. (2000). \textit{Turbulent Flows}. Cambridge University Press.
 
 \subsection{2D contour map}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Select `2D Contour Map` under Plot Mode.
   \item Choose the component from the `Component` dropdown.
   \item Optionally check `Scale by $U_m^2$` and enter the bulk velocity $U_m$ to non-dimensionalise.
   \item Click `Plot Contour`.
 \end{enumerate}
-```
+\end{quote}
 
 \begin{figure}[htbp]
   \centering
@@ -37,7 +39,8 @@ The shear stress $\langle u'v' \rangle$ is particularly useful for identifying s
 
 \subsection{Line profile}
 
-```{note}
+\begin{quote}
+\textbf{Step:}
 \begin{enumerate}[leftmargin=1.5em, topsep=2pt]
   \item Select `Line Profile` under Plot Mode.
   \item Choose line orientation: `Free`, `Horizontal`, or `Vertical`.
@@ -45,7 +48,7 @@ The shear stress $\langle u'v' \rangle$ is particularly useful for identifying s
   \item Left-click and drag on the left field panel to draw the line, \emph{or} type the endpoint coordinates $(x_0, y_0)$ and $(x_1, y_1)$ into the `Line coordinates` boxes and click `Set Line` to place the line exactly (v0.7.0). Manual entry is useful for reproducing the same line across cases or datasets.
   \item Click `Plot Line Profile`.
 \end{enumerate}
-```
+\end{quote}
 
 All available stress components are plotted together. Check `Show $\pm1\sigma$ band` to display uncertainty bands. From v0.5.0 onward this checkbox is unchecked by default; the bands tend to crowd plots when multiple cases are overlaid for comparison.
 
