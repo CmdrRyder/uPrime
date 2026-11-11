@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  build_exe.bat -- uPrime v0.9.1  (PUBLIC build)
+REM  build_exe.bat -- uPrime v0.9.2  (PUBLIC build)
 REM  Builds a single-file windowed executable via PyInstaller
 REM  Target: Python 3.11
 REM  Usage:  double-click or run from project root
@@ -22,7 +22,12 @@ REM    PIL/Pillow  -- collect-all (image handling)
 REM    openpyxl    -- hidden-import (optional .xlsx reading in Compare
 REM                   Cases; harmless warning if openpyxl is absent)
 REM
-REM  New in v0.9.1 (public build):
+REM  New in v0.9.2 (public build):
+REM    - uprime-piv is installed as an alias of the uprime command for pip
+REM      users. This exe is unaffected: it is launched directly.
+REM    - Housekeeping: release-only PyPI publishing, CI actions on Node 24.
+REM
+REM  Carried from v0.9.1 (public build):
 REM    - Published to PyPI as uprime-piv (pip install uprime-piv).
 REM    - pyFFTW is an optional [fft] extra for pip installs. This exe is
 REM      built from requirements.txt and still bundles it, so the FFT tab
@@ -94,7 +99,7 @@ python -m pip install pyinstaller --quiet
 pyinstaller ^
     --onefile ^
     --windowed ^
-    --name uPrime_v0.9.1 ^
+    --name uPrime_v0.9.2 ^
     --add-data "uprime/assets;assets" ^
     --add-data "uprime/version.txt;." ^
     --collect-all matplotlib ^
@@ -165,6 +170,6 @@ echo.
 if errorlevel 1 (
     echo BUILD FAILED. Check output above.
 ) else (
-    echo BUILD COMPLETE: dist\uPrime_v0.9.1.exe
+    echo BUILD COMPLETE: dist\uPrime_v0.9.2.exe
 )
 pause

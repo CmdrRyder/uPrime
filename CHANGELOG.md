@@ -4,6 +4,41 @@ All notable changes to uPrime are documented here.
 
 ---
 
+## [0.9.2] - 2026-11-11
+
+Housekeeping after the PyPI launch: clearer install instructions, a
+release-only publishing workflow, and descriptions that stay intact on PyPI.
+
+### Added
+- **`uprime-piv` command alias** — the command can now be typed as the package
+  name, `uprime-piv`, as well as `uprime`; both launch the same app. The alias
+  is created only when uPrime 0.9.2 or later is installed, so an existing 0.9.1
+  install gets it with `pip install --upgrade uprime-piv`.
+
+### Changed
+- **Install instructions show the run command** — the README, `docs/API.md`,
+  `CONTRIBUTING.md` and the website now say that you install `uprime-piv` but
+  run `uprime`.
+- **Publishing is release-only** — `.github/workflows/publish.yml` no longer
+  has a manual TestPyPI run. Publishing a GitHub release is its only trigger,
+  and the upload still waits for approval in the protected `pypi` environment
+  after the tag check.
+- **README images and links pinned to the release tag** — the logo,
+  screenshots and the Manual, API and example links point at `v0.9.2` rather
+  than `main`, so the description frozen into each PyPI release keeps working
+  if files move.
+- **PyPI documentation link** — now opens the user manual instead of repeating
+  the homepage.
+- **CI actions on Node 24** — `actions/checkout` and `actions/setup-python` v7,
+  `actions/upload-artifact` v7 and `actions/download-artifact` v8, replacing
+  versions GitHub flagged as running on the deprecated Node 20.
+
+### Removed
+- **Hardcoded version badge in the README** — the PyPI badge shows the
+  current version and updates itself.
+
+---
+
 ## [0.9.1] - 2026-11-11
 
 uPrime is now on PyPI, so Python users on Windows, macOS and Linux can install

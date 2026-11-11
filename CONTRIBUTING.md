@@ -23,8 +23,13 @@ Then launch the app either way:
 
 ```bash
 uprime              # console script installed by pip
+uprime-piv          # alias of the same command (since v0.9.2)
 python main.py      # thin launcher, equivalent
 ```
+
+The package name and the command differ: users `pip install uprime-piv` from
+PyPI and run `uprime`. `uprime-piv` is registered as an alias in
+`pyproject.toml` so that typing the package name also works.
 
 Optional extras:
 
@@ -108,7 +113,13 @@ also reads as the package version. Bumping a release means editing these:
 - [ ] `build_exe.bat` — the header comment, `--name`, the final `BUILD COMPLETE`
       echo, and a new "New in" REM block (keep the older ones)
 - [ ] `.github/workflows/build-test.yml` — the `--name` in the PyInstaller step
-- [ ] `README.md` — version badge, Development Status, citation line
+- [ ] `build_exe_TFML.bat` (local, gitignored) — same edits as `build_exe.bat`
+- [ ] `README.md` — Development Status and citation line. There is no
+      version badge to bump; the PyPI badge updates itself
+- [ ] `README.md` — the five `raw/vX.Y.Z/` image links and three
+      `blob/vX.Y.Z/` file links, pinned to the new tag. The README is
+      frozen into each PyPI release, so pinning keeps old descriptions
+      working if files move on `main`
 - [ ] `index.html` — version badge, the download button text, and a "NEW IN"
       block (keep the older ones)
 - [ ] `CITATION.cff` — `version:` and `date-released:` (keep the concept DOI,

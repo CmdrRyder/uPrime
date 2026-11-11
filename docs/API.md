@@ -17,6 +17,10 @@ from uprime.core.loader import load_dataset
 from uprime.core.reynolds_stress import compute_reynolds_stresses
 ```
 
+Install with `pip install uprime-piv`. The package name, the import name and
+the command differ: you install `uprime-piv`, import `uprime`, and launch the
+GUI with the `uprime` command (or its alias, `uprime-piv`).
+
 ---
 
 ## Data conventions
@@ -562,7 +566,8 @@ exists, it is the supported way to observe progress.
 
 **`pyfftw` is an optional extra.** Only `spatial_spectra_fft` uses it, and it
 imports it at module level, so importing that module without pyFFTW raises an
-`ImportError` naming the fix: `pip install "uprime-piv[fft]"`. Nothing else in
+`ImportError` naming the fix: `pip install "uprime-piv[fft]"` (the GUI is still
+launched with `uprime`). Nothing else in
 `uprime.core` depends on it, and `spectra.compute_spectra` imports it only when
 asked for `tab='3d_spatial'`. In the GUI, the **Spatial E(k) using FFT** tab is
 disabled when pyFFTW is absent and every other tab works. The Windows

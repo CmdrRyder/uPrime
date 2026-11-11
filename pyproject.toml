@@ -58,11 +58,13 @@ dev = ["pytest>=7.0"]
 [project.urls]
 Homepage = "https://cmdrryder.github.io/uPrime/"
 Repository = "https://github.com/CmdrRyder/uPrime"
-Documentation = "https://cmdrryder.github.io/uPrime/"
+Documentation = "https://cmdrryder.github.io/uPrime/docs/Manual.pdf"
 Issues = "https://github.com/CmdrRyder/uPrime/issues"
 
 [project.scripts]
 uprime = "uprime.app:main"
+# Alias, so the command can also be typed as the package name.
+uprime-piv = "uprime.app:main"
 
 [tool.setuptools.dynamic]
 version = { file = "uprime/version.txt" }
