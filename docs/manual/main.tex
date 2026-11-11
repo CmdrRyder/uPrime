@@ -42,10 +42,10 @@
     linkcolor   = upblue,
     urlcolor    = upblue,
     citecolor   = upblue,
-    pdftitle    = {uPrime v0.6.0: Open-Source PIV Post-Processing and Turbulence Analysis Software, User Manual},
+    pdftitle    = {uPrime v0.8: Open-Source PIV Post-Processing and Turbulence Analysis Software, User Manual},
     pdfauthor   = {Jibu Tom Jose},
     pdfsubject  = {Particle Image Velocimetry, Turbulence Analysis, Open-Source Software},
-    pdfkeywords = {PIV, turbulence, Reynolds stresses, TKE budget, POD, DMD, vortex identification, spectral analysis, two-point correlation, anisotropy invariants, mean and convergence, MATLAB mat file, open-source, DaVis, LaVision},
+    pdfkeywords = {PIV, turbulence, Reynolds stresses, TKE budget, POD, DMD, vortex identification, spectral analysis, two-point correlation, anisotropy invariants, probability density function, quadrant analysis, ejections and sweeps, reverse flow probability, backflow coefficient, binary space-time map, mean and convergence, MATLAB mat file, open-source, DaVis, LaVision},
     pdfcreator  = {uPrime, Transient Fluid Mechanics Laboratory, Technion},
     pdflang     = {en-US},
 }
@@ -55,7 +55,7 @@
 % -----------------------------------------------------------------------
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\textcolor{upgray}{uPrime v0.6.0 -- User Manual}}
+\fancyhead[L]{\small\textcolor{upgray}{uPrime v0.8.0 -- User Manual}}
 \fancyhead[R]{\small\textcolor{upgray}{\leftmark}}
 \fancyfoot[C]{\small\textcolor{upgray}{\thepage}}
 \renewcommand{\headrulewidth}{0.4pt}
@@ -159,7 +159,7 @@
 
 \begin{flushleft}
   \hspace{2mm}{\LARGE\bfseries\textcolor{upblue}{User Manual}}\\[0.4cm]
-  \hspace{2mm}{\normalsize\textcolor{upgray}{Version 0.6\quad$\cdot$\quad Alpha Release}}
+  \hspace{2mm}{\normalsize\textcolor{upgray}{Version 0.8.0\quad$\cdot$\quad Alpha Release}}
 \end{flushleft}
 
 \vfill
@@ -189,12 +189,12 @@
 
 \section*{Abstract}
 
-\software{uPrime} is an open-source, cross-platform desktop application for the post-processing and turbulence analysis of planar velocity fields obtained from particle image velocimetry (PIV) and computational fluid dynamics (CFD). The software provides an integrated graphical environment covering the full range of standard turbulence diagnostics: mean velocity profiles with cumulative-statistics convergence verification, Reynolds normal and shear stresses, turbulent kinetic energy (TKE) budgets, one-dimensional and two-dimensional spatial and temporal power spectral densities, two-point spatial and temporal correlation functions with automatic integral length and time scale extraction, turbulence anisotropy analysis via the Lumley triangle and barycentric maps, snapshot Proper Orthogonal Decomposition (POD) with modal energy spectra and low-order flow field reconstruction, Dynamic Mode Decomposition (DMD) with frequency-growth rate spectra and spatial mode visualization, and vortex identification using five scalar criteria including gradient-based methods and the Graftieaux $\Gamma$ functions. All analyzes are accessible through a labeled graphical interface without requiring programming knowledge, making the tool accessible to students and researchers new to quantitative flow analysis.
+\software{uPrime} is an open-source, cross-platform desktop application for the post-processing and turbulence analysis of planar velocity fields obtained from particle image velocimetry (PIV) and computational fluid dynamics (CFD). The software provides an integrated graphical environment covering the full range of standard turbulence diagnostics: mean velocity profiles with cumulative-statistics convergence verification, Reynolds normal and shear stresses, turbulent kinetic energy (TKE) budgets, one-dimensional and two-dimensional spatial and temporal power spectral densities, two-point spatial and temporal correlation functions with automatic integral length and time scale extraction, turbulence anisotropy analysis via the Lumley triangle and barycentric maps, snapshot Proper Orthogonal Decomposition (POD) with modal energy spectra and low-order flow field reconstruction, Dynamic Mode Decomposition (DMD) with frequency-growth rate spectra and spatial mode visualization, vortex identification using five scalar criteria including gradient-based methods and the Graftieaux $\Gamma$ functions, and probability analysis comprising velocity and fluctuation probability density functions, forward- and reverse-flow probability maps for separation diagnostics, binary space-time maps of coherent structure passage, and quadrant analysis of the Reynolds shear stress with hole-size conditioning. All analyzes are accessible through a labeled graphical interface without requiring programming knowledge, making the tool accessible to students and researchers new to quantitative flow analysis.
 
 \software{uPrime} reads multi-snapshot Tecplot ASCII \texttt{.dat} files exported from LaVision DaVis, as well as MATLAB \texttt{.mat} files (classic v5/v7 and HDF5-based v7.3). It supports both 2D two-component (2D2C) and stereo three-component (2D3C) PIV datasets. It includes coordinate transformation tools for correcting camera calibration misalignment, snapshot subsampling for efficient handling of large time-resolved datasets, and a multi-case import and comparison workflow for overlaying results from different experiments or runs. Figures are exportable as PNG (300\,DPI) or vector graphics (PDF, SVG) with editable text, facilitating direct integration into publication workflows.
 
 \vspace{0.5cm}
-\noindent\textbf{Keywords:} particle image velocimetry; turbulence post-processing; Reynolds stresses; turbulent kinetic energy budget; power spectral density; two-point correlation; integral length scale; Lumley triangle; Proper Orthogonal Decomposition; Dynamic Mode Decomposition; vortex identification; mean and convergence; MATLAB \texttt{.mat} input; open-source software; LaVision DaVis
+\noindent\textbf{Keywords:} particle image velocimetry; turbulence post-processing; Reynolds stresses; turbulent kinetic energy budget; power spectral density; two-point correlation; integral length scale; Lumley triangle; Proper Orthogonal Decomposition; Dynamic Mode Decomposition; vortex identification; probability density function; quadrant analysis; ejections and sweeps; reverse-flow probability; backflow coefficient; binary space-time map; mean and convergence; MATLAB \texttt{.mat} input; open-source software; LaVision DaVis
 
 \tableofcontents
 \clearpage
@@ -214,9 +214,11 @@
 \include{user_guide/10_pod_analysis}
 \include{user_guide/11_dmd_analysis}
 \include{user_guide/12_vortex_identification}
-\include{user_guide/13_multi-case_comparison}
-\include{user_guide/14_tips_workflow_and_troubleshooting}
-\include{user_guide/15_mouse_and_keyboard_reference}
+\include{user_guide/13_probability_analysis}
+\include{user_guide/14_multi-case_comparison}
+\include{user_guide/15_compare_cases}
+\include{user_guide/16_tips_workflow_and_troubleshooting}
+\include{user_guide/17_mouse_and_keyboard_reference}
 \include{user_guide/appendix_A_citing_uprime}
 \include{user_guide/appendix_B_sample_dataset}
 \include{user_guide/appendix_C_version_history}

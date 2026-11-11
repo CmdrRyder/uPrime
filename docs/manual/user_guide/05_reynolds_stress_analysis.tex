@@ -42,7 +42,7 @@ The shear stress $\langle u'v' \rangle$ is particularly useful for identifying s
   \item Select \uipth{Line Profile} under Plot Mode.
   \item Choose line orientation: \uipth{Free}, \uipth{Horizontal}, or \uipth{Vertical}.
   \item For Horizontal/Vertical, set \uipth{Spatial avg $\pm$ pts} to average over neighboring rows or columns and reduce noise.
-  \item Left-click and drag on the left field panel to draw the line.
+  \item Left-click and drag on the left field panel to draw the line, \emph{or} type the endpoint coordinates $(x_0, y_0)$ and $(x_1, y_1)$ into the \uipth{Line coordinates} boxes and click \uipth{Set Line} to place the line exactly (v0.7.0). Manual entry is useful for reproducing the same line across cases or datasets.
   \item Click \uipth{Plot Line Profile}.
 \end{enumerate}
 \end{stepbox}
@@ -54,6 +54,13 @@ All available stress components are plotted together. Check \uipth{Show $\pm1\si
   \includegraphics[width=0.92\linewidth]{fig3}
   \caption{Reynolds stress window in line profile mode. All stress components are plotted simultaneously in different colors. Optional shaded bands show $\pm 1\sigma$ statistical uncertainty (toggle in the side panel).}
   \label{fig:reynolds_profile}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.6\linewidth]{fig_coord_entry}
+  \caption{Manual line-coordinate entry (v0.7.0). In any Line Profile mode the endpoints can be set numerically as $(x_0, y_0)$ and $(x_1, y_1)$ instead of, or in addition to, click-and-drag. The same coordinate boxes appear in Reynolds Stress, TKE Budget, and Mean Velocity line profiles, so an identical line can be reproduced exactly across datasets.}
+  \label{fig:coordentry}
 \end{figure}
 
 \section{Multi-case comparison}

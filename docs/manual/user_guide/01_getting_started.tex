@@ -27,6 +27,10 @@ The workflow is always the same:
   \item Perform Proper Orthogonal Decomposition (POD) with energy spectra, mode shapes, and flow reconstruction.
   \item Perform Dynamic Mode Decomposition (DMD) with frequency spectra and spatial mode visualization (TR only).
   \item Identify vortex cores and boundaries using five scalar criteria: vorticity, Q-criterion, swirling strength, $\lambda_2$, and $\Gamma_1$/$\Gamma_2$ (Graftieaux).
+  \item Compute probability density functions of the velocity components and their fluctuations at a point, along a line, in a region of interest, or over the whole field, with skewness and flatness.
+  \item Map forward-flow and reverse-flow probability (backflow coefficient) to locate and quantify intermittent separation.
+  \item Plot binary space-time maps of the fluctuation sign along a line to visualise the passage of coherent structures (TR only).
+  \item Decompose the Reynolds shear stress into ejections, sweeps, and interactions by quadrant analysis, with a hole-size sweep and joint PDF.
   \item Import multiple cases (CSV) and overlay them in Reynolds stress, TKE budget, spectra, correlation, anisotropy, and mean velocity plots for direct visual comparison.
   \item Apply and manage non-destructive spatial masks.
   \item Correct camera calibration misalignment, shift the coordinate origin, and mirror the dataset.
@@ -67,7 +71,7 @@ All Python dependencies are installed automatically via \texttt{pip install -r r
 
 \subsection{Option A: Windows executable (recommended for non-developers)}
 
-Download \texttt{uPrime\_v0.6.0.exe} from the
+Download \texttt{uPrime\_v0.7.1.exe} from the
 \href{https://github.com/CmdrRyder/uPrime/releases}{GitHub Releases page}
 and double-click to launch. No Python or any other software is required.
 
@@ -131,6 +135,8 @@ When you select a \texttt{.mat} file, \software{uPrime} reads only the variable 
 \end{figure}
 
 \paragraph{Snapshot subset.} The dialog includes Start, End, and Step spinboxes. They allow loading only a slice (e.g.\ snapshots 0--999) or a strided subsample (e.g.\ every 10th snapshot from 0 to 9999). The estimated in-memory size updates live. This is useful for preliminary inspection of very large files before committing to the full load.
+
+\paragraph{Mask convention.} A \uipth{Mask convention} dropdown sits next to the isValid selector. The default, \uipth{1 = valid (uPrime default)}, matches the \texttt{.dat} convention. If your file uses the opposite convention (for example a \texttt{Mask} variable where 1 marks points to \emph{exclude}), select \uipth{1 = invalid (mask out)}. \software{uPrime} applies the chosen convention directly, with no auto-detection. After loading, the status bar warns if the resulting masked fraction is extreme (below 5\% or above 95\%); if that warning is unexpected, reload with the other convention.
 
 \paragraph{Progress feedback.} For v7.3 files (HDF5), the read is chunked snapshot-by-snapshot and the progress bar advances determinately. For classic \texttt{.mat} files, the read is a single blocking call from \texttt{scipy.io}, so a busy indicator is shown along with the file size in the status bar. After the read, the status bar prints a confirmation listing the chosen variables and snapshot count, for example:
 

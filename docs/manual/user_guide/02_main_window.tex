@@ -8,7 +8,7 @@ When \software{uPrime} launches you will see a welcome screen. The sidebar on th
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.92\linewidth]{fig0}
-  \caption{\software{uPrime} v0.6.0 welcome screen on launch. The sidebar shows Step~1 (Load Data) only. The \uipth{? Manual} button is visible in the top right. Load \texttt{.dat} or \texttt{.mat} files from the sidebar to begin.}
+  \caption{\software{uPrime} v0.7.0 welcome screen on launch. The sidebar shows Step~1 (Load Data) only. The \uipth{? Manual} button is visible in the top right. Load \texttt{.dat} or \texttt{.mat} files from the sidebar to begin.}
   \label{fig:welcome}
 \end{figure}
 
@@ -58,7 +58,7 @@ Click \uipth{Mask Editor\ldots} to draw additional spatial masks over regions yo
 
 Click any analysis button to open that module in its own window. Multiple analysis windows can be open at the same time and can be compared side by side. The recommended starting point is \uipth{Mean \& Convergence} (Chapter~\ref{ch:meanconv}); from there proceed to Reynolds stresses, TKE budget, and the higher-order modules as appropriate.
 
-All heavy computations (POD, DMD, TKE budget, correlation, vortex identification) run in a background thread so the main window remains fully responsive during computation. A progress indicator appears below the compute button while the calculation is in progress.
+All heavy computations (POD, DMD, TKE budget, correlation, vortex identification, probability analysis) run in a background thread so the main window remains fully responsive during computation. A progress indicator appears below the compute button while the calculation is in progress.
 
 \section{Acquisition type and sampling frequency}
 
@@ -197,7 +197,7 @@ Memory-mapped loading requires free disk space on your system temp drive equal t
 \end{notebox}
 
 \begin{warnbox}
-If \software{uPrime} crashes or is forcibly closed, the temporary file may not be deleted. In that case, navigate to your system temp folder and delete any files named \texttt{uprime\_memmap\_*.bin} manually to recover disk space.
+If \software{uPrime} crashes or is forcibly closed, a temporary file may be left behind. From v0.7.1, \software{uPrime} automatically sweeps orphaned \texttt{uprime\_memmap\_*} files at startup and before each new data load, so leftovers from a previously crashed session are cleared the next time you open the program or load data. Files belonging to a currently running session (or to another running instance) are never touched, so manual deletion from the system temp folder is now rarely necessary.
 \end{warnbox}
 
 The key practical differences when memory-mapped loading is active:
