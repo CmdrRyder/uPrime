@@ -178,14 +178,26 @@ def fix_color_mixing(text: str) -> str:
     return text
 
 
-def convert_chapter(text: str) -> str:
-    """\\chapter{...} → # ... (MyST heading level 1).
+def demote_headings(text: str) -> str:
+    """Demote heading levels by one: subsection→subsubsection, section→subsection, chapter→section.
 
-    Actually MyST already converts \\chapter to a heading, so we leave it.
-    But we strip it to a markdown heading for cleaner output.
+    Must be applied deepest-first to avoid cascading (e.g. section→subsection
+    then that new subsection→subsubsection).
     """
-    # Leave \\chapter as-is; MyST handles it (converts to heading depth 2).
+    # \subsection (and \subsection*) → \subsubsection (deepest first)
+    text = re.sub(r'\\subsection\*', r'\\subsubsection*', text)
+    text = re.sub(r'\\subsection\b', r'\\subsubsection', text)
+    # \section (and \section*) → \subsection
+    text = re.sub(r'\\section\*', r'\\subsection*', text)
+    text = re.sub(r'\\section\b', r'\\subsection', text)
+    # \chapter → \section
+    text = re.sub(r'\\chapter\b', r'\\section', text)
     return text
+
+
+def remove_includes(text: str) -> str:
+    """Remove \\include{...} lines (used in main.tex; each file is built independently by MyST)."""
+    return re.sub(r'^\s*\\include\{[^}]*\}\s*\n', '', text, flags=re.MULTILINE)
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +215,8 @@ TRANSFORMS = [
     remove_addlinespace,
     convert_accents,
     fix_color_mixing,
+    demote_headings,
+    remove_includes,
 ]
 
 
