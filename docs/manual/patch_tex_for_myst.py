@@ -49,22 +49,27 @@ def replace_macro(text: str, macro: str, replacement_fn) -> str:
 # Transformations
 # ---------------------------------------------------------------------------
 
+# Labels must be bare keywords (no colon) matching MyST's GitHub-style
+# admonition kinds: note, tip, important, warning, caution.
+# myst-transforms converts a blockquote starting with \textbf{<keyword>}
+# into a real admonition node.
 ADMONITION_MAP = {
     'notebox': 'Note',
     'tipbox': 'Tip',
     'warnbox': 'Warning',
-    'stepbox': 'Step',
+    'stepbox': 'Important',
     'mdframed': 'Note',
 }
 
 
 def convert_admonitions(text: str) -> str:
-    """Convert \\begin{xbox}...\\end{xbox} and mdframed to a quote + textbf block.
+    """Convert \\begin{xbox}...\\end{xbox} and mdframed to quote + textbf admonitions.
 
-    MyST's LaTeX parser does not support `framed` or backtick admonition
-    fences inside .tex files. The `quote` environment is supported and renders
-    as a blockquote, so we pair it with \\textbf{Label:} for the admonition
-    title.
+    MyST's LaTeX parser (tex-to-myst) does not support `framed` or backtick
+    admonition fences inside .tex files. The `quote` environment renders as a
+    blockquote, and myst-transforms' GitHub-bold-admonition rule converts a
+    blockquote whose first paragraph starts with \\textbf{Note} (etc.) into a
+    real admonition node. The label must be a bare keyword without a colon.
     """
     for env, label in ADMONITION_MAP.items():
         # mdframed may have optional [args]
@@ -86,7 +91,7 @@ def convert_admonitions(text: str) -> str:
             inner = text[bmatch.end():ematch.start()]
             # Strip leading/trailing blank lines from inner content
             inner = inner.strip('\n')
-            replacement = f'\\begin{{quote}}\n\\textbf{{{label}:}}\n{inner}\n\\end{{quote}}'
+            replacement = f'\\begin{{quote}}\n\\textbf{{{label}}}\n{inner}\n\\end{{quote}}'
             text = text[:bmatch.start()] + replacement + text[ematch.end():]
     return text
 
