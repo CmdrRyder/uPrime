@@ -15,7 +15,7 @@ def clean_filename(title):
     return clean.lower()
 
 def main():
-    input_file = sys.argv[1] if len(sys.argv) > 1 else 'main_0.6.0.tex'
+    input_file = sys.argv[1] if len(sys.argv) > 1 else '../../uPrime_Documentation/_main.tex'
     output_dir = sys.argv[2] if len(sys.argv) > 2 else 'user_guide'
 
     with open(input_file, 'r', encoding='utf-8') as f:
