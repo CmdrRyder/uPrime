@@ -12,7 +12,7 @@ license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [
     { name = "Jibu Tom Jose", email = "jibu.jose@campus.technion.ac.il" },
-    { name = "Omri Ram" },
+    { name = "Omri Ram", email = "omri.ram@technion.ac.il" },
 ]
 keywords = [
     "particle image velocimetry",
