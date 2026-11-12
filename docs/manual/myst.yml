@@ -7,6 +7,12 @@ project:
   # keywords: []
   # authors: []
   github: https://github.com/CmdrRyder/uPrime
+  # Listed in the download menu of every page. The site serves its own copy
+  # (docs.yml stages it to /docs/Manual.pdf); static: false keeps the URL as is.
+  downloads:
+    - url: https://cmdrryder.github.io/uPrime/docs/Manual.pdf
+      title: User Manual (PDF)
+      static: false
   bibliography:
     - references.bib
   # To autogenerate a Table of Contents, run "myst init --write-toc"
@@ -42,3 +48,5 @@ site:
   options:
     favicon: user_guide/logo.png
     logo: user_guide/logo.png
+    logo_dark: user_guide/logo_upblue.png
+    style: style.css

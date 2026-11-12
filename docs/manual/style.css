@@ -1,0 +1,237 @@
+/* uPrime site styles (site.options.style in myst.yml).
+ *
+ * Everything here is scoped to the home page's own classes (up-*) or to an
+ * article that contains the hero, so chapter pages keep the stock book theme.
+ * Colours follow the hand-written landing page (index.html): green primary
+ * button, grey secondary buttons, #58a6ff accent, muted italic tagline.
+ */
+
+:root {
+  --up-muted: #57606a;
+  --up-border: #d0d7de;
+  --up-accent: #0969da;
+  --up-btn-bg: #f6f8fa;
+  --up-btn-bg-hover: #eaeef2;
+  --up-btn-fg: #1f2328;
+  --up-primary: #1f883d;
+  --up-primary-hover: #1a7f37;
+  --up-shadow: 0 1px 3px rgba(31, 35, 40, 0.12), 0 8px 24px rgba(66, 74, 83, 0.12);
+}
+
+html.dark {
+  --up-muted: #8b949e;
+  --up-border: #30363d;
+  --up-accent: #58a6ff;
+  --up-btn-bg: #21262d;
+  --up-btn-bg-hover: #30363d;
+  --up-btn-fg: #e6edf3;
+  --up-primary: #238636;
+  --up-primary-hover: #2ea043;
+  --up-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* ---- remove the book theme's top padding on the home page only -------- */
+article:has(.up-hero) {
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* ---- hero: one compact block --------------------------------------------- */
+/* padding, not margin: the theme resets the top margin of article children */
+.up-hero {
+  text-align: center;
+  padding-top: 1.75rem;
+  margin: 0 0 2rem;
+}
+
+.up-hero p {
+  margin: 0;
+}
+
+/* MyST writes style="margin-left:auto;margin-right:auto" on every image,
+   which spreads flex rows apart, and the theme's prose styles add 2em above
+   and below every image; the hero lays its images out itself */
+.up-hero img {
+  margin: 0 !important;
+}
+
+/* no external-link arrows inside the hero (badges and buttons) */
+.up-hero a > svg {
+  display: none;
+}
+
+/* logo mark and wordmark on one line. The wordmark is the page's top
+   heading; MyST renders it as an h2 because the frontmatter holds the title */
+.up-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 0.3rem;
+}
+
+.up-brand img.up-mark {
+  height: 3.25rem;
+  width: auto;
+}
+
+.up-brand h2 {
+  margin: 0;
+  font-size: 2.75rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* the hidden heading-anchor link (zero width, shown on hover) stays out of
+   the flow so the wordmark sits right beside the mark */
+.up-brand h2 > a[href^='#'] {
+  position: absolute;
+}
+
+.up-tagline p {
+  color: var(--up-muted);
+  font-size: 1.1rem;
+  margin-bottom: 0.65rem;
+}
+
+/* badges: one tight row of small shields */
+.up-badges p {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  line-height: 1;
+}
+
+.up-badges img {
+  display: block;
+  height: 20px;
+  width: auto;
+}
+
+.up-badges a,
+.up-badges a .link-text {
+  display: inline-flex;
+}
+
+/* buttons: a single horizontal row. Three are plain links (a.button); the
+   DOI one is rendered by MyST as a citation, <cite class="button"><a>. */
+.up-buttons p {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.up-buttons cite.button {
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-style: normal;
+}
+
+.up-buttons a.button,
+.up-buttons cite.button > a {
+  display: inline-block;
+  margin: 0;
+  padding: 0.5rem 1.15rem;
+  border: 1px solid var(--up-border);
+  border-radius: 6px;
+  background: var(--up-btn-bg);
+  color: var(--up-btn-fg);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.up-buttons a.button:hover,
+.up-buttons cite.button > a:hover {
+  background: var(--up-btn-bg-hover);
+  color: var(--up-btn-fg);
+  text-decoration: none;
+}
+
+.up-buttons p > a.button:first-child,
+.up-buttons p > a.button:first-child:hover {
+  background: var(--up-primary);
+  border-color: var(--up-primary);
+  color: #ffffff;
+}
+
+.up-buttons p > a.button:first-child:hover {
+  background: var(--up-primary-hover);
+}
+
+/* screenshot directly under the buttons, full content width */
+.up-hero img.up-shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--up-border);
+  border-radius: 10px;
+  box-shadow: var(--up-shadow);
+}
+
+/* ---- prose below the hero: keep a readable measure ---------------------- */
+article:has(.up-hero) p,
+article:has(.up-hero) li {
+  max-width: 78ch;
+}
+
+.up-pip p {
+  color: var(--up-muted);
+  font-size: 0.92rem;
+}
+
+/* highlighted module card (Probability Analysis) */
+.up-card-new {
+  border-color: var(--up-accent) !important;
+}
+
+/* credits footer: centred and compact, no landing-block padding */
+.up-footer {
+  margin: 2.5rem auto 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--up-border);
+  text-align: center;
+  color: var(--up-muted);
+  font-size: 0.9rem;
+}
+
+.up-footer p {
+  margin: 0.35rem auto;
+}
+
+/* ---- phone widths -------------------------------------------------------- */
+@media (max-width: 640px) {
+  .up-brand img.up-mark {
+    height: 2.5rem;
+  }
+
+  .up-brand h2 {
+    font-size: 2.1rem;
+  }
+
+  .up-tagline p {
+    font-size: 1rem;
+  }
+
+  .up-buttons p {
+    gap: 0.45rem;
+  }
+
+  .up-buttons a.button,
+  .up-buttons cite.button > a {
+    padding: 0.45rem 0.8rem;
+    font-size: 0.88rem;
+  }
+}

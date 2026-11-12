@@ -35,6 +35,7 @@ Transforms custom LaTeX constructs that MyST can't parse:
 | `\software{uPrime}` | `\href{https://cmdrryder.github.io/uPrime/}{uPrime}` |
 | `\chapter{X}` | `\section{X}` (headings demoted one level) |
 | `\faExclamationTriangle\quad` | `⚠ ` (a following `\quad` is dropped; maths is untouched) |
+| `\begin{verbatim}`…`\end{verbatim}` | `\begin{lstlisting}[language=bash]`…`\end{lstlisting}` (every verbatim block is a shell command) |
 | `\fcolorbox{..}{..}{X}` / `\parbox{..}{X}` | `X` |
 | `\'{A}`, `\'{e}`, … | Unicode `Á`, `é`, … |
 

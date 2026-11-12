@@ -10,9 +10,7 @@ env:
   # `BASE_URL` determines, relative to the root of the domain, the URL that your site is served from.
   # E.g., if your site lives at `https://mydomain.org/myproject`, set `BASE_URL=/myproject`.
   # If, instead, your site lives at the root of the domain, at `https://mydomain.org`, set `BASE_URL=''`.
-  # The MyST manual is served under /manual/; the hand-written landing page
-  # (index.html) sits at the project root.
-  BASE_URL: /${{ github.event.repository.name }}/manual
+  BASE_URL: /${{ github.event.repository.name }}
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -42,19 +40,23 @@ jobs:
       - name: Build HTML Assets
         working-directory: docs/manual
         run: myst build --html
-      # Assemble the site: the landing page and the files it references at the
-      # root, the search-engine verification files (removing them breaks the
-      # Google and Bing site-ownership checks), and the manual under /manual/.
+      # Assemble the site with the MyST build at the root, then add files MyST
+      # does not produce. They are copied after the MyST output so nothing in
+      # the build can overwrite them:
+      #   - the Google and Bing verification files (removing them breaks
+      #     site ownership in both search consoles);
+      #   - docs/Manual.pdf, the Documentation URL in the published 0.9.2
+      #     PyPI metadata.
       - name: Assemble site
         run: |
-          mkdir -p _site/manual
-          cp index.html _site/
+          mkdir -p _site/docs
+          cp -r docs/manual/_build/html/* _site/
           cp BingSiteAuth.xml google16b4f134179582fc.html _site/
-          mkdir -p _site/docs/images _site/uprime/assets
           cp docs/Manual.pdf _site/docs/
-          cp docs/images/gui_v08.png _site/docs/images/
-          cp uprime/assets/logo_dark.png _site/uprime/assets/
-          cp -r docs/manual/_build/html/* _site/manual/
+          cmp BingSiteAuth.xml _site/BingSiteAuth.xml
+          cmp google16b4f134179582fc.html _site/google16b4f134179582fc.html
+          cmp docs/Manual.pdf _site/docs/Manual.pdf
+          find _site -maxdepth 2 -not -name '*.js' | sort
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:

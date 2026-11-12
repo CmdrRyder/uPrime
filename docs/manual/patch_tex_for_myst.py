@@ -215,6 +215,17 @@ def convert_fa_icons(text: str) -> str:
     return re.sub(r'\\faExclamationTriangle(\\quad(?![a-zA-Z])\s*)?', '⚠ ', text)
 
 
+def convert_verbatim(text: str) -> str:
+    r"""\begin{verbatim} -> \begin{lstlisting}[language=bash].
+
+    MyST warns "Language is not defined for code block" on verbatim, and
+    every verbatim block in the manual is a shell command. lstlisting with
+    a language option is read by MyST as a code block tagged bash.
+    """
+    text = text.replace('\\begin{verbatim}', '\\begin{lstlisting}[language=bash]')
+    return text.replace('\\end{verbatim}', '\\end{lstlisting}')
+
+
 def remove_includes(text: str) -> str:
     """Remove \\include{...} lines (used in main.tex; each file is built independently by MyST)."""
     return re.sub(r'^\s*\\include\{[^}]*\}\s*\n', '', text, flags=re.MULTILINE)
@@ -236,6 +247,7 @@ TRANSFORMS = [
     convert_accents,
     fix_color_mixing,
     convert_fa_icons,
+    convert_verbatim,
     demote_headings,
 ]
 
