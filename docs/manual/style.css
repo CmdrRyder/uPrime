@@ -71,9 +71,15 @@ article:has(.up-hero) li {
   margin: 0 0 1.5rem;
 }
 
+/* every hero line centres on the hero's own axis: the readable-measure rule
+   above (article:has(.up-hero) p) must not narrow these paragraphs, so this
+   selector is deliberately more specific than that one */
+article:has(.up-hero) .up-hero p {
+  max-width: none;
+}
+
 .up-hero p {
   margin: 0;
-  max-width: none;
 }
 
 /* MyST writes style="margin-left:auto;margin-right:auto" on every image,
@@ -257,6 +263,18 @@ article:has(.up-hero) li {
 
 .up-buttons p > a.button:first-child:hover {
   background: var(--up-primary-hover);
+}
+
+/* ---- description under the screenshot: an ~80-character block centred on
+   the same axis as the hero, with the slogan centred beneath it ------------ */
+article:has(.up-hero) .up-intro p {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 80ch;
+}
+
+article:has(.up-hero) .up-intro p:last-child {
+  text-align: center;
 }
 
 /* ---- screenshot: full width of the wide column ---------------------------- */
