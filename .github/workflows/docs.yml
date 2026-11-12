@@ -10,7 +10,9 @@ env:
   # `BASE_URL` determines, relative to the root of the domain, the URL that your site is served from.
   # E.g., if your site lives at `https://mydomain.org/myproject`, set `BASE_URL=/myproject`.
   # If, instead, your site lives at the root of the domain, at `https://mydomain.org`, set `BASE_URL=''`.
-  BASE_URL: /${{ github.event.repository.name }}
+  # The MyST manual is served under /manual/; the hand-written landing page
+  # (index.html) sits at the project root.
+  BASE_URL: /${{ github.event.repository.name }}/manual
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -40,10 +42,23 @@ jobs:
       - name: Build HTML Assets
         working-directory: docs/manual
         run: myst build --html
+      # Assemble the site: the landing page and the files it references at the
+      # root, the search-engine verification files (removing them breaks the
+      # Google and Bing site-ownership checks), and the manual under /manual/.
+      - name: Assemble site
+        run: |
+          mkdir -p _site/manual
+          cp index.html _site/
+          cp BingSiteAuth.xml google16b4f134179582fc.html _site/
+          mkdir -p _site/docs/images _site/uprime/assets
+          cp docs/Manual.pdf _site/docs/
+          cp docs/images/gui_v08.png _site/docs/images/
+          cp uprime/assets/logo_dark.png _site/uprime/assets/
+          cp -r docs/manual/_build/html/* _site/manual/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: 'docs/manual/_build/html'
+          path: '_site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5

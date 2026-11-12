@@ -206,6 +206,15 @@ def demote_headings(text: str) -> str:
     return text
 
 
+def convert_fa_icons(text: str) -> str:
+    r"""\faExclamationTriangle (fontawesome) -> a warning sign, eating a following \quad.
+
+    MyST supports neither macro in text mode. The pattern is matched as a pair,
+    not \quad on its own, so \quad and \qquad inside maths are untouched.
+    """
+    return re.sub(r'\\faExclamationTriangle(\\quad(?![a-zA-Z])\s*)?', '⚠ ', text)
+
+
 def remove_includes(text: str) -> str:
     """Remove \\include{...} lines (used in main.tex; each file is built independently by MyST)."""
     return re.sub(r'^\s*\\include\{[^}]*\}\s*\n', '', text, flags=re.MULTILINE)
@@ -226,6 +235,7 @@ TRANSFORMS = [
     remove_addlinespace,
     convert_accents,
     fix_color_mixing,
+    convert_fa_icons,
     demote_headings,
 ]
 

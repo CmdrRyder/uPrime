@@ -34,6 +34,7 @@ Transforms custom LaTeX constructs that MyST can't parse:
 | `\uipth{X}` | `` `X` `` |
 | `\software{uPrime}` | `\href{https://cmdrryder.github.io/uPrime/}{uPrime}` |
 | `\chapter{X}` | `\section{X}` (headings demoted one level) |
+| `\faExclamationTriangle\quad` | `⚠ ` (a following `\quad` is dropped; maths is untouched) |
 | `\fcolorbox{..}{..}{X}` / `\parbox{..}{X}` | `X` |
 | `\'{A}`, `\'{e}`, … | Unicode `Á`, `é`, … |
 

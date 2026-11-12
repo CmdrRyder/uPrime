@@ -143,7 +143,7 @@ First and second moments typically converge with a few hundred snapshots in well
 The Reynolds Stress, TKE Budget, and Spectral Analysis windows display a persistent amber top-bar label when the loaded dataset has fewer than 500 snapshots:
 
 \begin{center}
-\centering \small \faExclamationTriangle\quad Only \textbf{N=234} snapshots loaded. Statistics may not be converged. Use the Mean \& Convergence module to verify.
+\centering \small ⚠ Only \textbf{N=234} snapshots loaded. Statistics may not be converged. Use the Mean \& Convergence module to verify.
 \end{center}
 
 The label is hidden automatically when the dataset has 500 or more snapshots. Other modules (Correlation, Anisotropy, POD, DMD, Vortex Identification) are silent. The 500 threshold is hardcoded in \texttt{core/constants.py} as \texttt{CONVERGENCE\_WARNING\_N} and can be changed in source builds.
