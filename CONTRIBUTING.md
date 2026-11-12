@@ -122,6 +122,10 @@ also reads as the package version. Bumping a release means editing these:
       working if files move on `main`
 - [ ] `index.html` — version badge, the download button text, and a "NEW IN"
       block (keep the older ones)
+- [ ] `docs/manual/index.md` (the site's home page) — the version badge and the
+      Download button text; rewrite the "What's new in vX.Y.Z" dropdown from
+      the new CHANGELOG section, and move the previous version's notes into
+      "Previous releases"
 - [ ] `CITATION.cff` — `version:` and `date-released:` (keep the concept DOI,
       which covers every version)
 - [ ] `pyproject.toml` — the `Development Status` classifier, if the maturity

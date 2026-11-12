@@ -6,7 +6,7 @@ site:
 ---
 
 ::::::{div}
-:class: up-hero
+:class: up-hero col-page-right
 
 :::::{div}
 :class: up-brand
@@ -40,6 +40,20 @@ _Turbulence is complex. Analysis shouldn\'t be._
 [![PyPI](https://img.shields.io/pypi/v/uprime-piv)](https://pypi.org/project/uprime-piv/)
 :::
 
+::::{div}
+:class: up-pip
+
+```text
+pip install uprime-piv
+```
+
+:::{div}
+:class: up-pip-run
+
+then run `uprime`
+:::
+::::
+
 :::{div}
 :class: up-buttons
 
@@ -49,12 +63,16 @@ _Turbulence is complex. Analysis shouldn\'t be._
 {button}`Manual (PDF) <https://cmdrryder.github.io/uPrime/docs/Manual.pdf>`
 :::
 
-:::{image} gui_v08.png
+::::::
+
+:::{div}
+:class: up-shot-wrap col-page-right
+
+```{image} gui_v08.png
 :alt: uPrime v0.8 GUI
 :class: up-shot
+```
 :::
-
-::::::
 
 [uPrime](https://cmdrryder.github.io/uPrime/) [@jose2026uprime] is a standalone desktop application for post-processing and
 turbulence analysis of velocity field data from PIV and CFD. Reads
@@ -62,232 +80,191 @@ Tecplot ASCII .dat (LaVision DaVis) and MATLAB .mat files.
 
 _No scripting.  No setup. Just analysis._
 
-:::{div}
-:class: up-pip
+:::::::{div}
+:class: up-split col-page-right
 
-Python users: `pip install uprime-piv` → run with: `uprime`
+::::::{div}
+:class: up-features
+
+## Key Features
+
+:::::{div}
+:class: up-feat-grid
+
+::::{div}
+:class: up-feat up-ic-convergence
+
+**Convergence verification**
+
+Cumulative moments at any point, with automatic N\* detection.
+::::
+
+::::{div}
+:class: up-feat up-ic-large
+
+**Large dataset support**
+
+Datasets over 4 GB are memory-mapped: 10,000+ snapshots without running out of RAM.
+::::
+
+::::{div}
+:class: up-feat up-ic-mask
+
+**Non-destructive masking**
+
+Mask walls, shadows and reflections; the raw data is never modified.
+::::
+
+::::{div}
+:class: up-feat up-ic-export
+
+**Publication-ready export**
+
+PNG at 300 DPI, plus PDF and SVG with editable text.
+::::
+
+::::{div}
+:class: up-feat up-ic-exe
+
+**Standalone executable**
+
+A Windows `.exe` with no Python needed; macOS and Linux install with pip.
+::::
+
+::::{div}
+:class: up-feat up-ic-transform
+
+**Transform & alignment**
+
+Rotate, shift and mirror fields to correct camera misalignment.
+::::
+
+::::{div}
+:class: up-feat up-ic-pipeline
+
+**Full turbulence pipeline**
+
+Stresses, TKE budget, spectra, POD, DMD and vortices in one environment.
+::::
+
+::::{div}
+:class: up-feat up-ic-cases
+
+**Multi-case comparison**
+
+Overlay earlier results from CSV, with per-case styling and export.
+::::
+
+:::::
+
+::::::
+
+::::::{div}
+:class: up-modules up-panel
+
+## Analysis Modules
+
+- Mean & Convergence
+- Compare Cases
+- Reynolds Stress Analysis
+- TKE Budget
+- Space-Time Spectral Analysis
+- Anisotropy Invariants {span .up-tag}`Stereo only`
+- Correlation Analysis
+- POD Analysis
+- DMD Analysis {span .up-tag}`TR only`
+- Vortex Identification
+- Probability Analysis
+- Mask Editor
+- Coordinate Transform
+
+::::::
+
+:::::::
+
+::::::{div}
+:class: up-split up-split-news col-page-right
+
+:::::{div}
+:class: up-news-col
+
+## What's new
+
+:::{dropdown} What's new in v0.9.2
+:open:
+:class: up-news
+
+- **`uprime-piv` command alias**: the command can now be typed as the
+  package name, `uprime-piv`, as well as `uprime`. An existing 0.9.1
+  install gets it with `pip install --upgrade uprime-piv`.
+- **Install instructions show the run command**: the README, the API docs
+  and this site now say that you install `uprime-piv` but run `uprime`.
+- **Publishing is release-only**: a GitHub release is the only trigger for a
+  PyPI upload, and the upload still waits for approval.
+- **README images and links pinned to the release tag**, so the description
+  frozen into each PyPI release keeps working if files move.
+- **PyPI documentation link** now opens the user manual.
+- **CI actions on Node 24**, replacing versions GitHub flagged as deprecated.
 :::
 
-:::{note} NEW IN v0.9.0
+::::{dropdown} Previous releases
+:class: up-news
 
-- **Installable with pip**: `pip install uprime-piv` (on PyPI since v0.9.1)
-  gives you a `uprime` command and an importable `uprime` package. The
-  package name and the command differ: you install `uprime-piv` and run
-  `uprime`.
+**v0.9.1** (2026-11-11)
+
+- **Published to PyPI as `uprime-piv`**: `pip install uprime-piv` installs
+  uPrime and the `uprime` command on Windows, macOS and Linux.
+- **pyFFTW is an optional extra**: install it with
+  `pip install "uprime-piv[fft]"`. Without it only the Spatial E(k) using FFT
+  tab is disabled. The Windows executable still bundles it.
+
+**v0.9.0** (2026-11-08)
+
 - **Corrected invalid-vector handling**: a vector marked invalid is now
   excluded in every snapshot it is invalid in, not just the first.
   **Statistics produced from `.dat` data by v0.4.1–v0.8.2 should be
   recomputed.**
-- **Documented Python API**: `docs/API.md` describes every public function
-  in `uprime.core`, with a worked example in `examples/`, so the analysis
-  can be scripted as well as clicked.
-- **Consistent grid orientation**: `.dat`, `.vc7` and `.mat` now share one
-  convention — row 0 at the smallest y, column 0 at the smallest x — so
-  cases from different sources are directly comparable.
-- **Tested on Windows, macOS and Linux**: the suite runs in CI on all three
-  across Python 3.10 and 3.12.
+- **Installable as a package**: `pip install -e .` gives a `uprime` command
+  and an importable `uprime` package.
+- **Documented Python API**: `docs/API.md` covers every public function in
+  `uprime.core`, with a worked example.
+- **One grid convention**: `.dat`, `.vc7` and `.mat` all load with row 0 at
+  the smallest y and column 0 at the smallest x.
+- **DMD handles gaps like POD**, and both report the fraction of filled
+  values.
+- **CI on Windows, macOS and Linux.**
+
+**v0.8.x** (2026-09-01 to 2026-09-03)
+
+- **Probability Analysis module** (0.8.0): PDF, Flow Direction, Binary
+  Space-Time and Quadrant tabs, with a deadband for indeterminate flow
+  direction. A drawn ROI restricts the computation, not only the display.
+- **Manual x/y line entry in Anisotropy Invariants** (0.8.1), with the line
+  recorded in the export.
+- **Lumley triangle comparison in Compare Cases** (0.8.2), with a merged CSV
+  export.
+
+The full history is in the
+[CHANGELOG on GitHub](https://github.com/CmdrRyder/uPrime/blob/main/CHANGELOG.md).
+::::
+:::::
+
+:::::{div}
+:class: up-formats-col
+
+:::{div}
+:class: up-formats up-panel
+
+## Input Formats
+
+- **Tecplot ASCII `.dat`**  One file per snapshot, as exported by LaVision DaVis.
+- **MATLAB `.mat`**  Full time series in one file, classic and v7.3 (HDF5).
+- **DaVis `.vc7` / `.vec`**  Needs lvpyio; works from source or a pip install, not the .exe.
 :::
+:::::
 
-:::{note} NEW IN v0.8
+::::::
 
-- **Probability Analysis module**: a new window with four tabs covering
-  velocity probability, flow direction, binary space-time maps, and
-  quadrant analysis.
-- **PDF tab**: probability density of `u`, `v`, `w`, `|V|` or their
-  fluctuations, sampled at a point, along a line, inside a dragged ROI, or
-  over the whole field, with an optional matched Gaussian overlay and a
-  mean/std/skewness/kurtosis readout.
-- **Flow Direction tab**: per-point forward and reverse flow probability
-  maps, with an explicit FFP `P(q > 0)` versus RFP `P(q < 0)` convention
-  carried through the title, colorbar and every export, plus optional
-  Simpson detachment-state contours.
-- **Binary Space-Time tab**: the classic space-versus-time map coloured by
-  flow direction along a horizontal or vertical line, with band averaging
-  and normalised axes. Time-resolved data only.
-- **Quadrant tab**: Lu & Willmarth quadrant decomposition of a fluctuation
-  pair, with time- and stress-fraction maps, a joint PDF with the hole
-  hyperbola, Q2/Q4 stress maps, and a hole-size sweep.
-- **ROI restricts computation**: a dragged ROI limits what is read and
-  computed rather than only what is displayed, so a small ROI on a large
-  dataset is correspondingly cheaper. Regions outside the ROI render in a
-  distinct grey.
-- **Compare Cases viewer** (v0.7): standalone window comparing up to six
-  datasets at once, with a 1D overlay plus value table and a 2D Field
-  Compare tiled contour view sharing one color scale.
-- **DaVis native input** (v0.7): read LaVision DaVis `.vc7` and `.vec`
-  files directly when the optional **lvpyio** package is installed
-  separately (`pip install lvpyio`). Not bundled in the Windows executable;
-  available when running uPrime from source.
-:::
-
-## Key Features
-
-:::::::::::::::{grid}
-:::{card}
-### 📊 Convergence verification
-
-Cumulative first, second, and third central moments at any picked point,
-with automatic N\* detection. Know whether your statistics are
-trustworthy before you publish them.
-:::
-
-:::{card}
-### 📂 Two input formats
-
-Reads Tecplot ASCII .dat from DaVis (one file per snapshot) and MATLAB
-.mat files (full time series in a single file, classic and v7.3 HDF5).
-Auto-detects variable names.
-:::
-
-:::{card}
-### ⚡ Non-blocking computation
-
-All heavy analysis runs in background threads. The window stays fully
-responsive during POD, DMD, TKE budget, and vortex identification.
-:::
-
-:::{card}
-### 💾 Large dataset support
-
-Datasets exceeding 4 GB are automatically memory-mapped to disk. Handle
-10,000+ snapshots without running out of RAM.
-:::
-
-:::{card}
-### 🎭 Non-destructive masking
-
-Draw masks over walls, shadows, and reflections. Raw data is never
-modified. Toggle masks on and off instantly.
-:::
-
-:::{card}
-### 🔍 Unit auto-detection
-
-Reads mm/m/s units directly from Tecplot .dat file headers and MATLAB
-variable shapes. No manual configuration needed.
-:::
-
-:::{card}
-### 📄 Publication-ready export
-
-PNG (300 DPI), PDF, and SVG with editable text. Compatible with Adobe
-Illustrator and Inkscape.
-:::
-
-:::{card}
-### 🖥️ Standalone executable
-
-Windows .exe with no Python or dependencies required. macOS and Linux
-users run from source in three commands.
-:::
-
-:::{card}
-### 📐 Transform & Alignment
-
-Correct camera misalignment, shift the coordinate origin, and mirror
-datasets. Built for experimental data where even a 1° tilt can corrupt
-turbulence statistics.
-:::
-
-:::{card}
-### 🧠 Full turbulence pipeline
-
-Reynolds stresses, TKE budget, spectra, POD, DMD, correlations, and
-vortex identification, all in one environment. No MATLAB or Python
-required.
-:::
-
-:::{card}
-### 📏 Integral scales & correlation
-
-Compute spatial and temporal correlations with automatic integral length
-and time scale extraction using multiple robust methods.
-:::
-
-:::{card}
-### 🔀 Multi-case comparison
-
-Import previous results as CSV and overlay them on top of the current
-dataset. Per-case styling, manage cases, combined export.
-:::
-:::::::::::::::
-
-:::{note} Input Formats
-
-**Tecplot ASCII `.dat`** (LaVision DaVis export): one file per snapshot,
-select multiple files to load a time series. Variable names and units
-auto-detected from the header. Supports 2D2C and 2D3C (stereo).
-
-**MATLAB `.mat`** (classic v5/v7 and v7.3 HDF5): a single file
-containing the entire dataset. Velocity arrays in shape
-`(Ny, Nx, N_snap)`; coordinates as 1D vectors or 2D meshgrid
-(auto-transposed if needed). Variable confirmation dialog reads metadata
-first, so even a 10+ GB file opens the dialog within seconds.
-
-**LaVision DaVis `.vc7` / `.vec`** (optional): read DaVis vector files
-natively when the **lvpyio** package is installed separately
-(`pip install lvpyio`). lvpyio is not bundled in the Windows executable,
-so this input is available when running uPrime from source; once
-installed, `.vc7`/`.vec` files load through the same workflow as `.dat`
-and `.mat`.
-:::
-
-## Analysis Modules
-
-::::::::::::::{grid}
-:::{card}
-{span .text-green-500}`✓ `Mean & Convergence
-:::
-
-:::{card}
-{span .text-green-500}`✓ `Compare Cases
-:::
-
-:::{card}
-{span .text-green-500}`✓ `Reynolds Stress Analysis
-:::
-
-:::{card}
-{span .text-green-500}`✓ `TKE Budget
-:::
-
-:::{card}
-{span .text-green-500}`✓ `Space-Time Spectral Analysis
-:::
-
-:::{card}
-{span .text-green-500}`✓ `Anisotropy Invariants [Stereo only]
-:::
-
-:::{card}
-{span .text-green-500}`✓ `Correlation Analysis
-:::
-
-:::{card}
-{span .text-green-500}`✓ `POD Analysis
-:::
-
-:::{card}
-{span .text-green-500}`✓ `DMD Analysis [TR only]
-:::
-
-:::{card}
-{span .text-green-500}`✓ `Vortex Identification
-:::
-
-:::{card}
-:class: up-card-new
-{span .text-red-500}`✓ `Probability Analysis [v0.8]
-:::
-
-:::{card}
-{span .text-green-500}`✓ `Mask Editor
-:::
-
-:::{card}
-{span .text-green-500}`✓ `Coordinate Transform
-:::
-::::::::::::::
 
 :::{div}
 :class: up-footer
