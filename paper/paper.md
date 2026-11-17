@@ -15,6 +15,7 @@ authors:
     affiliation: "1"
   - name: Omri Ram
     orcid: 0000-0002-2398-9822
+    email: omri.ram@technion.ac.il
     affiliation: "1"
 affiliations:
   - name: Faculty of Mechanical Engineering, Technion – Israel Institute of Technology, Haifa, Israel
